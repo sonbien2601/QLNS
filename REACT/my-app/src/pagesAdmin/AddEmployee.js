@@ -1,25 +1,33 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import NavigationAdmin from '../components/NavigationAdmin';
-import '../css/style.css';
+import styled from 'styled-components';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 const AddEmployee = () => {
   const [formData, setFormData] = useState({
     fullName: '',
-    username: '', // Thêm trường username
+    username: '',
     email: '',
     password: '',
-    confirmPassword: '', // Thêm trường xác nhận mật khẩu
+    confirmPassword: '',
     phoneNumber: '',
     position: '',
+    basicSalary: '',
+    contractStart: '',
+    contractEnd: '',
+    contractType: '',
+    contractStatus: 'active',
   });
 
-  const [errors, setErrors] = useState({}); // State để lưu các lỗi validation
+  const [errors, setErrors] = useState({});
 
   const validateForm = () => {
     const newErrors = {};
     
-    // Kiểm tra các trường bắt buộc
     if (!formData.fullName) newErrors.fullName = 'Vui lòng nhập tên nhân viên';
     if (!formData.username) newErrors.username = 'Vui lòng nhập tên đăng nhập';
     if (!formData.email) newErrors.email = 'Vui lòng nhập email';
@@ -27,20 +35,21 @@ const AddEmployee = () => {
     if (!formData.confirmPassword) newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
     if (!formData.phoneNumber) newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
     if (!formData.position) newErrors.position = 'Vui lòng nhập chức vụ';
+    if (!formData.basicSalary) newErrors.basicSalary = 'Vui lòng nhập lương cơ bản';
+    if (!formData.contractStart) newErrors.contractStart = 'Vui lòng nhập ngày bắt đầu hợp đồng';
+    if (!formData.contractType) newErrors.contractType = 'Vui lòng chọn loại hợp đồng';
 
-    // Kiểm tra định dạng email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRegex.test(formData.email)) {
       newErrors.email = 'Email không hợp lệ';
     }
 
-    // Kiểm tra mật khẩu khớp nhau
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0; // Trả về true nếu không có lỗi
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleChange = (e) => {
@@ -54,17 +63,21 @@ const AddEmployee = () => {
     e.preventDefault();
     
     if (!validateForm()) {
-      return; // Dừng nếu form không hợp lệ
+      return;
     }
 
     try {
-      const { confirmPassword, ...submitData } = formData; // Loại bỏ trường confirmPassword
+      const { confirmPassword, ...submitData } = formData;
       const response = await axios.post('http://localhost:5000/api/auth/create-user', submitData);
       
       console.log('Tạo tài khoản thành công:', response.data);
-      alert('Tạo tài khoản thành công!');
+      MySwal.fire({
+        icon: 'success',
+        title: 'Thành công!',
+        text: 'Tạo tài khoản nhân viên mới thành công.',
+        confirmButtonColor: '#3085d6',
+      });
       
-      // Reset form
       setFormData({
         fullName: '',
         username: '',
@@ -73,109 +86,337 @@ const AddEmployee = () => {
         confirmPassword: '',
         phoneNumber: '',
         position: '',
+        basicSalary: '',
+        contractStart: '',
+        contractEnd: '',
+        contractType: '',
+        contractStatus: 'active',
       });
       setErrors({});
     } catch (error) {
       console.error('Lỗi khi tạo tài khoản:', error);
-      alert(error.response?.data?.message || 'Tạo tài khoản thất bại, vui lòng thử lại.');
+      MySwal.fire({
+        icon: 'error',
+        title: 'Lỗi!',
+        text: error.response?.data?.message || 'Tạo tài khoản thất bại, vui lòng thử lại.',
+        confirmButtonColor: '#d33',
+      });
     }
   };
 
   return (
-    <div>
+    <PageContainer>
       <NavigationAdmin />
-      <div className="container mt-5">
-        <h2 className="mb-4">Thêm Nhân Viên Mới</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="form-label">Tên Nhân Viên:</label>
-            <input
-              type="text"
-              className={`form-control ${errors.fullName ? 'is-invalid' : ''}`}
-              name="fullName"
-              value={formData.fullName}
-              onChange={handleChange}
-            />
-            {errors.fullName && <div className="invalid-feedback">{errors.fullName}</div>}
-          </div>
+      <ContentContainer>
+        <FormContainer>
+          <FormTitle>Thêm Nhân Viên Mới</FormTitle>
+          <StyledForm onSubmit={handleSubmit}>
+            <FormGrid>
+              <FormGroup>
+                <Label>Tên Nhân Viên:</Label>
+                <Input
+                  type="text"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  isInvalid={!!errors.fullName}
+                  placeholder="Nhập tên đầy đủ của nhân viên"
+                />
+                {errors.fullName && <ErrorMessage>{errors.fullName}</ErrorMessage>}
+              </FormGroup>
 
-          <div className="mb-3">
-            <label className="form-label">Tên đăng nhập:</label>
-            <input
-              type="text"
-              className={`form-control ${errors.username ? 'is-invalid' : ''}`}
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-            />
-            {errors.username && <div className="invalid-feedback">{errors.username}</div>}
-          </div>
+              <FormGroup>
+                <Label>Tên đăng nhập:</Label>
+                <Input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  isInvalid={!!errors.username}
+                  placeholder="Nhập tên đăng nhập"
+                />
+                {errors.username && <ErrorMessage>{errors.username}</ErrorMessage>}
+              </FormGroup>
 
-          <div className="mb-3">
-            <label className="form-label">Email:</label>
-            <input
-              type="email"
-              className={`form-control ${errors.email ? 'is-invalid' : ''}`}
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-            />
-            {errors.email && <div className="invalid-feedback">{errors.email}</div>}
-          </div>
+              <FormGroup>
+                <Label>Email:</Label>
+                <Input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  isInvalid={!!errors.email}
+                  placeholder="example@company.com"
+                />
+                {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
+              </FormGroup>
 
-          <div className="mb-3">
-            <label className="form-label">Mật khẩu:</label>
-            <input
-              type="password"
-              className={`form-control ${errors.password ? 'is-invalid' : ''}`}
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-            />
-            {errors.password && <div className="invalid-feedback">{errors.password}</div>}
-          </div>
+              <FormGroup>
+                <Label>Mật khẩu:</Label>
+                <Input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  isInvalid={!!errors.password}
+                  placeholder="Nhập mật khẩu"
+                />
+                {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
+              </FormGroup>
 
-          <div className="mb-3">
-            <label className="form-label">Xác nhận mật khẩu:</label>
-            <input
-              type="password"
-              className={`form-control ${errors.confirmPassword ? 'is-invalid' : ''}`}
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-            />
-            {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
-          </div>
+              <FormGroup>
+                <Label>Xác nhận mật khẩu:</Label>
+                <Input
+                  type="password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  isInvalid={!!errors.confirmPassword}
+                  placeholder="Nhập lại mật khẩu"
+                />
+                {errors.confirmPassword && <ErrorMessage>{errors.confirmPassword}</ErrorMessage>}
+              </FormGroup>
 
-          <div className="mb-3">
-            <label className="form-label">Số điện thoại:</label>
-            <input
-              type="tel"
-              className={`form-control ${errors.phoneNumber ? 'is-invalid' : ''}`}
-              name="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={handleChange}
-            />
-            {errors.phoneNumber && <div className="invalid-feedback">{errors.phoneNumber}</div>}
-          </div>
+              <FormGroup>
+                <Label>Số điện thoại:</Label>
+                <Input
+                  type="tel"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  isInvalid={!!errors.phoneNumber}
+                  placeholder="Ví dụ: 0123456789"
+                />
+                {errors.phoneNumber && <ErrorMessage>{errors.phoneNumber}</ErrorMessage>}
+              </FormGroup>
 
-          <div className="mb-3">
-            <label className="form-label">Chức vụ:</label>
-            <input
-              type="text"
-              className={`form-control ${errors.position ? 'is-invalid' : ''}`}
-              name="position"
-              value={formData.position}
-              onChange={handleChange}
-            />
-            {errors.position && <div className="invalid-feedback">{errors.position}</div>}
-          </div>
+              <FormGroup>
+                <Label>Chức vụ:</Label>
+                <Input
+                  type="text"
+                  name="position"
+                  value={formData.position}
+                  onChange={handleChange}
+                  isInvalid={!!errors.position}
+                  placeholder="Nhập chức vụ của nhân viên"
+                />
+                {errors.position && <ErrorMessage>{errors.position}</ErrorMessage>}
+              </FormGroup>
 
-          <button type="submit" className="btn btn-primary">Thêm Nhân Viên</button>
-        </form>
-      </div>
-    </div>
+              <FormGroup>
+                <Label>Lương cơ bản:</Label>
+                <Input
+                  type="number"
+                  name="basicSalary"
+                  value={formData.basicSalary}
+                  onChange={handleChange}
+                  isInvalid={!!errors.basicSalary}
+                  placeholder="Nhập lương cơ bản (VNĐ)"
+                />
+                {errors.basicSalary && <ErrorMessage>{errors.basicSalary}</ErrorMessage>}
+              </FormGroup>
+
+              <FormGroup>
+                <Label>Ngày bắt đầu hợp đồng:</Label>
+                <Input
+                  type="date"
+                  name="contractStart"
+                  value={formData.contractStart}
+                  onChange={handleChange}
+                  isInvalid={!!errors.contractStart}
+                />
+                {errors.contractStart && <ErrorMessage>{errors.contractStart}</ErrorMessage>}
+              </FormGroup>
+
+              <FormGroup>
+                <Label>Ngày kết thúc hợp đồng:</Label>
+                <Input
+                  type="date"
+                  name="contractEnd"
+                  value={formData.contractEnd}
+                  onChange={handleChange}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <Label>Loại hợp đồng:</Label>
+                <Select
+                  name="contractType"
+                  value={formData.contractType}
+                  onChange={handleChange}
+                  isInvalid={!!errors.contractType}
+                >
+                  <option value="">Chọn loại hợp đồng</option>
+                  <option value="fullTime">Toàn thời gian</option>
+                  <option value="partTime">Bán thời gian</option>
+                  <option value="temporary">Tạm thời</option>
+                </Select>
+                {errors.contractType && <ErrorMessage>{errors.contractType}</ErrorMessage>}
+              </FormGroup>
+
+              <FormGroup>
+                <Label>Trạng thái hợp đồng:</Label>
+                <Select
+                  name="contractStatus"
+                  value={formData.contractStatus}
+                  onChange={handleChange}
+                >
+                  <option value="active">Đang hoạt động</option>
+                  <option value="inactive">Không hoạt động</option>
+                  <option value="expired">Đã hết hạn</option>
+                </Select>
+              </FormGroup>
+            </FormGrid>
+
+            <SubmitButton type="submit">Thêm Nhân Viên</SubmitButton>
+          </StyledForm>
+        </FormContainer>
+      </ContentContainer>
+    </PageContainer>
   );
 };
+
+// Styled components (cập nhật)
+const PageContainer = styled.div`
+  background-color: #f4f7f9;
+  min-height: 100vh;
+`;
+
+const ContentContainer = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+`;
+
+const FormContainer = styled.div`
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 40px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+`;
+
+const FormTitle = styled.h2`
+  color: #2c3e50;
+  font-size: 28px;
+  margin-bottom: 30px;
+  text-align: center;
+`;
+
+const StyledForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+`;
+
+const FormGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const Label = styled.label`
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #34495e;
+`;
+
+const Input = styled.input`
+  padding: 10px;
+  border: 1px solid ${props => props.isInvalid ? '#e74c3c' : '#ced4da'};
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s;
+
+  &:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  }
+`;
+
+const Select = styled.select`
+  padding: 10px;
+  border: 1px solid ${props => props.isInvalid ? '#e74c3c' : '#ced4da'};
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s;
+
+  &:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  }
+`;
+
+const ErrorMessage = styled.div`
+  color: #e74c3c;
+  font-size: 12px;
+  margin-top: 5px;
+`;
+
+const SubmitButton = styled.button`
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+  align-self: center;
+
+  &:hover {
+    background-color: #2980b9;
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+// SweetAlert styles
+const SweetAlertStyles = `
+  .swal2-popup {
+    font-size: 16px;
+    border-radius: 10px;
+  }
+  .swal2-title {
+    font-size: 24px;
+    color: #2c3e50;
+  }
+  .swal2-content {
+    color: #34495e;
+  }
+  .swal2-confirm {
+    background-color: #3498db !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+  }
+  .swal2-cancel {
+    background-color: #e74c3c !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+  }
+`;
+
+// Thêm styles vào head của document
+const styleElement = document.createElement('style');
+styleElement.innerHTML = SweetAlertStyles;
+document.head.appendChild(styleElement);
 
 export default AddEmployee;

@@ -22,13 +22,8 @@ const NavigationUser = () => {
         {role === 'user' && (
           <>
             <li>
-              <Link to="/user/view-contracts">
+              <Link to="/user/view-contractuser">
                 <i className="fas fa-file-contract"></i> Xem Hợp Đồng
-              </Link>
-            </li>
-            <li>
-              <Link to="/user/view-overview">
-                <i className="fas fa-eye"></i> Xem Tổng Quan
               </Link>
             </li>
             <li>

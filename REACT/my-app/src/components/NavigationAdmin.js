@@ -20,9 +20,20 @@ const NavigationAdmin = () => {
         {/* Hiển thị cho tất cả người dùng */}
         {role === 'admin' && (
           <>
+
+            <li>
+              <Link to="/admin/adminProfile">
+                <i className="fas fa-user-plus"></i> Quản lý hồ sơ
+              </Link>
+            </li>
             <li>
               <Link to="/admin/add-employee">
                 <i className="fas fa-user-plus"></i> Thêm Nhân Viên
+              </Link>
+            </li>
+            <li>
+              <Link to="/admin/contracts">
+                <i className="fas fa-user-plus"></i> Quản Lý Hợp Đồng
               </Link>
             </li>
             <li>
@@ -46,15 +57,15 @@ const NavigationAdmin = () => {
               </Link>
             </li>
             <li>
-          <Link to="/admin/salary">
-            <i className="fas fa-dollar-sign"></i> Quản Lý Lương
-          </Link>
-        </li>
+              <Link to="/admin/salary">
+                <i className="fas fa-dollar-sign"></i> Quản Lý Lương
+              </Link>
+            </li>
             <li>
-          <Link to="/admin/attendance">
-            <i className="fas fa-clock"></i> Xem chấm công
-          </Link>
-        </li>
+              <Link to="/admin/attendance">
+                <i className="fas fa-clock"></i> Xem chấm công
+              </Link>
+            </li>
           </>
         )}
       </ul>

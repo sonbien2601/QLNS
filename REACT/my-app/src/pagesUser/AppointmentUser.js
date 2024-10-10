@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import NavigationUser from '../components/NavigationUser';
-import '../css/style.css';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 const AppointmentStatus = () => {
   const [appointments, setAppointments] = useState([]);
@@ -9,40 +12,61 @@ const AppointmentStatus = () => {
   const [newPosition, setNewPosition] = useState('');
   const [reason, setReason] = useState('');
 
-  // Lấy danh sách bổ nhiệm của user
   useEffect(() => {
-    const fetchAppointments = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:5000/api/auth/user-appointments', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setAppointments(response.data.appointments);
-      } catch (error) {
-        console.error('Lỗi khi lấy danh sách bổ nhiệm', error);
-      }
-    };
     fetchAppointments();
   }, []);
 
-  // Hủy yêu cầu bổ nhiệm
-  const handleCancel = async (appointmentId) => {
-    const confirmCancel = window.confirm('Bạn có chắc chắn muốn hủy yêu cầu này không?');
-    if (!confirmCancel) return;
-
+  const fetchAppointments = async () => {
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/auth/cancel-appointment/${appointmentId}`, {
+      const response = await axios.get('http://localhost:5000/api/auth/user-appointments', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      alert('Yêu cầu bổ nhiệm đã được hủy');
-      setAppointments(appointments.filter((appointment) => appointment._id !== appointmentId));
+      setAppointments(response.data.appointments);
     } catch (error) {
-      alert('Lỗi khi hủy yêu cầu bổ nhiệm');
+      console.error('Lỗi khi lấy danh sách bổ nhiệm', error);
+      MySwal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: 'Không thể tải danh sách bổ nhiệm. Vui lòng thử lại sau.',
+      });
     }
   };
 
-  // Gửi yêu cầu bổ nhiệm
+  const handleCancel = async (appointmentId) => {
+    const result = await MySwal.fire({
+      title: 'Bạn có chắc chắn?',
+      text: "Bạn sẽ không thể hoàn tác hành động này!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Có, hủy yêu cầu!',
+      cancelButtonText: 'Không'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`http://localhost:5000/api/auth/cancel-appointment/${appointmentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        MySwal.fire(
+          'Đã hủy!',
+          'Yêu cầu bổ nhiệm đã được hủy.',
+          'success'
+        );
+        setAppointments(appointments.filter((appointment) => appointment._id !== appointmentId));
+      } catch (error) {
+        MySwal.fire({
+          icon: 'error',
+          title: 'Lỗi',
+          text: 'Không thể hủy yêu cầu bổ nhiệm. Vui lòng thử lại.',
+        });
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -54,90 +78,218 @@ const AppointmentStatus = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      alert('Yêu cầu bổ nhiệm đã được gửi');
-      // Clear form
+      MySwal.fire({
+        icon: 'success',
+        title: 'Thành công!',
+        text: 'Yêu cầu bổ nhiệm đã được gửi.',
+      });
       setOldPosition('');
       setNewPosition('');
       setReason('');
+      fetchAppointments();
     } catch (error) {
-      alert('Lỗi khi gửi yêu cầu bổ nhiệm');
+      MySwal.fire({
+        icon: 'error',
+        title: 'Lỗi',
+        text: 'Không thể gửi yêu cầu bổ nhiệm. Vui lòng thử lại.',
+      });
     }
   };
 
   return (
-    <div className="main-container">
+    <div style={styles.page}>
       <NavigationUser />
-      <div className="content">
-        <h2>Trạng thái bổ nhiệm của bạn</h2>
+      <div style={styles.container}>
+        <h2 style={styles.title}>Trạng thái bổ nhiệm của bạn</h2>
 
-        {/* Form gửi yêu cầu bổ nhiệm */}
-        <form className="appointment-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Vị Trí Cũ:</label>
+        <form style={styles.form} onSubmit={handleSubmit}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Vị Trí Cũ:</label>
             <input
+              style={styles.input}
               type="text"
               value={oldPosition}
               onChange={(e) => setOldPosition(e.target.value)}
+              placeholder="Nhập vị trí cũ"
               required
             />
           </div>
-          <div className="form-group">
-            <label>Vị Trí Mới:</label>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Vị Trí Mới:</label>
             <input
+              style={styles.input}
               type="text"
               value={newPosition}
               onChange={(e) => setNewPosition(e.target.value)}
+              placeholder="Nhập vị trí mới"
               required
             />
           </div>
-          <div className="form-group">
-            <label>Lý Do:</label>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Lý Do:</label>
             <textarea
+              style={styles.textarea}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
+              placeholder="Nhập lý do bổ nhiệm"
               required
             ></textarea>
           </div>
-          <button type="submit" className="submit-btn">Gửi yêu cầu bổ nhiệm</button>
+          <button type="submit" style={styles.submitBtn}>Gửi yêu cầu bổ nhiệm</button>
         </form>
 
-        <table className="applicant-table">
-          <thead>
-            <tr>
-              <th>Vị Trí Cũ</th>
-              <th>Vị Trí Mới</th>
-              <th>Lý Do</th>
-              <th>Trạng Thái</th>
-              <th>Ngày giờ gửi yêu cầu</th> {/* Ngày giờ gửi yêu cầu */}
-              <th>Ngày giờ phê duyệt</th> {/* Ngày giờ phê duyệt */}
-              <th>Ngày giờ từ chối</th> {/* Ngày giờ từ chối */}
-            </tr>
-          </thead>
-          <tbody>
-            {appointments.map((appointment) => (
-              <tr key={appointment._id}>
-                <td>{appointment.oldPosition}</td>
-                <td>{appointment.newPosition}</td>
-                <td>{appointment.reason}</td>
-                <td>{appointment.status === 'pending' ? 'Đang chờ duyệt' : appointment.status === 'approved' ? 'Đã phê duyệt' : 'Bị từ chối'}</td>
-                <td>{new Date(appointment.createdAt).toLocaleString()}</td> {/* Ngày giờ gửi yêu cầu */}
-                <td>{appointment.approvedAt ? new Date(appointment.approvedAt).toLocaleString() : 'Chưa phê duyệt'}</td> {/* Ngày giờ phê duyệt */}
-                <td>{appointment.rejectedAt ? new Date(appointment.rejectedAt).toLocaleString() : 'Chưa từ chối'}</td> {/* Ngày giờ từ chối */}
-                <td>
-                  {appointment.status === 'pending' && (
-                    <button className="cancel-btn" onClick={() => handleCancel(appointment._id)}>
-                      Hủy yêu cầu
-                    </button>
-                  )}
-                </td>
+        <h3 style={styles.subtitle}>Danh sách yêu cầu bổ nhiệm</h3>
+        <div style={styles.tableContainer}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.tableHeader}>Vị Trí Cũ</th>
+                <th style={styles.tableHeader}>Vị Trí Mới</th>
+                <th style={styles.tableHeader}>Lý Do</th>
+                <th style={styles.tableHeader}>Trạng Thái</th>
+                <th style={styles.tableHeader}>Ngày giờ gửi yêu cầu</th>
+                <th style={styles.tableHeader}>Ngày giờ phê duyệt</th>
+                <th style={styles.tableHeader}>Ngày giờ từ chối</th>
+                <th style={styles.tableHeader}>Hành động</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-
+            </thead>
+            <tbody>
+              {appointments.map((appointment) => (
+                <tr key={appointment._id} style={styles.tableRow}>
+                  <td style={styles.tableCell}>{appointment.oldPosition}</td>
+                  <td style={styles.tableCell}>{appointment.newPosition}</td>
+                  <td style={styles.tableCell}>{appointment.reason}</td>
+                  <td style={styles.tableCell}>
+                    {appointment.status === 'pending' ? 'Đang chờ duyệt' : 
+                     appointment.status === 'approved' ? 'Đã phê duyệt' : 'Bị từ chối'}
+                  </td>
+                  <td style={styles.tableCell}>{new Date(appointment.createdAt).toLocaleString()}</td>
+                  <td style={styles.tableCell}>
+                    {appointment.approvedAt ? new Date(appointment.approvedAt).toLocaleString() : 'Chưa phê duyệt'}
+                  </td>
+                  <td style={styles.tableCell}>
+                    {appointment.rejectedAt ? new Date(appointment.rejectedAt).toLocaleString() : 'Chưa từ chối'}
+                  </td>
+                  <td style={styles.tableCell}>
+                    {appointment.status === 'pending' && (
+                      <button style={styles.cancelBtn} onClick={() => handleCancel(appointment._id)}>
+                        Hủy yêu cầu
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
+};
+
+const styles = {
+  page: {
+    backgroundColor: '#f4f7f9',
+    minHeight: '100vh',
+  },
+  container: {
+    padding: '40px',
+    maxWidth: '1200px',
+    margin: '0 auto',
+    backgroundColor: '#ffffff',
+    borderRadius: '12px',
+    boxShadow: '0 6px 30px rgba(0, 0, 0, 0.1)',
+  },
+  title: {
+    fontSize: '32px',
+    marginBottom: '30px',
+    color: '#2c3e50',
+    fontWeight: '700',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: '1px',
+  },
+  subtitle: {
+    fontSize: '24px',
+    marginTop: '40px',
+    marginBottom: '20px',
+    color: '#34495e',
+    fontWeight: '600',
+  },
+  form: {
+    marginBottom: '40px',
+  },
+  formGroup: {
+    marginBottom: '20px',
+  },
+  label: {
+    display: 'block',
+    marginBottom: '8px',
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#34495e',
+  },
+  input: {
+    width: '100%',
+    padding: '10px',
+    fontSize: '16px',
+    border: '1px solid #bdc3c7',
+    borderRadius: '4px',
+  },
+  textarea: {
+    width: '100%',
+    padding: '10px',
+    fontSize: '16px',
+    border: '1px solid #bdc3c7',
+    borderRadius: '4px',
+    minHeight: '100px',
+  },
+  submitBtn: {
+    padding: '12px 24px',
+    fontSize: '18px',
+    color: '#ffffff',
+    backgroundColor: '#3498db',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s ease',
+  },
+  tableContainer: {
+    overflowX: 'auto',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'separate',
+    borderSpacing: '0 10px',
+  },
+  tableHeader: {
+    backgroundColor: '#34495e',
+    color: '#ffffff',
+    padding: '15px',
+    textAlign: 'left',
+    fontSize: '16px',
+    fontWeight: '600',
+  },
+  tableRow: {
+    backgroundColor: '#f8fafc',
+    transition: 'background-color 0.3s ease',
+  },
+  tableCell: {
+    padding: '15px',
+    fontSize: '16px',
+    color: '#2c3e50',
+    borderBottom: '1px solid #ecf0f1',
+  },
+  cancelBtn: {
+    padding: '8px 16px',
+    fontSize: '14px',
+    color: '#ffffff',
+    backgroundColor: '#e74c3c',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s ease',
+  },
 };
 
 export default AppointmentStatus;

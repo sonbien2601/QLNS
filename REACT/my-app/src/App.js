@@ -17,16 +17,18 @@ import Dismissal from './pagesAdmin/Dismissal';
 import AddEmployee from './pagesAdmin/AddEmployee';
 import AttendanceAdmin from './pagesAdmin/AddtendanceAdmin'; 
 import SalaryAdmin from './pagesAdmin/SalaryAdmin';
+import ContractAdmin from './pagesAdmin/ContractAdmin';
+import AdminProfileManagement from './pagesAdmin/AdminProfileManagement';
 
 // User
-import Contract from './pagesUser/Contract';
 import Profile from './pagesUser/Profile';
-import Overview from './pagesUser/Overview';
 import PrivateRoute from './components/PrivateRoute';  
 import User from './pagesUser/User';
 import AppointmentUser from './pagesUser/AppointmentUser';
 import AttendanceUser from './pagesUser/AttendanceUser';
 import SalaryUser from './pagesUser/SalaryUser';
+import ContractUser from './pagesUser/ContractUser';
+
 
 function App() {
   const role = localStorage.getItem('role');
@@ -60,8 +62,10 @@ function App() {
           <Route path="resign" element={<Resignation />} />
           <Route path="dismiss" element={<Dismissal />} />
           <Route path="add-employee" element={<AddEmployee />} />
-          <Route path="attendance" element={<AttendanceAdmin />} /> {/* Thêm route AttendanceAdmin */}
+          <Route path="attendance" element={<AttendanceAdmin />} /> 
           <Route path="/admin/salary" element={<SalaryAdmin />} />
+          <Route path="/admin/contracts" element={<ContractAdmin />} />
+          <Route path="/admin/adminProfile" element={<AdminProfileManagement />} />
         </Route>
 
         {/* Route cho user */}
@@ -76,8 +80,7 @@ function App() {
               </div>
             }
           />
-          <Route path="view-contracts" element={<Contract />} />
-          <Route path="view-overview" element={<Overview />} />
+          <Route path="view-contractuser" element={<ContractUser />} />
           <Route path="edit-profile" element={<Profile />} />
           <Route path="appointment" element={<AppointmentUser />} />
           <Route path="attendance" element={<AttendanceUser />} /> {/* Thêm route AttendanceUser */}

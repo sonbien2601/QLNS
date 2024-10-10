@@ -2,20 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-// Configure axios defaults for authentication
+// Set the base URL for all axios requests
 axios.defaults.baseURL = 'http://localhost:5000';
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
 
 const Login = () => {
   const [login, setLogin] = useState('');
@@ -26,16 +14,17 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     try {
       const response = await axios.post('/api/auth/login', {
         login,
         password,
       });
-      
+
       // Store auth data
-      const { token, role, fullName, username } = response.data;
+      const { token, userId, role, fullName, username } = response.data;
       localStorage.setItem('token', token);
+      localStorage.setItem('userId', userId);
       localStorage.setItem('role', role);
       localStorage.setItem('fullName', fullName);
       localStorage.setItem('username', username);
@@ -51,7 +40,15 @@ const Login = () => {
       }
     } catch (error) {
       console.error('Login error:', error);
-      setError(error.response?.data?.message || 'Đăng nhập thất bại, vui lòng kiểm tra thông tin đăng nhập');
+      
+      // Enhanced error message
+      if (error.response) {
+        setError(error.response.data.message || 'Đăng nhập thất bại, vui lòng kiểm tra thông tin đăng nhập');
+      } else if (error.request) {
+        setError('Không thể kết nối với máy chủ. Vui lòng kiểm tra kết nối Internet của bạn.');
+      } else {
+        setError('Đã xảy ra lỗi. Vui lòng thử lại sau.');
+      }
     }
   };
 
