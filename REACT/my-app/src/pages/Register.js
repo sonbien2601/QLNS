@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
-import backgroundImage from '../images/xe.jpg';
+import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import axios from 'axios';
 
 const Register = () => {
-  const navigate = useNavigate(); // Khởi tạo useNavigate
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
     fullName: '',
@@ -18,7 +18,6 @@ const Register = () => {
     staffSize: '',
   });
 
-  // Định nghĩa hàm handleChange
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -26,21 +25,36 @@ const Register = () => {
     });
   };
 
-  // Hàm xử lý đăng ký
   const handleRegister = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-      alert('Mật khẩu không khớp!');
+      Swal.fire({
+        title: 'Lỗi!',
+        text: 'Mật khẩu không khớp!',
+        icon: 'error',
+        confirmButtonText: 'Đóng'
+      });
       return;
     }
 
     try {
       const response = await axios.post('http://localhost:5000/api/auth/register', formData);
-      alert(`Đăng ký thành công với vai trò ${response.data.role}`);
+      
+      await Swal.fire({
+        title: 'Thành công!',
+        text: `Đăng ký thành công với vai trò ${response.data.role}`,
+        icon: 'success',
+        confirmButtonText: 'Đăng nhập ngay'
+      });
+
       navigate('/login');
     } catch (error) {
-      console.error('Lỗi khi đăng ký:', error);
-      alert(error.response?.data?.message || 'Đăng ký thất bại, vui lòng thử lại');
+      Swal.fire({
+        title: 'Lỗi!',
+        text: error.response?.data?.message || 'Đăng ký thất bại, vui lòng thử lại',
+        icon: 'error',
+        confirmButtonText: 'Đóng'
+      });
     }
   };
 
@@ -49,14 +63,15 @@ const Register = () => {
       <div className="form-container">
         <h2>Đăng ký</h2>
         <form onSubmit={handleRegister}>
-          <label>Tên đăng nhập *<input
-            type="text"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            placeholder="Tên đăng nhập"
-            required
-          />
+          <label>Tên đăng nhập *
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              placeholder="Tên đăng nhập"
+              required
+            />
           </label>
           <label>
             Họ và tên bạn *

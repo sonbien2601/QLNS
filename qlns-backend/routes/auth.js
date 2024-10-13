@@ -1,37 +1,37 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const User2 = require('../models/User2');
-const Appointment = require('../models/Appointment');
-const Attendance = require('../models/Attendance');
-const Salary = require('../models/Salary');
-const Contract = require('../models/Contract');
-const mongoose = require('mongoose');
-const router = express.Router();
-const nodemailer = require('nodemailer');
+const express = require('express'); // Nhập thư viện Express
+const bcrypt = require('bcryptjs'); // Nhập thư viện bcryptjs để mã hóa mật khẩu
+const jwt = require('jsonwebtoken'); // Nhập thư viện jsonwebtoken để tạo và xác minh JWT
+const User = require('../models/User'); // Nhập mô hình User
+const User2 = require('../models/User2'); // Nhập mô hình User2
+const Appointment = require('../models/Appointment'); // Nhập mô hình Appointment
+const Attendance = require('../models/Attendance'); // Nhập mô hình Attendance
+const Salary = require('../models/Salary'); // Nhập mô hình Salary
+const Contract = require('../models/Contract'); // Nhập mô hình Contract
+const FeedbackSalary = require('../models/FeedbackSalary');
+const router = express.Router(); // Tạo router từ Express
 
-// Cấu hình nodemailer
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+
+// Hàm tạo token
+const generateToken = (user) => {
+  return jwt.sign(
+    { userId: user._id, role: user.role },
+    process.env.JWT_SECRET || 'your_jwt_secret',
+    { expiresIn: '24h' } // Token hết hạn sau 24 giờ
+  );
+};
 
 // Middleware để kiểm tra token
 const authenticate = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
+  const token = req.headers.authorization?.split(' ')[1]; // Lấy token từ header
   if (!token) {
-    return res.status(401).json({ message: 'Bạn cần đăng nhập trước' });
+    return res.status(401).json({ message: 'Bạn cần đăng nhập trước' }); // Nếu không có token, trả về lỗi 401
   }
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
-    req.user = decoded;
-    next();
+    const decoded = jwt.verify(token, 'your_jwt_secret'); // Xác minh token
+    req.user = decoded; // Gắn thông tin người dùng vào request
+    next(); // Tiếp tục xử lý request
   } catch (error) {
-    return res.status(401).json({ message: 'Token không hợp lệ' });
+    return res.status(401).json({ message: 'Token không hợp lệ' }); // Nếu token không hợp lệ, trả về lỗi 401
   }
 };
 
@@ -47,15 +47,15 @@ router.post('/register', async (req, res) => {
     
     if (existingUser) {
       if (existingUser.email === email) {
-        return res.status(400).json({ message: 'Email đã được sử dụng' });
+        return res.status(400).json({ message: 'Email đã được sử dụng' }); // Nếu email đã tồn tại, trả về lỗi 400
       }
       if (existingUser.username === username) {
-        return res.status(400).json({ message: 'Username đã được sử dụng' });
+        return res.status(400).json({ message: 'Username đã được sử dụng' }); // Nếu username đã tồn tại, trả về lỗi 400
       }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const role = 'admin';
+    const hashedPassword = await bcrypt.hash(password, 10); // Mã hóa mật khẩu
+    const role = 'admin'; // Đặt vai trò mặc định là admin
 
     const newUser = new User({
       username,
@@ -70,24 +70,23 @@ router.post('/register', async (req, res) => {
       role,
     });
 
-    await newUser.save();
+    await newUser.save(); // Lưu người dùng mới vào cơ sở dữ liệu
     res.status(201).json({
       message: 'Đăng ký thành công',
       role: newUser.role,
       fullName: newUser.fullName,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi đăng ký', error: error.message });
+    res.status(500).json({ message: 'Lỗi khi đăng ký', error: error.message }); // Trả về lỗi 500 nếu có lỗi xảy ra
   }
 });
 
-// Route đăng nhập
+
 // Route đăng nhập
 router.post('/login', async (req, res) => {
-  const { login, password } = req.body; // login có thể là email hoặc username
+  const { login, password } = req.body;
 
   try {
-    // Tìm user với email hoặc username
     let user = await User.findOne({
       $or: [{ email: login }, { username: login }]
     });
@@ -96,10 +95,10 @@ router.post('/login', async (req, res) => {
       user = await User2.findOne({
         $or: [{ email: login }, { username: login }]
       });
-      
-      if (!user) {
-        return res.status(400).json({ message: 'Tài khoản không tồn tại' });
-      }
+    }
+
+    if (!user) {
+      return res.status(400).json({ message: 'Tài khoản không tồn tại' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -107,15 +106,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Mật khẩu không đúng' });
     }
 
-    // Tạo token chứa thông tin người dùng
-    const token = jwt.sign(
-      { userId: user._id, role: user.role }, 
-      'your_jwt_secret', 
-      { expiresIn: '1h' }
-    );
+    const token = generateToken(user);
     
-    // Trả về thông tin người dùng và token
-    return res.json({
+    res.json({
       token,
       userId: user._id,
       role: user.role,
@@ -123,7 +116,8 @@ router.post('/login', async (req, res) => {
       username: user.username
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Lỗi server', error });
+    console.error('Lỗi đăng nhập:', error);
+    res.status(500).json({ message: 'Lỗi server khi đăng nhập' });
   }
 });
 
@@ -185,35 +179,48 @@ router.post('/create-user', authenticate, async (req, res) => {
 
     await newUser.save();
 
-    const userResponse = {
-      id: newUser._id,
-      username: newUser.username,
-      fullName: newUser.fullName,
-      email: newUser.email,
-      phoneNumber: newUser.phoneNumber,
-      position: newUser.position,
-      role: newUser.role,
-      basicSalary: newUser.basicSalary,
-      contractStart: newUser.contractStart,
-      contractEnd: newUser.contractEnd,
-      contractType: newUser.contractType,
-      contractStatus: newUser.contractStatus
-    };
+    // Tạo token mới cho admin sau khi thêm nhân viên thành công
+    const newToken = generateToken(req.user);
 
-    return res.status(201).json({
+    res.status(201).json({
       message: 'Tạo tài khoản thành công',
-      user: userResponse
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        fullName: newUser.fullName,
+        email: newUser.email,
+        phoneNumber: newUser.phoneNumber,
+        position: newUser.position,
+        role: newUser.role,
+        basicSalary: newUser.basicSalary,
+        contractStart: newUser.contractStart,
+        contractEnd: newUser.contractEnd,
+        contractType: newUser.contractType,
+        contractStatus: newUser.contractStatus
+      },
+      newToken // Trả về token mới cho admin
     });
-
   } catch (error) {
     console.error('Lỗi khi tạo tài khoản:', error);
-    return res.status(500).json({ 
+    res.status(500).json({ 
       message: 'Lỗi khi tạo tài khoản',
       error: error.message 
     });
   }
 });
 
+// Route làm mới token
+router.post('/refresh-token', authenticate, (req, res) => {
+  const newToken = generateToken(req.user);
+  res.json({ token: newToken });
+});
+
+
+
+
+
+
+// ================== API YÊU CẦU BỔ NHIỆM ==================
 // Route để tạo yêu cầu bổ nhiệm
 router.post('/appointment-request', authenticate, async (req, res) => {
   const { oldPosition, newPosition, reason } = req.body;
@@ -249,7 +256,6 @@ router.get('/user-appointments', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi khi lấy danh sách bổ nhiệm', error: error.message });
   }
 });
-
 
 // Lấy danh sách bổ nhiệm cho admin
 router.get('/get-appointments', authenticate, async (req, res) => {
@@ -287,7 +293,6 @@ router.put('/approve-appointment/:id', authenticate, async (req, res) => {
   }
 });
 
-
 // Từ chối bổ nhiệm
 router.put('/reject-appointment/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
@@ -309,21 +314,6 @@ router.put('/reject-appointment/:id', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi khi từ chối bổ nhiệm', error: error.message });
   }
 });
-
-// Lấy danh sách bổ nhiệm cho admin
-router.get('/get-appointments', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
-  }
-
-  try {
-    const appointments = await Appointment.find().populate('userId', 'fullName');  // Dùng populate để lấy thông tin user
-    res.json({ appointments });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi lấy danh sách bổ nhiệm', error: error.message });
-  }
-});
-
 
 // Hủy yêu cầu bổ nhiệm của user
 router.delete('/cancel-appointment/:id', authenticate, async (req, res) => {
@@ -359,8 +349,7 @@ router.delete('/delete-appointment/:id', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm để xóa' });
     }
 
-    // Sử dụng deleteOne() thay vì remove()
-    await Appointment.deleteOne({ _id: req.params.id });
+    await Appointment.deleteOne({ _id: req.params.id }); // Xóa yêu cầu bổ nhiệm
     res.json({ message: 'Yêu cầu bổ nhiệm đã được xóa thành công' });
     
   } catch (error) {
@@ -371,7 +360,6 @@ router.delete('/delete-appointment/:id', authenticate, async (req, res) => {
     });
   }
 });
-
 
 // ================== API CHẤM CÔNG ==================
 // Hàm helper để định dạng thời gian (đặt ở đầu file hoặc trong một file riêng)
@@ -518,83 +506,9 @@ router.get('/attendance/summary', authenticate, async (req, res) => {
 });
 
 
-
-
-// ================== API LƯƠNG ==================
-
-// Route để tạo hoặc cập nhật lương nhân viên
-router.post('/salary/:id', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
-  }
-
-  const { basicSalary, bonus } = req.body;
-
-  try {
-    const totalSalary = basicSalary + bonus;
-
-    const salaryData = {
-      userId: req.params.id,
-      basicSalary,
-      bonus,
-      totalSalary,
-    };
-
-    const existingSalary = await Salary.findOneAndUpdate(
-      { userId: req.params.id },
-      salaryData,
-      { new: true, upsert: true } // Tạo mới nếu không tìm thấy
-    );
-
-    res.status(200).json({ message: 'Cập nhật lương thành công', salary: existingSalary });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi cập nhật lương', error: error.message });
-  }
-});
-
-// Route để lấy lương của nhân viên
-router.get('/salary/:id', authenticate, async (req, res) => {
-  try {
-    const salary = await Salary.findOne({ userId: req.params.id }).populate('userId', 'fullName position');
-    if (!salary) {
-      return res.status(404).json({ message: 'Không tìm thấy lương cho nhân viên này' });
-    }
-    res.json({ salary });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi lấy lương', error: error.message });
-  }
-});
-
-// Route để lấy tất cả lương của nhân viên cho admin
-router.get('/salary', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
-  }
-
-  try {
-    const salaries = await Salary.find().populate('userId', 'fullName position');
-    res.json({ salaries });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi lấy lương', error: error.message });
-  }
-});
-
-// Route để xóa lương của nhân viên
-router.delete('/salary/:id', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
-  }
-
-  try {
-    await Salary.findOneAndDelete({ userId: req.params.id });
-    res.status(200).json({ message: 'Xóa lương thành công' });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi xóa lương', error: error.message });
-  }
-});
-
-
 // ================== API HỢP ĐỒNG ==================
+
+
 
 // API để lấy danh sách hợp đồng từ User2
 router.get('/contracts', authenticate, async (req, res) => {
@@ -827,7 +741,175 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
   }
 });
 
+// ================== API LƯƠNG ==================
 
+// Hàm helper để tính tổng số giờ làm việc
+const calculateTotalWorkHours = (attendanceRecords) => {
+  return attendanceRecords.reduce((total, record) => {
+    if (record.totalHours) {
+      const parts = record.totalHours.split(' ');
+      let hours = 0, minutes = 0;
+      
+      for (let i = 0; i < parts.length; i += 2) {
+        const value = parseInt(parts[i]);
+        const unit = parts[i + 1];
+        
+        if (unit.includes('giờ')) hours += value;
+        else if (unit.includes('phút')) minutes += value;
+      }
+      
+      return total + hours + minutes / 60;
+    }
+    return total;
+  }, 0);
+};
+
+// API lấy danh sách lương
+router.get('/salary', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+  }
+
+  try {
+    const salaries = await Salary.find().populate('userId', 'fullName position');
+
+    const updatedSalaries = await Promise.all(salaries.map(async (salary) => {
+      const attendanceRecords = await Attendance.find({ userId: salary.userId._id });
+      const actualWorkHours = calculateTotalWorkHours(attendanceRecords);
+      
+      const standardWorkHours = 176; // 8 giờ * 22 ngày
+      const hourlyRate = salary.basicSalary / standardWorkHours;
+      const actualSalary = hourlyRate * actualWorkHours + salary.bonus;
+
+      return {
+        ...salary.toObject(),
+        actualWorkHours: parseFloat(actualWorkHours.toFixed(2)),
+        hourlyRate: parseFloat(hourlyRate.toFixed(2)),
+        actualSalary: Math.round(actualSalary),
+        standardWorkHours,
+      };
+    }));
+
+    res.json({ salaries: updatedSalaries });
+  } catch (error) {
+    console.error('Error fetching salaries:', error);
+    res.status(500).json({ message: 'Lỗi khi lấy lương', error: error.message });
+  }
+});
+
+
+router.post('/salary/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+  }
+
+  const { basicSalary, bonus, workingDays } = req.body;
+
+  try {
+    const standardWorkHours = workingDays * 8;
+    const totalSalary = basicSalary + bonus;
+
+    const salaryData = {
+      userId: req.params.id,
+      basicSalary,
+      bonus,
+      totalSalary,
+      workingDays,
+      standardWorkHours,
+    };
+
+    const existingSalary = await Salary.findOneAndUpdate(
+      { userId: req.params.id },
+      salaryData,
+      { new: true, upsert: true }
+    );
+
+    res.status(200).json({ message: 'Cập nhật lương thành công', salary: existingSalary });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi cập nhật lương', error: error.message });
+  }
+});
+
+// API xóa lương
+router.delete('/salary/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+  }
+
+  try {
+    await Salary.findOneAndDelete({ userId: req.params.id });
+    res.status(200).json({ message: 'Xóa lương thành công' });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi xóa lương', error: error.message });
+  }
+});
+
+//API lấy lương cho người dùng
+router.get('/salary/:userId', authenticate, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    // Kiểm tra xem người dùng có quyền xem thông tin lương này không
+    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+      return res.status(403).json({ message: 'Bạn không có quyền truy cập thông tin này' });
+    }
+
+    const salary = await Salary.findOne({ userId }).populate('userId', 'fullName position');
+
+    if (!salary) {
+      return res.status(404).json({ message: 'Không tìm thấy thông tin lương' });
+    }
+
+    const attendanceRecords = await Attendance.find({ userId });
+    const actualWorkHours = calculateTotalWorkHours(attendanceRecords);
+
+    const standardWorkHours = 176; // 8 giờ * 22 ngày
+    const hourlyRate = salary.basicSalary / standardWorkHours;
+    const actualSalary = hourlyRate * actualWorkHours + salary.bonus;
+
+    const salaryInfo = {
+      ...salary.toObject(),
+      actualWorkHours: parseFloat(actualWorkHours.toFixed(2)),
+      hourlyRate: parseFloat(hourlyRate.toFixed(2)),
+      actualSalary: Math.round(actualSalary),
+    };
+
+    res.json({ salary: salaryInfo });
+  } catch (error) {
+    console.error('Error fetching user salary:', error);
+    res.status(500).json({ message: 'Lỗi khi lấy thông tin lương', error: error.message });
+  }
+});
+
+// Gửi feedback lương
+router.post('/feedback-salary', authenticate, async (req, res) => {
+  try {
+    const { message, userId } = req.body;
+    const newFeedback = new FeedbackSalary({
+      userId: userId || req.user.userId, // Sử dụng userId được cung cấp hoặc ID của người dùng hiện tại
+      message,
+      isFromAdmin: req.user.role === 'admin'
+    });
+    await newFeedback.save();
+    res.status(201).json({ message: 'Feedback lương đã được gửi', feedback: newFeedback });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi gửi feedback lương', error: error.message });
+  }
+});
+
+// Lấy danh sách feedback lương
+router.get('/feedback-salary/:userId', authenticate, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+      return res.status(403).json({ message: 'Bạn không có quyền truy cập thông tin này' });
+    }
+    const feedbacks = await FeedbackSalary.find({ userId }).sort({ createdAt: -1 });
+    res.json({ feedbacks });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi lấy feedback lương', error: error.message });
+  }
+});
 
 
 module.exports = router;

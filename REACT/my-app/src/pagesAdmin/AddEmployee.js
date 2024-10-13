@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import NavigationAdmin from '../components/NavigationAdmin';
 import styled from 'styled-components';
@@ -8,6 +9,7 @@ import withReactContent from 'sweetalert2-react-content';
 const MySwal = withReactContent(Swal);
 
 const AddEmployee = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: '',
     username: '',
@@ -25,16 +27,23 @@ const AddEmployee = () => {
 
   const [errors, setErrors] = useState({});
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+    }
+  }, [navigate]);
+
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.fullName) newErrors.fullName = 'Vui lòng nhập tên nhân viên';
-    if (!formData.username) newErrors.username = 'Vui lòng nhập tên đăng nhập';
-    if (!formData.email) newErrors.email = 'Vui lòng nhập email';
+    if (!formData.fullName.trim()) newErrors.fullName = 'Vui lòng nhập tên nhân viên';
+    if (!formData.username.trim()) newErrors.username = 'Vui lòng nhập tên đăng nhập';
+    if (!formData.email.trim()) newErrors.email = 'Vui lòng nhập email';
     if (!formData.password) newErrors.password = 'Vui lòng nhập mật khẩu';
     if (!formData.confirmPassword) newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
-    if (!formData.phoneNumber) newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
-    if (!formData.position) newErrors.position = 'Vui lòng nhập chức vụ';
+    if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
+    if (!formData.position.trim()) newErrors.position = 'Vui lòng nhập chức vụ';
     if (!formData.basicSalary) newErrors.basicSalary = 'Vui lòng nhập lương cơ bản';
     if (!formData.contractStart) newErrors.contractStart = 'Vui lòng nhập ngày bắt đầu hợp đồng';
     if (!formData.contractType) newErrors.contractType = 'Vui lòng chọn loại hợp đồng';
@@ -68,9 +77,21 @@ const AddEmployee = () => {
 
     try {
       const { confirmPassword, ...submitData } = formData;
-      const response = await axios.post('http://localhost:5000/api/auth/create-user', submitData);
+      const token = localStorage.getItem('token');
+      const response = await axios.post('http://localhost:5000/api/auth/create-user', submitData, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       
       console.log('Tạo tài khoản thành công:', response.data);
+
+      // Cập nhật token mới nếu server trả về
+      if (response.data.newToken) {
+        localStorage.setItem('token', response.data.newToken);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.newToken}`;
+      }
+
       MySwal.fire({
         icon: 'success',
         title: 'Thành công!',
@@ -95,10 +116,19 @@ const AddEmployee = () => {
       setErrors({});
     } catch (error) {
       console.error('Lỗi khi tạo tài khoản:', error);
+      let errorMessage = 'Tạo tài khoản thất bại, vui lòng thử lại.';
+      if (error.response) {
+        errorMessage = error.response.data.message || errorMessage;
+        if (error.response.status === 401) {
+          errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+          localStorage.removeItem('token');
+          navigate('/login');
+        }
+      }
       MySwal.fire({
         icon: 'error',
         title: 'Lỗi!',
-        text: error.response?.data?.message || 'Tạo tài khoản thất bại, vui lòng thử lại.',
+        text: errorMessage,
         confirmButtonColor: '#d33',
       });
     }
@@ -119,7 +149,7 @@ const AddEmployee = () => {
                   name="fullName"
                   value={formData.fullName}
                   onChange={handleChange}
-                  isInvalid={!!errors.fullName}
+                  $isInvalid={!!errors.fullName}
                   placeholder="Nhập tên đầy đủ của nhân viên"
                 />
                 {errors.fullName && <ErrorMessage>{errors.fullName}</ErrorMessage>}
@@ -132,7 +162,7 @@ const AddEmployee = () => {
                   name="username"
                   value={formData.username}
                   onChange={handleChange}
-                  isInvalid={!!errors.username}
+                  $isInvalid={!!errors.username}
                   placeholder="Nhập tên đăng nhập"
                 />
                 {errors.username && <ErrorMessage>{errors.username}</ErrorMessage>}
@@ -145,7 +175,7 @@ const AddEmployee = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  isInvalid={!!errors.email}
+                  $isInvalid={!!errors.email}
                   placeholder="example@company.com"
                 />
                 {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
@@ -158,7 +188,7 @@ const AddEmployee = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  isInvalid={!!errors.password}
+                  $isInvalid={!!errors.password}
                   placeholder="Nhập mật khẩu"
                 />
                 {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
@@ -171,7 +201,7 @@ const AddEmployee = () => {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  isInvalid={!!errors.confirmPassword}
+                  $isInvalid={!!errors.confirmPassword}
                   placeholder="Nhập lại mật khẩu"
                 />
                 {errors.confirmPassword && <ErrorMessage>{errors.confirmPassword}</ErrorMessage>}
@@ -184,7 +214,7 @@ const AddEmployee = () => {
                   name="phoneNumber"
                   value={formData.phoneNumber}
                   onChange={handleChange}
-                  isInvalid={!!errors.phoneNumber}
+                  $isInvalid={!!errors.phoneNumber}
                   placeholder="Ví dụ: 0123456789"
                 />
                 {errors.phoneNumber && <ErrorMessage>{errors.phoneNumber}</ErrorMessage>}
@@ -197,7 +227,7 @@ const AddEmployee = () => {
                   name="position"
                   value={formData.position}
                   onChange={handleChange}
-                  isInvalid={!!errors.position}
+                  $isInvalid={!!errors.position}
                   placeholder="Nhập chức vụ của nhân viên"
                 />
                 {errors.position && <ErrorMessage>{errors.position}</ErrorMessage>}
@@ -210,7 +240,7 @@ const AddEmployee = () => {
                   name="basicSalary"
                   value={formData.basicSalary}
                   onChange={handleChange}
-                  isInvalid={!!errors.basicSalary}
+                  $isInvalid={!!errors.basicSalary}
                   placeholder="Nhập lương cơ bản (VNĐ)"
                 />
                 {errors.basicSalary && <ErrorMessage>{errors.basicSalary}</ErrorMessage>}
@@ -223,7 +253,7 @@ const AddEmployee = () => {
                   name="contractStart"
                   value={formData.contractStart}
                   onChange={handleChange}
-                  isInvalid={!!errors.contractStart}
+                  $isInvalid={!!errors.contractStart}
                 />
                 {errors.contractStart && <ErrorMessage>{errors.contractStart}</ErrorMessage>}
               </FormGroup>
@@ -244,7 +274,7 @@ const AddEmployee = () => {
                   name="contractType"
                   value={formData.contractType}
                   onChange={handleChange}
-                  isInvalid={!!errors.contractType}
+                  $isInvalid={!!errors.contractType}
                 >
                   <option value="">Chọn loại hợp đồng</option>
                   <option value="fullTime">Toàn thời gian</option>
@@ -335,7 +365,7 @@ const Label = styled.label`
 
 const Input = styled.input`
   padding: 10px;
-  border: 1px solid ${props => props.isInvalid ? '#e74c3c' : '#ced4da'};
+  border: 1px solid ${props => props.$isInvalid ? '#e74c3c' : '#ced4da'};
   border-radius: 6px;
   font-size: 14px;
   transition: border-color 0.3s;
@@ -349,7 +379,7 @@ const Input = styled.input`
 
 const Select = styled.select`
   padding: 10px;
-  border: 1px solid ${props => props.isInvalid ? '#e74c3c' : '#ced4da'};
+  border: 1px solid ${props => props.$isInvalid ? '#e74c3c' : '#ced4da'};
   border-radius: 6px;
   font-size: 14px;
   transition: border-color 0.3s;
@@ -389,34 +419,4 @@ const SubmitButton = styled.button`
   }
 `;
 
-// SweetAlert styles
-const SweetAlertStyles = `
-  .swal2-popup {
-    font-size: 16px;
-    border-radius: 10px;
-  }
-  .swal2-title {
-    font-size: 24px;
-    color: #2c3e50;
-  }
-  .swal2-content {
-    color: #34495e;
-  }
-  .swal2-confirm {
-    background-color: #3498db !important;
-    border-radius: 6px !important;
-    font-weight: 600 !important;
-  }
-  .swal2-cancel {
-    background-color: #e74c3c !important;
-    border-radius: 6px !important;
-    font-weight: 600 !important;
-  }
-`;
-
-// Thêm styles vào head của document
-const styleElement = document.createElement('style');
-styleElement.innerHTML = SweetAlertStyles;
-document.head.appendChild(styleElement);
-
-export default AddEmployee;
+export default AddEmployee

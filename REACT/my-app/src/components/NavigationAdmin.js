@@ -53,7 +53,7 @@ const NavigationAdmin = () => {
             </li>
             <li>
               <Link to="/admin/performance">
-                <i className="fas fa-chart-line"></i> Hiệu suất
+                <i className="fas fa-chart-line"></i> Vị trí công việc
               </Link>
             </li>
             <li>
