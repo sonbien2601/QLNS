@@ -5,6 +5,7 @@ import NavigationAdmin from '../components/NavigationAdmin';
 import styled from 'styled-components';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const MySwal = withReactContent(Swal);
 
@@ -86,7 +87,6 @@ const AddEmployee = () => {
       
       console.log('Tạo tài khoản thành công:', response.data);
 
-      // Cập nhật token mới nếu server trả về
       if (response.data.newToken) {
         localStorage.setItem('token', response.data.newToken);
         axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.newToken}`;
@@ -137,168 +137,68 @@ const AddEmployee = () => {
   return (
     <PageContainer>
       <NavigationAdmin />
-      <ContentContainer>
+      <ContentContainer
+        as={motion.div}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <FormContainer>
-          <FormTitle>Thêm Nhân Viên Mới</FormTitle>
+          <FormTitle
+            as={motion.h2}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
+            Thêm Nhân Viên Mới
+          </FormTitle>
           <StyledForm onSubmit={handleSubmit}>
             <FormGrid>
-              <FormGroup>
-                <Label>Tên Nhân Viên:</Label>
-                <Input
-                  type="text"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.fullName}
-                  placeholder="Nhập tên đầy đủ của nhân viên"
-                />
-                {errors.fullName && <ErrorMessage>{errors.fullName}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Tên đăng nhập:</Label>
-                <Input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.username}
-                  placeholder="Nhập tên đăng nhập"
-                />
-                {errors.username && <ErrorMessage>{errors.username}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Email:</Label>
-                <Input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.email}
-                  placeholder="example@company.com"
-                />
-                {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Mật khẩu:</Label>
-                <Input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.password}
-                  placeholder="Nhập mật khẩu"
-                />
-                {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Xác nhận mật khẩu:</Label>
-                <Input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.confirmPassword}
-                  placeholder="Nhập lại mật khẩu"
-                />
-                {errors.confirmPassword && <ErrorMessage>{errors.confirmPassword}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Số điện thoại:</Label>
-                <Input
-                  type="tel"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.phoneNumber}
-                  placeholder="Ví dụ: 0123456789"
-                />
-                {errors.phoneNumber && <ErrorMessage>{errors.phoneNumber}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Chức vụ:</Label>
-                <Input
-                  type="text"
-                  name="position"
-                  value={formData.position}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.position}
-                  placeholder="Nhập chức vụ của nhân viên"
-                />
-                {errors.position && <ErrorMessage>{errors.position}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Lương cơ bản:</Label>
-                <Input
-                  type="number"
-                  name="basicSalary"
-                  value={formData.basicSalary}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.basicSalary}
-                  placeholder="Nhập lương cơ bản (VNĐ)"
-                />
-                {errors.basicSalary && <ErrorMessage>{errors.basicSalary}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Ngày bắt đầu hợp đồng:</Label>
-                <Input
-                  type="date"
-                  name="contractStart"
-                  value={formData.contractStart}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.contractStart}
-                />
-                {errors.contractStart && <ErrorMessage>{errors.contractStart}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Ngày kết thúc hợp đồng:</Label>
-                <Input
-                  type="date"
-                  name="contractEnd"
-                  value={formData.contractEnd}
-                  onChange={handleChange}
-                />
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Loại hợp đồng:</Label>
-                <Select
-                  name="contractType"
-                  value={formData.contractType}
-                  onChange={handleChange}
-                  $isInvalid={!!errors.contractType}
-                >
-                  <option value="">Chọn loại hợp đồng</option>
-                  <option value="fullTime">Toàn thời gian</option>
-                  <option value="partTime">Bán thời gian</option>
-                  <option value="temporary">Tạm thời</option>
-                </Select>
-                {errors.contractType && <ErrorMessage>{errors.contractType}</ErrorMessage>}
-              </FormGroup>
-
-              <FormGroup>
-                <Label>Trạng thái hợp đồng:</Label>
-                <Select
-                  name="contractStatus"
-                  value={formData.contractStatus}
-                  onChange={handleChange}
-                >
-                  <option value="active">Đang hoạt động</option>
-                  <option value="inactive">Không hoạt động</option>
-                  <option value="expired">Đã hết hạn</option>
-                </Select>
-              </FormGroup>
+              <AnimatePresence>
+                {Object.entries(formData).map(([key, value], index) => (
+                  <FormGroup
+                    key={key}
+                    as={motion.div}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1, duration: 0.5 }}
+                  >
+                    <Label htmlFor={key}>{getLabelText(key)}:</Label>
+                    {key === 'contractType' || key === 'contractStatus' ? (
+                      <Select
+                        id={key}
+                        name={key}
+                        value={value}
+                        onChange={handleChange}
+                        $isInvalid={!!errors[key]}
+                      >
+                        {getOptions(key)}
+                      </Select>
+                    ) : (
+                      <Input
+                        type={getInputType(key)}
+                        id={key}
+                        name={key}
+                        value={value}
+                        onChange={handleChange}
+                        $isInvalid={!!errors[key]}
+                        placeholder={getPlaceholder(key)}
+                      />
+                    )}
+                    {errors[key] && <ErrorMessage>{errors[key]}</ErrorMessage>}
+                  </FormGroup>
+                ))}
+              </AnimatePresence>
             </FormGrid>
 
-            <SubmitButton type="submit">Thêm Nhân Viên</SubmitButton>
+            <SubmitButton
+              as={motion.button}
+              type="submit"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Thêm Nhân Viên
+            </SubmitButton>
           </StyledForm>
         </FormContainer>
       </ContentContainer>
@@ -306,26 +206,26 @@ const AddEmployee = () => {
   );
 };
 
-// Styled components (cập nhật)
-const PageContainer = styled.div`
+// Styled components
+const PageContainer = styled(motion.div)`
   background-color: #f4f7f9;
   min-height: 100vh;
 `;
 
-const ContentContainer = styled.div`
+const ContentContainer = styled(motion.div)`
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 20px;
 `;
 
-const FormContainer = styled.div`
+const FormContainer = styled(motion.div)`
   background-color: #ffffff;
   border-radius: 12px;
   padding: 40px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 `;
 
-const FormTitle = styled.h2`
+const FormTitle = styled(motion.h2)`
   color: #2c3e50;
   font-size: 28px;
   margin-bottom: 30px;
@@ -352,7 +252,7 @@ const FormGrid = styled.div`
   }
 `;
 
-const FormGroup = styled.div`
+const FormGroup = styled(motion.div)`
   display: flex;
   flex-direction: column;
 `;
@@ -397,7 +297,7 @@ const ErrorMessage = styled.div`
   margin-top: 5px;
 `;
 
-const SubmitButton = styled.button`
+const SubmitButton = styled(motion.button)`
   background-color: #3498db;
   color: white;
   border: none;
@@ -406,17 +306,80 @@ const SubmitButton = styled.button`
   font-size: 18px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.3s, transform 0.2s;
+  transition: background-color 0.3s;
   align-self: center;
 
   &:hover {
     background-color: #2980b9;
-    transform: translateY(-2px);
-  }
-
-  &:active {
-    transform: translateY(0);
   }
 `;
 
-export default AddEmployee
+// Hàm hỗ trợ
+const getLabelText = (key) => {
+  const labels = {
+    fullName: 'Tên Nhân Viên',
+    username: 'Tên đăng nhập',
+    email: 'Email',
+    password: 'Mật khẩu',
+    confirmPassword: 'Xác nhận mật khẩu',
+    phoneNumber: 'Số điện thoại',
+    position: 'Chức vụ',
+    basicSalary: 'Lương cơ bản',
+    contractStart: 'Ngày bắt đầu hợp đồng',
+    contractEnd: 'Ngày kết thúc hợp đồng',
+    contractType: 'Loại hợp đồng',
+    contractStatus: 'Trạng thái hợp đồng'
+  };
+  return labels[key] || key;
+};
+
+const getInputType = (key) => {
+  const types = {
+    email: 'email',
+    password: 'password',
+    confirmPassword: 'password',
+    phoneNumber: 'tel',
+    basicSalary: 'number',
+    contractStart: 'date',
+    contractEnd: 'date'
+  };
+  return types[key] || 'text';
+};
+
+const getPlaceholder = (key) => {
+  const placeholders = {
+    fullName: 'Nhập tên đầy đủ của nhân viên',
+    username: 'Nhập tên đăng nhập',
+    email: 'example@company.com',
+    password: 'Nhập mật khẩu',
+    confirmPassword: 'Nhập lại mật khẩu',
+    phoneNumber: 'Ví dụ: 0123456789',
+    position: 'Nhập chức vụ của nhân viên',
+    basicSalary: 'Nhập lương cơ bản (VNĐ)'
+  };
+  return placeholders[key] || '';
+};
+
+const getOptions = (key) => {
+  if (key === 'contractType') {
+    return (
+      <>
+        <option value="">Chọn loại hợp đồng</option>
+        <option value="fullTime">Toàn thời gian</option>
+        <option value="partTime">Bán thời gian</option>
+        <option value="temporary">Tạm thời</option>
+      </>
+    );
+  } else if (key === 'contractStatus') {
+    return (
+      <>
+        <option value="active">Đang hoạt động</option>
+        <option value="inactive">Không hoạt động</option>
+        <option value="expired">Đã hết hạn</option>
+      </>
+    );
+  }
+  return null;
+};
+
+export default AddEmployee;

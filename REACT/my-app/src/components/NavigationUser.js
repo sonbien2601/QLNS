@@ -22,13 +22,18 @@ const NavigationUser = () => {
         {role === 'user' && (
           <>
             <li>
+              <Link to="/user/overview-user">
+                <i className="fas fa-file-contract"></i> Tổng quan
+              </Link>
+            </li>
+            <li>
               <Link to="/user/view-contractuser">
                 <i className="fas fa-file-contract"></i> Xem Hợp Đồng
               </Link>
             </li>
             <li>
-              <Link to="/user/edit-profile">
-                <i className="fas fa-user-edit"></i> Chỉnh Sửa Hồ Sơ
+              <Link to="/user/resignation-user">
+                <i className="fas fa-user-tie"></i> Nghỉ việc
               </Link>
             </li>
             <li>

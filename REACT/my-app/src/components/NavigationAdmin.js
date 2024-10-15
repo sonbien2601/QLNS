@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import '../css/style.css';
+
 
 const NavigationAdmin = () => {
   const [role, setRole] = useState(null);
@@ -20,7 +20,11 @@ const NavigationAdmin = () => {
         {/* Hiển thị cho tất cả người dùng */}
         {role === 'admin' && (
           <>
-
+            <li>
+              <Link to="/admin/overview-admin">
+                <i className="fas fa-user-plus"></i> Tổng quan
+              </Link>
+            </li>
             <li>
               <Link to="/admin/adminProfile">
                 <i className="fas fa-user-plus"></i> Quản lý hồ sơ
@@ -47,7 +51,7 @@ const NavigationAdmin = () => {
               </Link>
             </li>
             <li>
-              <Link to="/admin/resign">
+              <Link to="/admin/resignation-admin">
                 <i className="fas fa-sign-out-alt"></i> Nghỉ việc
               </Link>
             </li>

@@ -11,7 +11,7 @@ import Introduce from './pages/Introduce';
 
 // Admin
 import Performance from './pagesAdmin/Performance';
-import Appointment from './pagesAdmin/Appointment';
+import AppointmentAdmin from './pagesAdmin/AppointmentAdmin';
 import Resignation from './pagesAdmin/Resignation';
 import Dismissal from './pagesAdmin/Dismissal';
 import AddEmployee from './pagesAdmin/AddEmployee';
@@ -19,15 +19,19 @@ import AttendanceAdmin from './pagesAdmin/AddtendanceAdmin';
 import SalaryAdmin from './pagesAdmin/SalaryAdmin';
 import ContractAdmin from './pagesAdmin/ContractAdmin';
 import AdminProfileManagement from './pagesAdmin/AdminProfileManagement';
+import OverviewAdmin from './pagesAdmin/OverviewAdmin';
+import ResignationAdmin from './pagesAdmin/ResignationAdmin';
+
 
 // User
-import Profile from './pagesUser/Profile';
 import PrivateRoute from './components/PrivateRoute';  
 import User from './pagesUser/User';
 import AppointmentUser from './pagesUser/AppointmentUser';
 import AttendanceUser from './pagesUser/AttendanceUser';
 import SalaryUser from './pagesUser/SalaryUser';
 import ContractUser from './pagesUser/ContractUser';
+import OverviewUser from './pagesUser/OverviewUser';
+import ResignationUser from './pagesUser/ResignationUser';
 
 
 function App() {
@@ -58,7 +62,7 @@ function App() {
             }
           />
           <Route path="performance" element={<Performance />} />
-          <Route path="appointment" element={<Appointment />} />
+          <Route path="appointment" element={<AppointmentAdmin />} />
           <Route path="resign" element={<Resignation />} />
           <Route path="dismiss" element={<Dismissal />} />
           <Route path="add-employee" element={<AddEmployee />} />
@@ -66,6 +70,8 @@ function App() {
           <Route path="/admin/salary" element={<SalaryAdmin />} />
           <Route path="/admin/contracts" element={<ContractAdmin />} />
           <Route path="/admin/adminProfile" element={<AdminProfileManagement />} />
+          <Route path="/admin/overview-admin" element={<OverviewAdmin />} />
+          <Route path="/admin/resignation-admin" element={<ResignationAdmin />} />
         </Route>
 
         {/* Route cho user */}
@@ -81,10 +87,11 @@ function App() {
             }
           />
           <Route path="view-contractuser" element={<ContractUser />} />
-          <Route path="edit-profile" element={<Profile />} />
           <Route path="appointment" element={<AppointmentUser />} />
           <Route path="attendance" element={<AttendanceUser />} /> {/* Thêm route AttendanceUser */}
           <Route path="/user/salary" element={<SalaryUser />} />
+          <Route path="/user/overview-user" element={<OverviewUser />} />
+          <Route path="/user/resignation-user" element={<ResignationUser />} />
         </Route>
       </Routes>
     </Router>

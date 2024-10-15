@@ -4,36 +4,37 @@ import NavigationAdmin from '../components/NavigationAdmin';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const MySwal = withReactContent(Swal);
 
 // Styled Components
-const PageContainer = styled.div`
+const PageContainer = styled(motion.div)`
   background-color: #f4f7f9;
   min-height: 100vh;
 `;
 
-const ContentContainer = styled.div`
+const ContentContainer = styled(motion.div)`
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 20px;
 `;
 
-const Title = styled.h2`
+const Title = styled(motion.h2)`
   color: #2c3e50;
   font-size: 28px;
   margin-bottom: 20px;
   text-align: center;
 `;
 
-const SubTitle = styled.p`
+const SubTitle = styled(motion.p)`
   color: #34495e;
   font-size: 18px;
   margin-bottom: 30px;
   text-align: center;
 `;
 
-const Table = styled.table`
+const Table = styled(motion.table)`
   width: 100%;
   border-collapse: separate;
   border-spacing: 0 10px;
@@ -47,14 +48,14 @@ const Th = styled.th`
   font-weight: 600;
 `;
 
-const Td = styled.td`
+const Td = styled(motion.td)`
   background-color: #ffffff;
   padding: 15px;
   border-top: 1px solid #ecf0f1;
   border-bottom: 1px solid #ecf0f1;
 `;
 
-const Button = styled.button`
+const Button = styled(motion.button)`
   padding: 8px 12px;
   margin-right: 5px;
   border: none;
@@ -96,7 +97,7 @@ const Button = styled.button`
   }
 `;
 
-const AppointmentDetails = styled.div`
+const AppointmentDetails = styled(motion.div)`
   background-color: #ffffff;
   padding: 20px;
   border-radius: 8px;
@@ -111,7 +112,12 @@ const AppointmentRow = ({ id, name, oldPosition, newPosition, status, reason, cr
     }
 
     return (
-        <tr>
+        <motion.tr
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+        >
             <Td>{name}</Td>
             <Td>{oldPosition}</Td>
             <Td>{newPosition}</Td>
@@ -119,18 +125,22 @@ const AppointmentRow = ({ id, name, oldPosition, newPosition, status, reason, cr
             <Td>{new Date(createdAt).toLocaleString()}</Td>
             <Td>{approvedAt ? new Date(approvedAt).toLocaleString() : rejectedAt ? new Date(rejectedAt).toLocaleString() : 'Chưa xử lý'}</Td>
             <Td>
-                <Button className="view-btn" onClick={() => handleView(id)}>Xem chi tiết</Button>
-                <Button className="approve-btn" onClick={() => handleApprove(id)}>Phê duyệt</Button>
-                <Button className="reject-btn" onClick={() => handleReject(id)}>Từ chối</Button>
-                <Button className="delete-btn" onClick={() => handleDelete(id)}>Xóa yêu cầu</Button>
+                <Button className="view-btn" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleView(id)}>Xem chi tiết</Button>
+                <Button className="approve-btn" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleApprove(id)}>Phê duyệt</Button>
+                <Button className="reject-btn" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleReject(id)}>Từ chối</Button>
+                <Button className="delete-btn" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleDelete(id)}>Xóa yêu cầu</Button>
             </Td>
-        </tr>
+        </motion.tr>
     );
 }
 
 const AppointmentTable = ({ appointments, handleApprove, handleReject, handleView, handleDelete }) => {
     return (
-        <Table>
+        <Table
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+        >
             <thead>
                 <tr>
                     <Th>Tên Nhân Viên</Th>
@@ -142,33 +152,35 @@ const AppointmentTable = ({ appointments, handleApprove, handleReject, handleVie
                     <Th>Hành Động</Th>
                 </tr>
             </thead>
-            <tbody>
-                {appointments.map((appointment) => {
-                    const user = appointment.userId;
-                    if (!user || !user.fullName) {
-                        return null;
-                    }
+            <AnimatePresence>
+                <tbody>
+                    {appointments.map((appointment) => {
+                        const user = appointment.userId;
+                        if (!user || !user.fullName) {
+                            return null;
+                        }
 
-                    return (
-                        <AppointmentRow 
-                            key={appointment._id} 
-                            id={appointment._id}
-                            name={user.fullName} 
-                            oldPosition={appointment.oldPosition} 
-                            newPosition={appointment.newPosition} 
-                            status={appointment.status} 
-                            reason={appointment.reason}
-                            createdAt={appointment.createdAt}
-                            approvedAt={appointment.approvedAt}
-                            rejectedAt={appointment.rejectedAt}
-                            handleApprove={handleApprove}
-                            handleReject={handleReject}
-                            handleView={handleView}
-                            handleDelete={handleDelete}
-                        />
-                    );
-                })}
-            </tbody>
+                        return (
+                            <AppointmentRow 
+                                key={appointment._id} 
+                                id={appointment._id}
+                                name={user.fullName} 
+                                oldPosition={appointment.oldPosition} 
+                                newPosition={appointment.newPosition} 
+                                status={appointment.status} 
+                                reason={appointment.reason}
+                                createdAt={appointment.createdAt}
+                                approvedAt={appointment.approvedAt}
+                                rejectedAt={appointment.rejectedAt}
+                                handleApprove={handleApprove}
+                                handleReject={handleReject}
+                                handleView={handleView}
+                                handleDelete={handleDelete}
+                            />
+                        );
+                    })}
+                </tbody>
+            </AnimatePresence>
         </Table>
     );
 };
@@ -177,6 +189,8 @@ const AppointmentTable = ({ appointments, handleApprove, handleReject, handleVie
 const Appointment = () => {
     const [appointments, setAppointments] = useState([]);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         fetchAppointments();
@@ -184,13 +198,17 @@ const Appointment = () => {
 
     const fetchAppointments = async () => {
         try {
+            setLoading(true);
             const token = localStorage.getItem('token');
             const response = await axios.get('http://localhost:5000/api/auth/get-appointments', {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setAppointments(response.data.appointments);
+            setLoading(false);
         } catch (error) {
             console.error('Lỗi khi lấy danh sách bổ nhiệm', error);
+            setError('Không thể tải danh sách bổ nhiệm. Vui lòng thử lại sau.');
+            setLoading(false);
             MySwal.fire({
                 icon: 'error',
                 title: 'Lỗi',
@@ -310,28 +328,84 @@ const Appointment = () => {
     };
 
     return (
-        <PageContainer>
-            <NavigationAdmin />
+        <PageContainer
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+        >
             <ContentContainer>
-                <Title>Quản lý Bổ nhiệm</Title>
-                <SubTitle>Dưới đây là danh sách các nhân viên được bổ nhiệm:</SubTitle>
-                <AppointmentTable
-                    appointments={appointments}
-                    handleApprove={handleApprove}
-                    handleReject={handleReject}
-                    handleView={handleView}
-                    handleDelete={handleDelete}
-                />
-                {selectedAppointment && (
-                    <AppointmentDetails>
-                        <h3>Chi tiết bổ nhiệm</h3>
-                        <p><strong>Tên nhân viên:</strong> {selectedAppointment.userId.fullName}</p>
-                        <p><strong>Vị trí cũ:</strong> {selectedAppointment.oldPosition}</p>
-                        <p><strong>Vị trí mới:</strong> {selectedAppointment.newPosition}</p>
-                        <p><strong>Lý do:</strong> {selectedAppointment.reason}</p>
-                        <p><strong>Trạng thái:</strong> {selectedAppointment.status}</p>
-                    </AppointmentDetails>
+                <Title
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2, duration: 0.5 }}
+                >
+                    Quản lý Bổ nhiệm
+                </Title>
+                <SubTitle
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.3, duration: 0.5 }}
+                >
+                    Dưới đây là danh sách các nhân viên được bổ nhiệm:
+                </SubTitle>
+                {loading ? (
+                    <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        Đang tải dữ liệu...
+                    </motion.p>
+                ) : error ? (
+                    <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        {error}
+                    </motion.p>
+                ) : (
+                    <AppointmentTable
+                        appointments={appointments}
+                        handleApprove={handleApprove}
+                        handleReject={handleReject}
+                        handleView={handleView}
+                        handleDelete={handleDelete}
+                    />
                 )}
+                <AnimatePresence>
+                    {selectedAppointment && (
+                        <AppointmentDetails
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ duration: 0.3 }}
+                        >
+                            <motion.h3
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.2 }}
+                            >
+                                Chi tiết bổ nhiệm
+                            </motion.h3>
+                            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+                                <strong>Tên nhân viên:</strong> {selectedAppointment.userId.fullName}
+                            </motion.p>
+                            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
+                                <strong>Vị trí cũ:</strong> {selectedAppointment.oldPosition}
+                            </motion.p>
+                            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+                                <strong>Vị trí mới:</strong> {selectedAppointment.newPosition}
+                            </motion.p>
+                            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
+                                <strong>Lý do:</strong> {selectedAppointment.reason}
+                            </motion.p>
+                            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}>
+                                <strong>Trạng thái:</strong> {selectedAppointment.status}
+                            </motion.p>
+                        </AppointmentDetails>
+                    )}
+                </AnimatePresence>
             </ContentContainer>
         </PageContainer>
     );

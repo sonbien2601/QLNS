@@ -8,6 +8,8 @@ const Attendance = require('../models/Attendance'); // Nhập mô hình Attendan
 const Salary = require('../models/Salary'); // Nhập mô hình Salary
 const Contract = require('../models/Contract'); // Nhập mô hình Contract
 const FeedbackSalary = require('../models/FeedbackSalary');
+const Task = require('../models/Task'); 
+const Resignation = require('../models/Resignation');
 const router = express.Router(); // Tạo router từ Express
 
 
@@ -908,6 +910,161 @@ router.get('/feedback-salary/:userId', authenticate, async (req, res) => {
     res.json({ feedbacks });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy feedback lương', error: error.message });
+  }
+});
+
+
+// ================== API TỔNG QUAN ==================
+
+// Get all tasks (for admin)
+router.get('/tasks', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+  }
+  try {
+    const tasks = await Task.find().populate('assignedTo', 'fullName');
+    res.json({ tasks });
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).json({ message: 'Error fetching tasks', error: error.message });
+  }
+});
+// Add new task route
+router.post('/tasks', authenticate, async (req, res) => {
+  try {
+    const { title, description, dueDate, expectedCompletionTime, assignedTo } = req.body;
+    
+    const newTask = new Task({
+      title,
+      description,
+      dueDate,
+      expectedCompletionTime,
+      assignedTo,
+      createdBy: req.user.userId // Assuming the authenticate middleware adds user info to req
+    });
+
+    await newTask.save();
+
+    res.status(201).json({ message: 'Task created successfully', task: newTask });
+  } catch (error) {
+    console.error('Error creating task:', error);
+    res.status(500).json({ message: 'Error creating task', error: error.message });
+  }
+});
+
+// Get tasks for a specific user
+router.get('/tasks/:userId', authenticate, async (req, res) => {
+  try {
+    const tasks = await Task.find({ assignedTo: req.params.userId });
+    res.json({ tasks });
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).json({ message: 'Error fetching tasks', error: error.message });
+  }
+});
+
+
+// ================== API NGHỈ VIỆC ==================
+// Route để gửi yêu cầu nghỉ việc (cho user)
+router.post('/resignation-request', authenticate, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const newResignation = new Resignation({
+      userId: req.user.userId,
+      reason,
+      status: 'pending'
+    });
+    await newResignation.save();
+    res.status(201).json({ message: 'Yêu cầu nghỉ việc đã được gửi', resignation: newResignation });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi gửi yêu cầu nghỉ việc', error: error.message });
+  }
+});
+
+// Route để lấy danh sách yêu cầu nghỉ việc (cho admin)
+router.get('/resignation-requests', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+  }
+  try {
+    const resignations = await Resignation.find().populate('userId', 'fullName');
+    res.json({ resignations });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi lấy danh sách yêu cầu nghỉ việc', error: error.message });
+  }
+});
+
+// Route để cập nhật trạng thái yêu cầu nghỉ việc (cho admin)
+router.put('/resignation-requests/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+  }
+  try {
+    const { status, adminResponse } = req.body;
+    const resignation = await Resignation.findByIdAndUpdate(
+      req.params.id,
+      { status, adminResponse, processedAt: Date.now() },
+      { new: true }
+    ).populate('userId', 'fullName');
+    
+    if (!resignation) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu nghỉ việc' });
+    }
+    
+    res.json({ message: 'Cập nhật trạng thái yêu cầu nghỉ việc thành công', resignation });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái yêu cầu nghỉ việc', error: error.message });
+  }
+});
+
+// Route để lấy yêu cầu nghỉ việc của một user cụ thể
+router.get('/user-resignation/:userId', authenticate, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    if (req.user.role !== 'admin' && req.user.userId !== userId) {
+      return res.status(403).json({ message: 'Bạn không có quyền truy cập thông tin này' });
+    }
+    const resignations = await Resignation.find({ userId }).sort({ submittedAt: -1 });
+    res.json({ resignations });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi lấy yêu cầu nghỉ việc', error: error.message });
+  }
+});
+
+// Route để xóa yêu cầu nghỉ việc (cho admin)
+router.delete('/resignation-requests/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền xóa yêu cầu này' });
+  }
+  try {
+    const resignation = await Resignation.findByIdAndDelete(req.params.id);
+    if (!resignation) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu nghỉ việc' });
+    }
+    res.json({ message: 'Yêu cầu nghỉ việc đã được xóa thành công' });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi xóa yêu cầu nghỉ việc', error: error.message });
+  }
+});
+
+// Route để hủy yêu cầu nghỉ việc (cho user)
+router.delete('/user-resignation/:id', authenticate, async (req, res) => {
+  try {
+    const resignation = await Resignation.findOne({ 
+      _id: req.params.id, 
+      userId: req.user.userId, 
+      status: 'pending' 
+    });
+
+    if (!resignation) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu nghỉ việc hoặc yêu cầu không thể hủy' });
+    }
+
+    await Resignation.deleteOne({ _id: req.params.id });
+    res.json({ message: 'Yêu cầu nghỉ việc đã được hủy thành công' });
+  } catch (error) {
+    console.error('Lỗi khi hủy yêu cầu nghỉ việc:', error);
+    res.status(500).json({ message: 'Lỗi khi hủy yêu cầu nghỉ việc', error: error.message });
   }
 });
 
