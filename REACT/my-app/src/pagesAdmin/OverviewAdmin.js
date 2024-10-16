@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const OverviewAdmin = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -33,6 +34,16 @@ const OverviewAdmin = () => {
     approvedResignations: 0
   });
 
+  
+  const handleReportClick = () => {
+    setActiveSection('overview');
+  };
+
+  const handleReminderClick = () => {
+    setActiveSection('reminder');
+  };
+
+  
   const handleAddTask = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -148,6 +159,16 @@ const OverviewAdmin = () => {
 
   const contractData = Object.entries(overviewData.contractTypes).map(([name, value]) => ({ name, value }));
 
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'reminder':
+        return <ReminderSection tasks={tasks} />;
+      default:
+        return <OverviewSection overviewData={overviewData} contractData={contractData} tasks={tasks} />;
+    }
+  };
+
+  
   return (
     <PageContainer
       as={motion.div}
@@ -161,7 +182,8 @@ const OverviewAdmin = () => {
             as={motion.button}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="btn-primary"
+            className={`btn-primary ${activeSection === 'overview' ? 'active' : ''}`}
+            onClick={handleReportClick}
           >
             Báo cáo
           </Button>
@@ -169,187 +191,25 @@ const OverviewAdmin = () => {
             as={motion.button}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="btn-secondary"
-            onClick={() => setShowTaskModal(true)}
+            className={`btn-secondary ${activeSection === 'reminder' ? 'active' : ''}`}
+            onClick={handleReminderClick}
           >
             Nhắc việc
           </Button>
         </ButtonGroup>
       </Header>
 
-      <StatsGrid>
-        <StatCard
-          as={motion.div}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeSection}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05, duration: 0.2 }}
-          className="new-employees"
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.2 }}
         >
-          <h3>Nhân viên mới</h3>
-          <StatValue>{overviewData.newEmployees}</StatValue>
-          <StatPrevious>1-3 ngày qua</StatPrevious>
-        </StatCard>
-
-        <StatCard
-          as={motion.div}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15, duration: 0.2 }}
-          className="permanent-employees"
-        >
-          <h3>Nhân viên chính thức</h3>
-          <StatValue>{overviewData.permanentEmployees}</StatValue>
-          <StatPrevious>Tổng số nhân viên chính thức</StatPrevious>
-        </StatCard>
-        <StatCard
-          as={motion.div}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.2 }}
-          className="trial-employees"
-        >
-          <h3>Nhân viên thử việc</h3>
-          <StatValue>{overviewData.trialEmployees}</StatValue>
-          <StatPrevious>Tổng số nhân viên thử việc</StatPrevious>
-        </StatCard>
-        <StatCard
-          as={motion.div}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.2 }}
-          className="resignations"
-        >
-          <h3>Nghỉ việc</h3>
-          <StatValue>{overviewData.approvedResignations}</StatValue>
-          <StatPrevious>Tháng này</StatPrevious>
-        </StatCard>
-        <StatCard
-          as={motion.div}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.2 }}
-          className="total-employees"
-        >
-          <h3>Tổng số nhân viên</h3>
-          <StatValue>{overviewData.totalEmployees}</StatValue>
-          <StatPrevious>Tổng số nhân viên</StatPrevious>
-        </StatCard>
-      </StatsGrid>
-
-      <ChartsGrid>
-        <ChartCard
-          as={motion.div}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2, duration: 0.2 }}
-        >
-          <h3>Thống kê hợp đồng theo loại</h3>
-          <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={contractData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="value" fill="#8884d8" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-        <ChartCard
-          as={motion.div}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3, duration: 0.2 }}
-        >
-          <h3>Cơ cấu công ty</h3>
-          <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={overviewData.staffCounts}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="số_lượng" fill="#82ca9d" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-        <ChartCard
-          as={motion.div}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4, duration: 0.2 }}
-        >
-          <h3>Nhắc việc</h3>
-          <TaskList>
-            <AnimatePresence>
-              {tasks && tasks.length > 0 ? (
-                tasks.map((task, index) => (
-                  <TaskItem
-                    key={task._id}
-                    as={motion.div}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ delay: index * 0.05, duration: 0.2 }}
-                  >
-                    <h4>{task.title}</h4>
-                    <p>{task.description}</p>
-                    <p>Ngày hết hạn: {new Date(task.dueDate).toLocaleDateString()}</p>
-                    <p>Thời gian dự kiến hoàn thành: {task.expectedCompletionTime}</p>
-                    <p>Người được giao: {task.assignedTo && task.assignedTo.fullName ? task.assignedTo.fullName : 'Chưa được gán'}</p>
-                  </TaskItem>
-                ))
-              ) : (
-                <p>Không có nhắc việc nào.</p>
-              )}
-            </AnimatePresence>
-          </TaskList>
-        </ChartCard>
-      </ChartsGrid>
-
-      <ChartsGrid className="two-columns">
-        <ChartCard
-          as={motion.div}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5, duration: 0.2 }}
-        >
-          <h3>Biến động nhân sự</h3>
-          <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={overviewData.staffChanges}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="nhận" fill="#8884d8" />
-              <Bar dataKey="nghỉ" fill="#82ca9d" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-        <ChartCard
-          as={motion.div}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.6, duration: 0.2 }}
-        >
-          <h3>Số lượng nhân sự</h3>
-          <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={overviewData.staffCounts}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="số_lượng" fill="#8884d8" />
-              </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </ChartsGrid>
+          {renderContent()}
+        </motion.div>
+      </AnimatePresence>
 
       <AnimatePresence>
         {showTaskModal && (
@@ -428,7 +288,218 @@ const OverviewAdmin = () => {
   );
 };
 
+const OverviewSection = ({ overviewData, contractData, tasks }) => (
+  <>
+    <StatsGrid>
+      <StatCard className="new-employees">
+        <h3>Nhân viên mới</h3>
+        <StatValue>{overviewData.newEmployees}</StatValue>
+        <StatPrevious>1-3 ngày qua</StatPrevious>
+      </StatCard>
+      <StatCard className="permanent-employees">
+        <h3>Nhân viên chính thức</h3>
+        <StatValue>{overviewData.permanentEmployees}</StatValue>
+        <StatPrevious>Tổng số nhân viên chính thức</StatPrevious>
+      </StatCard>
+      <StatCard className="trial-employees">
+        <h3>Nhân viên thử việc</h3>
+        <StatValue>{overviewData.trialEmployees}</StatValue>
+        <StatPrevious>Tổng số nhân viên thử việc</StatPrevious>
+      </StatCard>
+      <StatCard className="resignations">
+        <h3>Nghỉ việc</h3>
+        <StatValue>{overviewData.approvedResignations}</StatValue>
+        <StatPrevious>Tháng này</StatPrevious>
+      </StatCard>
+      <StatCard className="total-employees">
+        <h3>Tổng số nhân viên</h3>
+        <StatValue>{overviewData.totalEmployees}</StatValue>
+        <StatPrevious>Tổng số nhân viên</StatPrevious>
+      </StatCard>
+    </StatsGrid>
+
+    <ChartsGrid>
+      <ChartCard>
+        <h3>Thống kê hợp đồng theo loại</h3>
+        <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart data={contractData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="value" fill="#8884d8" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+      <ChartCard>
+        <h3>Cơ cấu công ty</h3>
+        <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart data={overviewData.staffCounts}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="số_lượng" fill="#82ca9d" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+      <ChartCard>
+        <h3>Nhắc việc</h3>
+        <TaskList>
+          <AnimatePresence>
+            {tasks && tasks.length > 0 ? (
+              tasks.map((task, index) => (
+                <TaskItem
+                  key={task._id}
+                  as={motion.div}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ delay: index * 0.05, duration: 0.2 }}
+                >
+                  <h4>{task.title}</h4>
+                  <p>{task.description}</p>
+                  <p>Ngày hết hạn: {new Date(task.dueDate).toLocaleDateString()}</p>
+                  <p>Thời gian dự kiến hoàn thành: {task.expectedCompletionTime}</p>
+                  <p>Người được giao: {task.assignedTo && task.assignedTo.fullName ? task.assignedTo.fullName : 'Chưa được gán'}</p>
+                </TaskItem>
+              ))
+            ) : (
+              <p>Không có nhắc việc nào.</p>
+            )}
+          </AnimatePresence>
+        </TaskList>
+      </ChartCard>
+    </ChartsGrid>
+
+    <ChartsGrid className="two-columns">
+      <ChartCard>
+        <h3>Biến động nhân sự</h3>
+        <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart data={overviewData.staffChanges}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="nhận" fill="#8884d8" />
+            <Bar dataKey="nghỉ" fill="#82ca9d" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+      <ChartCard>
+        <h3>Số lượng nhân sự</h3>
+        <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart data={overviewData.staffCounts}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="số_lượng" fill="#8884d8" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+    </ChartsGrid>
+  </>
+);
+
+const ReportSection = ({ overviewData }) => (
+  <div>
+    <h2>Báo cáo</h2>
+    {/* Thêm nội dung báo cáo ở đây */}
+    <p>Tổng số nhân viên: {overviewData.totalEmployees}</p>
+    <p>Nhân viên mới: {overviewData.newEmployees}</p>
+    <p>Nhân viên nghỉ việc: {overviewData.approvedResignations}</p>
+    {/* Thêm các biểu đồ hoặc bảng báo cáo khác nếu cần */}
+  </div>
+);
+
+const ReminderSection = ({ tasks }) => (
+  <ReminderContainer>
+    <h2>Nhắc việc</h2>
+    <ReminderGrid>
+      <ReminderCard>
+        <h3>Nhân viên hết hạn hợp đồng</h3>
+        {/* Thêm logic để hiển thị nhân viên hết hạn hợp đồng */}
+      </ReminderCard>
+      <ReminderCard>
+        <h3>Nhân viên chưa ký hợp đồng</h3>
+        {/* Thêm logic để hiển thị nhân viên chưa ký hợp đồng */}
+      </ReminderCard>
+      <ReminderCard>
+        <h3>Nhân viên hết hạn</h3>
+        {/* Thêm logic để hiển thị nhân viên hết hạn */}
+      </ReminderCard>
+      <ReminderCard>
+        <h3>Công việc cần thực hiện</h3>
+        {tasks && tasks.length > 0 ? (
+          tasks.map((task, index) => (
+            <TaskItem key={index}>
+              <p>{task.title}</p>
+              <p>Hạn: {new Date(task.dueDate).toLocaleDateString()}</p>
+            </TaskItem>
+          ))
+        ) : (
+          <p>Không có công việc cần thực hiện.</p>
+        )}
+      </ReminderCard>
+      <ReminderCard>
+        <h3>Sinh nhật nhân viên</h3>
+        {/* Thêm logic để hiển thị sinh nhật nhân viên */}
+      </ReminderCard>
+      <ReminderCard>
+        <h3>Nhân viên đến tuổi nghỉ hưu</h3>
+        {/* Thêm logic để hiển thị nhân viên đến tuổi nghỉ hưu */}
+      </ReminderCard>
+    </ReminderGrid>
+  </ReminderContainer>
+);
+
 // Styled components
+
+
+// Thêm các styled components mới
+const ReminderContainer = styled.div`
+  padding: 20px;
+`;
+
+const ReminderGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ReminderCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  h3 {
+    margin-top: 0;
+    font-size: 1rem;
+    color: #3b82f6;
+    margin-bottom: 10px;
+  }
+`;
+
+
+
 const PageContainer = styled.div`
   width: 100%;
   padding: 16px;
@@ -572,17 +643,12 @@ const TaskItem = styled.div`
     border-bottom: none;
   }
 
-  h4 {
-    margin: 0 0 5px 0;
-    color: #3b82f6;
-  }
-
   p {
-    margin: 0 0 5px 0;
+    margin: 0;
     font-size: 0.9em;
     color: #4b5563;
   }
-`;
+    `;
 
 const Modal = styled(motion.div)`
   position: fixed;
@@ -716,6 +782,9 @@ const Button = styled(motion.button)`
     &:hover {
       background-color: #2980b9;
     }
+    &.active {
+      background-color: #2980b9;
+    }
   }
 
    &.btn-secondary {
@@ -723,6 +792,11 @@ const Button = styled(motion.button)`
     color: #34495e;
     &:hover {
       background-color: #bdc3c7;
+    }
+      }
+    &.active {
+      background-color: #bdc3c7;
+      color: #2c3e50;
     }
   }
 

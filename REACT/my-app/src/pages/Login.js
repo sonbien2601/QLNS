@@ -41,10 +41,6 @@ const Login = () => {
   return (
     <PageContainer>
       <LoginForm onSubmit={handleLogin}>
-        <LogoContainer>
-          <Logo src="https://hrpartnering.vn/wp-content/uploads/2024/06/logo.jpg" alt="Logo" />
-          <LogoTitle>HRM.VN</LogoTitle>
-        </LogoContainer>
         <Title>Đăng nhập</Title>
         <Subtitle>Chào mừng trở lại. Đăng nhập để bắt đầu làm việc.</Subtitle>
         {error && <ErrorMessage>{error}</ErrorMessage>}

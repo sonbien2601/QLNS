@@ -20,12 +20,12 @@ const AddEmployee = () => {
     phoneNumber: '',
     position: '',
     basicSalary: '',
+    employeeType: 'thử việc',
+    contractType: '',
     contractStart: '',
     contractEnd: '',
-    contractType: '',
     contractStatus: 'active',
-    employeeType: 'thử việc',
-    gender: '', // New field for gender
+    gender: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -41,34 +41,33 @@ const AddEmployee = () => {
     const newErrors = {};
     
     if (!formData.fullName.trim()) newErrors.fullName = 'Vui lòng nhập tên nhân viên';
-    
     if (!formData.username.trim()) {
       newErrors.username = 'Vui lòng nhập tên đăng nhập';
     } else if (formData.username.length <= 6 || !/\d/.test(formData.username)) {
       newErrors.username = 'Tên đăng nhập phải trên 6 ký tự và chứa ít nhất một số';
     }
-    
     if (!formData.email.trim()) newErrors.email = 'Vui lòng nhập email';
-    
     if (!formData.password) {
       newErrors.password = 'Vui lòng nhập mật khẩu';
     } else if (formData.password.length <= 6 || !/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
       newErrors.password = 'Mật khẩu phải trên 6 ký tự và chứa ít nhất một ký tự đặc biệt';
     }
-    
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
     }
-    
     if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
     if (!formData.position.trim()) newErrors.position = 'Vui lòng nhập chức vụ';
     if (!formData.basicSalary) newErrors.basicSalary = 'Vui lòng nhập lương cơ bản';
-    if (!formData.contractStart) newErrors.contractStart = 'Vui lòng nhập ngày bắt đầu hợp đồng';
-    if (!formData.contractType) newErrors.contractType = 'Vui lòng chọn loại hợp đồng';
     if (!formData.employeeType) newErrors.employeeType = 'Vui lòng chọn loại nhân viên';
-    if (!formData.gender) newErrors.gender = 'Vui lòng chọn giới tính'; // New validation for gender
+    if (!formData.gender) newErrors.gender = 'Vui lòng chọn giới tính';
+
+    // Chỉ kiểm tra các trường hợp đồng nếu là nhân viên chính thức
+    if (formData.employeeType === 'chính thức') {
+      if (!formData.contractType) newErrors.contractType = 'Vui lòng chọn loại hợp đồng';
+      if (!formData.contractStart) newErrors.contractStart = 'Vui lòng nhập ngày bắt đầu hợp đồng';
+    }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRegex.test(formData.email)) {
@@ -80,10 +79,17 @@ const AddEmployee = () => {
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    setFormData(prevState => ({
+      ...prevState,
+      [name]: value,
+      ...(name === 'employeeType' && value === 'thử việc' ? {
+        contractType: '',
+        contractStart: '',
+        contractEnd: '',
+        contractStatus: 'active',
+      } : {})
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -95,6 +101,14 @@ const AddEmployee = () => {
 
     try {
       const { confirmPassword, ...submitData } = formData;
+      
+      if (submitData.employeeType === 'thử việc') {
+        delete submitData.contractType;
+        delete submitData.contractStart;
+        delete submitData.contractEnd;
+        delete submitData.contractStatus;
+      }
+
       const token = localStorage.getItem('token');
       const response = await axios.post('http://localhost:5000/api/auth/create-user', submitData, {
         headers: {
@@ -125,11 +139,11 @@ const AddEmployee = () => {
         phoneNumber: '',
         position: '',
         basicSalary: '',
+        employeeType: 'thử việc',
+        contractType: '',
         contractStart: '',
         contractEnd: '',
-        contractType: '',
         contractStatus: 'active',
-        employeeType: 'thử việc',
         gender: '',
       });
       setErrors({});
@@ -174,42 +188,49 @@ const AddEmployee = () => {
           <StyledForm onSubmit={handleSubmit}>
             <FormGrid>
               <AnimatePresence>
-                {Object.entries(formData).map(([key, value], index) => (
-                  <FormGroup
-                    key={key}
-                    as={motion.div}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1, duration: 0.5 }}
-                  >
-                    <Label htmlFor={key}>{getLabelText(key)}:</Label>
-                    {key === 'contractType' || key === 'contractStatus' || key === 'employeeType' || key === 'gender' ? (
-                      <Select
-                        id={key}
-                        name={key}
-                        value={value}
-                        onChange={handleChange}
-                        $isInvalid={!!errors[key]}
-                      >
-                        {getOptions(key)}
-                      </Select>
-                    ) : (
-                      <Input
-                        type={getInputType(key)}
-                        id={key}
-                        name={key}
-                        value={value}
-                        onChange={handleChange}
-                        $isInvalid={!!errors[key]}
-                        placeholder={getPlaceholder(key)}
-                      />
-                    )}
-                    {errors[key] && <ErrorMessage>{errors[key]}</ErrorMessage>}
-                  </FormGroup>
-                ))}
+                {Object.entries(formData).map(([key, value], index) => {
+                  if (formData.employeeType === 'thử việc' && 
+                      ['contractType', 'contractStart', 'contractEnd', 'contractStatus'].includes(key)) {
+                    return null;
+                  }
+                  
+                  return (
+                    <FormGroup
+                      key={key}
+                      as={motion.div}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1, duration: 0.5 }}
+                    >
+                      <Label htmlFor={key}>{getLabelText(key)}:</Label>
+                      {key === 'contractType' || key === 'contractStatus' || key === 'employeeType' || key === 'gender' ? (
+                        <Select
+                          id={key}
+                          name={key}
+                          value={value}
+                          onChange={handleChange}
+                          $isInvalid={!!errors[key]}
+                        >
+                          {getOptions(key)}
+                        </Select>
+                      ) : (
+                        <Input
+                          type={getInputType(key)}
+                          id={key}
+                          name={key}
+                          value={value}
+                          onChange={handleChange}
+                          $isInvalid={!!errors[key]}
+                          placeholder={getPlaceholder(key)}
+                        />
+                      )}
+                      {errors[key] && <ErrorMessage>{errors[key]}</ErrorMessage>}
+                    </FormGroup>
+                  );
+                })}
               </AnimatePresence>
             </FormGrid>
-
+  
             <SubmitButton
               as={motion.button}
               type="submit"
