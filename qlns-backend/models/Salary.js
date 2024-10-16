@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+// Liên kết với User2 model, lưu ID của nhân viên nhận lương
 const salarySchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User2', required: true },
   basicSalary: { type: Number, required: true },

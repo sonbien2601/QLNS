@@ -8,7 +8,7 @@ const Attendance = require('../models/Attendance'); // Nhập mô hình Attendan
 const Salary = require('../models/Salary'); // Nhập mô hình Salary
 const Contract = require('../models/Contract'); // Nhập mô hình Contract
 const FeedbackSalary = require('../models/FeedbackSalary');
-const Task = require('../models/Task'); 
+const Task = require('../models/Task');
 const Resignation = require('../models/Resignation');
 const router = express.Router(); // Tạo router từ Express
 
@@ -43,10 +43,10 @@ router.post('/register', async (req, res) => {
 
   try {
     // Kiểm tra username và email đã tồn tại chưa
-    const existingUser = await User.findOne({ 
+    const existingUser = await User.findOne({
       $or: [{ email }, { username }]
     });
-    
+
     if (existingUser) {
       if (existingUser.email === email) {
         return res.status(400).json({ message: 'Email đã được sử dụng' }); // Nếu email đã tồn tại, trả về lỗi 400
@@ -109,7 +109,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = generateToken(user);
-    
+
     res.json({
       token,
       userId: user._id,
@@ -130,18 +130,19 @@ router.post('/create-user', authenticate, async (req, res) => {
     return res.status(403).json({ message: 'Không có quyền truy cập' });
   }
 
-  const { 
-    username, 
-    fullName, 
-    email, 
-    password, 
-    phoneNumber, 
-    position, 
-    basicSalary, 
-    contractStart, 
-    contractEnd, 
-    contractType, 
-    contractStatus 
+  const {
+    username,
+    fullName,
+    email,
+    password,
+    phoneNumber,
+    position,
+    basicSalary,
+    contractStart,
+    contractEnd,
+    contractType,
+    contractStatus,
+    employeeType // Thêm trường mới này
   } = req.body;
 
   try {
@@ -176,7 +177,8 @@ router.post('/create-user', authenticate, async (req, res) => {
       contractStart,
       contractEnd,
       contractType,
-      contractStatus
+      contractStatus,
+      employeeType: employeeType || 'thử việc' // Sử dụng giá trị được cung cấp hoặc mặc định
     });
 
     await newUser.save();
@@ -198,15 +200,16 @@ router.post('/create-user', authenticate, async (req, res) => {
         contractStart: newUser.contractStart,
         contractEnd: newUser.contractEnd,
         contractType: newUser.contractType,
-        contractStatus: newUser.contractStatus
+        contractStatus: newUser.contractStatus,
+        employeeType: newUser.employeeType // Thêm trường này vào response
       },
       newToken // Trả về token mới cho admin
     });
   } catch (error) {
     console.error('Lỗi khi tạo tài khoản:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Lỗi khi tạo tài khoản',
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -280,16 +283,16 @@ router.put('/approve-appointment/:id', authenticate, async (req, res) => {
   }
 
   try {
-    const appointment = await Appointment.findByIdAndUpdate(req.params.id, 
-      { 
-        status: 'approved', 
+    const appointment = await Appointment.findByIdAndUpdate(req.params.id,
+      {
+        status: 'approved',
         approvedAt: Date.now() // Cập nhật thời gian phê duyệt
-      }, 
+      },
       { new: true }
     );
-    
+
     res.json({ message: 'Yêu cầu bổ nhiệm đã được phê duyệt', appointment });
-    
+
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi phê duyệt bổ nhiệm', error: error.message });
   }
@@ -302,16 +305,16 @@ router.put('/reject-appointment/:id', authenticate, async (req, res) => {
   }
 
   try {
-    const appointment = await Appointment.findByIdAndUpdate(req.params.id, 
-      { 
-        status: 'rejected', 
+    const appointment = await Appointment.findByIdAndUpdate(req.params.id,
+      {
+        status: 'rejected',
         rejectedAt: Date.now() // Cập nhật thời gian từ chối
-      }, 
+      },
       { new: true }
     );
 
     res.json({ message: 'Yêu cầu bổ nhiệm đã bị từ chối', appointment });
-    
+
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi từ chối bổ nhiệm', error: error.message });
   }
@@ -326,7 +329,7 @@ router.delete('/cancel-appointment/:id', authenticate, async (req, res) => {
   try {
     // Chỉ cho phép hủy các yêu cầu ở trạng thái 'pending'
     const appointment = await Appointment.findOne({ _id: req.params.id, userId: req.user.userId, status: 'pending' });
-    
+
     if (!appointment) {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu để hủy hoặc yêu cầu không ở trạng thái chờ duyệt' });
     }
@@ -346,19 +349,19 @@ router.delete('/delete-appointment/:id', authenticate, async (req, res) => {
 
   try {
     const appointment = await Appointment.findById(req.params.id);
-    
+
     if (!appointment) {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm để xóa' });
     }
 
     await Appointment.deleteOne({ _id: req.params.id }); // Xóa yêu cầu bổ nhiệm
     res.json({ message: 'Yêu cầu bổ nhiệm đã được xóa thành công' });
-    
+
   } catch (error) {
     console.error('Lỗi xóa bổ nhiệm:', error);
-    res.status(500).json({ 
-      message: 'Lỗi khi xóa yêu cầu bổ nhiệm', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Lỗi khi xóa yêu cầu bổ nhiệm',
+      error: error.message
     });
   }
 });
@@ -370,12 +373,12 @@ const formatTimeDifference = (milliseconds) => {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainingSeconds = seconds % 60;
-  
+
   let result = [];
   if (hours > 0) result.push(`${hours} giờ`);
   if (minutes > 0) result.push(`${minutes} phút`);
   if (remainingSeconds > 0 || result.length === 0) result.push(`${remainingSeconds} giây`);
-  
+
   return result.join(' ');
 };
 
@@ -427,8 +430,8 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
 
     await attendance.save();
 
-    res.json({ 
-      message: 'Check-out thành công', 
+    res.json({
+      message: 'Check-out thành công',
       attendance: {
         _id: attendance._id,
         userId: attendance.userId,
@@ -477,9 +480,9 @@ router.get('/attendance/summary', authenticate, async (req, res) => {
     const attendanceRecords = await Attendance.find()
       .populate('userId', 'fullName position')
       .sort({ checkIn: -1 });
-    
+
     console.log('Số lượng bản ghi chấm công:', attendanceRecords.length);
-    
+
     const validRecords = attendanceRecords.filter(record => record.userId != null).map(record => {
       let totalHours = record.totalHours;
       if (record.checkOut && !totalHours) {
@@ -497,9 +500,9 @@ router.get('/attendance/summary', authenticate, async (req, res) => {
         totalHours: totalHours || 'Chưa check-out'
       };
     });
-    
+
     console.log('Số lượng bản ghi hợp lệ:', validRecords.length);
-    
+
     res.json({ attendanceRecords: validRecords });
   } catch (error) {
     console.error('Lỗi khi lấy dữ liệu chấm công:', error);
@@ -608,23 +611,23 @@ router.put('/contracts/:id', authenticate, async (req, res) => {
 // API để lấy hợp đồng của người dùng
 router.get('/user-contract/:userId', authenticate, async (req, res) => {
   try {
-      const userId = req.params.userId;
-      const user = await User2.findById(userId);
-      
-      if (!user) {
-          return res.status(404).json({ message: 'Không tìm thấy người dùng' });
-      }
+    const userId = req.params.userId;
+    const user = await User2.findById(userId);
 
-      const contract = {
-          contractType: user.contractType,
-          startDate: user.contractStart,
-          endDate: user.contractEnd,
-          status: user.contractStatus === 'active' ? 'Còn hiệu lực' : 'Hết hiệu lực'
-      };
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    }
 
-      res.json(contract);
+    const contract = {
+      contractType: user.contractType,
+      startDate: user.contractStart,
+      endDate: user.contractEnd,
+      status: user.contractStatus === 'active' ? 'Còn hiệu lực' : 'Hết hiệu lực'
+    };
+
+    res.json(contract);
   } catch (error) {
-      res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 });
 
@@ -640,7 +643,7 @@ router.delete('/contracts/:id', authenticate, async (req, res) => {
     console.log('ID nhân viên cần xóa hợp đồng:', id);
 
     const user = await User2.findById(id);
-    
+
     if (!user) {
       console.log('Không tìm thấy nhân viên với ID:', id);
       return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
@@ -751,20 +754,31 @@ const calculateTotalWorkHours = (attendanceRecords) => {
     if (record.totalHours) {
       const parts = record.totalHours.split(' ');
       let hours = 0, minutes = 0;
-      
+
       for (let i = 0; i < parts.length; i += 2) {
         const value = parseInt(parts[i]);
         const unit = parts[i + 1];
-        
+
         if (unit.includes('giờ')) hours += value;
         else if (unit.includes('phút')) minutes += value;
       }
-      
+
+      // Chuyển đổi phút thành giờ và cộng vào tổng số giờ
       return total + hours + minutes / 60;
     }
     return total;
   }, 0);
 };
+
+// Giải thích:
+// - Hàm này duyệt qua tất cả các bản ghi chấm công (attendanceRecords)
+// - Với mỗi bản ghi, nó tách chuỗi totalHours thành các phần (ví dụ: "8 giờ 30 phút")
+// - Sau đó, nó tính tổng số giờ và phút
+// - Cuối cùng, nó chuyển đổi phút thành giờ (chia cho 60) và cộng vào tổng số giờ
+
+// Ví dụ:
+// Nếu có 2 bản ghi: "8 giờ 30 phút" và "7 giờ 45 phút"
+// Kết quả sẽ là: (8 + 30/60) + (7 + 45/60) = 8.5 + 7.75 = 16.25 giờ
 
 // API lấy danh sách lương
 router.get('/salary', authenticate, async (req, res) => {
@@ -778,9 +792,14 @@ router.get('/salary', authenticate, async (req, res) => {
     const updatedSalaries = await Promise.all(salaries.map(async (salary) => {
       const attendanceRecords = await Attendance.find({ userId: salary.userId._id });
       const actualWorkHours = calculateTotalWorkHours(attendanceRecords);
-      
+
+      // Số giờ làm việc tiêu chuẩn trong một tháng (8 giờ * 22 ngày)
       const standardWorkHours = 176; // 8 giờ * 22 ngày
+
+      // Tính lương theo giờ
       const hourlyRate = salary.basicSalary / standardWorkHours;
+      
+      // Tính lương thực tế
       const actualSalary = hourlyRate * actualWorkHours + salary.bonus;
 
       return {
@@ -798,8 +817,22 @@ router.get('/salary', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi khi lấy lương', error: error.message });
   }
 });
+// Giải thích chi tiết:
+// a. Lương theo giờ (hourlyRate):
+//    - Công thức: hourlyRate = basicSalary / standardWorkHours
+//    - Ví dụ: Nếu lương cơ bản (basicSalary) là 5,000,000 VND
+//      hourlyRate = 5,000,000 / 176 ≈ 28,409 VND/giờ
+
+// b. Lương thực tế (actualSalary):
+//    - Công thức: actualSalary = (hourlyRate * actualWorkHours) + bonus
+//    - Ví dụ: 
+//      Giả sử actualWorkHours = 160 giờ, bonus = 500,000 VND
+//      actualSalary = (28,409 * 160) + 500,000 = 5,045,440 VND
 
 
+
+
+//API cập nhật lương
 router.post('/salary/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
@@ -850,7 +883,7 @@ router.delete('/salary/:id', authenticate, async (req, res) => {
 router.get('/salary/:userId', authenticate, async (req, res) => {
   try {
     const userId = req.params.userId;
-    
+
     // Kiểm tra xem người dùng có quyền xem thông tin lương này không
     if (req.user.role !== 'admin' && req.user.userId !== userId) {
       return res.status(403).json({ message: 'Bạn không có quyền truy cập thông tin này' });
@@ -933,7 +966,7 @@ router.get('/tasks', authenticate, async (req, res) => {
 router.post('/tasks', authenticate, async (req, res) => {
   try {
     const { title, description, dueDate, expectedCompletionTime, assignedTo } = req.body;
-    
+
     const newTask = new Task({
       title,
       description,
@@ -1001,18 +1034,41 @@ router.put('/resignation-requests/:id', authenticate, async (req, res) => {
   }
   try {
     const { status, adminResponse } = req.body;
-    const resignation = await Resignation.findByIdAndUpdate(
-      req.params.id,
-      { status, adminResponse, processedAt: Date.now() },
-      { new: true }
-    ).populate('userId', 'fullName');
-    
+    const resignation = await Resignation.findById(req.params.id).populate('userId');
+
     if (!resignation) {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu nghỉ việc' });
     }
-    
+
+    if (status === 'approved') {
+      // Xóa toàn bộ thông tin liên quan đến người dùng
+      const userId = resignation.userId._id;
+
+      // Xóa thông tin từ các collection liên quan
+      await Promise.all([
+        User.findByIdAndDelete(userId),
+        User2.findByIdAndDelete(userId),
+        Appointment.deleteMany({ userId }),
+        Attendance.deleteMany({ userId }),
+        Salary.deleteMany({ userId }),
+        Contract.deleteMany({ userId }),
+        FeedbackSalary.deleteMany({ userId }),
+        Task.deleteMany({ assignedTo: userId }),
+        Resignation.deleteMany({ userId })
+      ]);
+
+      return res.json({ message: 'Yêu cầu nghỉ việc đã được chấp nhận và tài khoản đã bị xóa' });
+    } else {
+      // Nếu từ chối, chỉ cập nhật trạng thái
+      resignation.status = status;
+      resignation.adminResponse = adminResponse;
+      resignation.processedAt = Date.now();
+      await resignation.save();
+    }
+
     res.json({ message: 'Cập nhật trạng thái yêu cầu nghỉ việc thành công', resignation });
   } catch (error) {
+    console.error('Lỗi khi cập nhật trạng thái yêu cầu nghỉ việc:', error);
     res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái yêu cầu nghỉ việc', error: error.message });
   }
 });
@@ -1050,10 +1106,10 @@ router.delete('/resignation-requests/:id', authenticate, async (req, res) => {
 // Route để hủy yêu cầu nghỉ việc (cho user)
 router.delete('/user-resignation/:id', authenticate, async (req, res) => {
   try {
-    const resignation = await Resignation.findOne({ 
-      _id: req.params.id, 
-      userId: req.user.userId, 
-      status: 'pending' 
+    const resignation = await Resignation.findOne({
+      _id: req.params.id,
+      userId: req.user.userId,
+      status: 'pending'
     });
 
     if (!resignation) {

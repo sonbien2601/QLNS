@@ -26,12 +26,7 @@ const HeaderUser = () => {
 
   return (
     <header>
-      <h1>User Dashboard</h1>
-      <nav>
-      <ul>
-          <li><Link to="/user">Dashboard</Link></li>
-        </ul>
-      </nav>
+      <h1>Quản lý nhân sự</h1>
       <div className="header-right">
         {fullName && <div className="welcome-message">Hello, {fullName}</div>}
         <button className="logout-button" onClick={handleLogout}>

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const contractSchema = new mongoose.Schema({
+  // Liên kết với User2 model, lưu ID của nhân viên có hợp đồng
   employeeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User2',

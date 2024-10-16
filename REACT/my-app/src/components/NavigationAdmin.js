@@ -13,9 +13,7 @@ const NavigationAdmin = () => {
 
   return (
     <div className="admin-sidebar"> {/* Đổi tên class thành admin-sidebar */}
-      <div className="admin-sidebar-header"> {/* Đổi tên class thành admin-sidebar-header */}
-        <h3>Quản lý nhân sự</h3>
-      </div>
+
       <ul className="admin-sidebar-menu"> {/* Đổi tên class thành admin-sidebar-menu */}
         {/* Hiển thị cho tất cả người dùng */}
         {role === 'admin' && (

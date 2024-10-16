@@ -22,11 +22,8 @@ const HeaderAdmin = () => {
 
   return (
     <header>
-      <h1>Admin Panel</h1>
       <nav>
-        <ul>
-          <li><Link to="/admin">Dashboard</Link></li>
-        </ul>
+        <h1>Quản lý nhân sự</h1>
       </nav>
       <div className="header-right">
         {fullName && <div className="welcome-message">Hello, {fullName}</div>}

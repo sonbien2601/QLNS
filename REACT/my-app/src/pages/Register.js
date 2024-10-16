@@ -37,12 +37,27 @@ const Register = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.username.trim()) newErrors.username = 'Tên đăng nhập là bắt buộc';
+
+    // Username validation
+    if (!formData.username.trim()) {
+      newErrors.username = 'Tên đăng nhập là bắt buộc';
+    } else if (formData.username.length <= 6 || !/\d/.test(formData.username)) {
+      newErrors.username = 'Tên đăng nhập phải trên 6 ký tự và chứa ít nhất một số';
+    }
+
     if (!formData.fullName.trim()) newErrors.fullName = 'Họ và tên là bắt buộc';
-    if (!formData.password) newErrors.password = 'Mật khẩu là bắt buộc';
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Mật khẩu là bắt buộc';
+    } else if (formData.password.length <= 6 || !/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
+      newErrors.password = 'Mật khẩu phải trên 6 ký tự và chứa ít nhất một ký tự đặc biệt';
+    }
+
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Mật khẩu không khớp';
     }
+
     if (!formData.email.trim()) newErrors.email = 'Email là bắt buộc';
     if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Số điện thoại là bắt buộc';
     if (!formData.position) newErrors.position = 'Vui lòng chọn vị trí công việc';
@@ -60,7 +75,7 @@ const Register = () => {
 
     try {
       const response = await axios.post('http://localhost:5000/api/auth/register', formData);
-      
+
       await Swal.fire({
         title: 'Thành công!',
         text: `Đăng ký thành công với vai trò ${response.data.role}`,
@@ -104,69 +119,69 @@ const Register = () => {
               </FormGroup>
               <FormGroup>
                 <Label>Họ và tên:</Label>
-                <Input 
-                  type="text" 
-                  name="fullName" 
-                  value={formData.fullName} 
-                  onChange={handleChange} 
-                  placeholder="Nhập tên đầy đủ của bạn" 
+                <Input
+                  type="text"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  placeholder="Nhập tên đầy đủ của bạn"
                   $hasError={!!errors.fullName}
                 />
                 {errors.fullName && <ErrorMessage>{errors.fullName}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
                 <Label>Email:</Label>
-                <Input 
-                  type="email" 
-                  name="email" 
-                  value={formData.email} 
-                  onChange={handleChange} 
-                  placeholder="example@company.com" 
+                <Input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="example@company.com"
                   $hasError={!!errors.email}
                 />
                 {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
                 <Label>Mật khẩu:</Label>
-                <Input 
-                  type="password" 
-                  name="password" 
-                  value={formData.password} 
-                  onChange={handleChange} 
-                  placeholder="Nhập mật khẩu" 
+                <Input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Nhập mật khẩu"
                   $hasError={!!errors.password}
                 />
                 {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
                 <Label>Xác nhận mật khẩu:</Label>
-                <Input 
-                  type="password" 
-                  name="confirmPassword" 
-                  value={formData.confirmPassword} 
-                  onChange={handleChange} 
-                  placeholder="Nhập lại mật khẩu" 
+                <Input
+                  type="password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Nhập lại mật khẩu"
                   $hasError={!!errors.confirmPassword}
                 />
                 {errors.confirmPassword && <ErrorMessage>{errors.confirmPassword}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
                 <Label>Số điện thoại:</Label>
-                <Input 
-                  type="tel" 
-                  name="phoneNumber" 
-                  value={formData.phoneNumber} 
-                  onChange={handleChange} 
-                  placeholder="Ví dụ: 0123456789" 
+                <Input
+                  type="tel"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  placeholder="Ví dụ: 0123456789"
                   $hasError={!!errors.phoneNumber}
                 />
                 {errors.phoneNumber && <ErrorMessage>{errors.phoneNumber}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
                 <Label>Vị trí công việc:</Label>
-                <Select 
-                  name="position" 
-                  value={formData.position} 
+                <Select
+                  name="position"
+                  value={formData.position}
                   onChange={handleChange}
                   $hasError={!!errors.position}
                 >
@@ -179,21 +194,21 @@ const Register = () => {
               </FormGroup>
               <FormGroup>
                 <Label>Tên công ty:</Label>
-                <Input 
-                  type="text" 
-                  name="companyName" 
-                  value={formData.companyName} 
-                  onChange={handleChange} 
-                  placeholder="Nhập tên công ty của bạn" 
+                <Input
+                  type="text"
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  placeholder="Nhập tên công ty của bạn"
                   $hasError={!!errors.companyName}
                 />
                 {errors.companyName && <ErrorMessage>{errors.companyName}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
                 <Label>Tỉnh/Thành phố:</Label>
-                <Select 
-                  name="city" 
-                  value={formData.city} 
+                <Select
+                  name="city"
+                  value={formData.city}
                   onChange={handleChange}
                   $hasError={!!errors.city}
                 >
@@ -206,9 +221,9 @@ const Register = () => {
               </FormGroup>
               <FormGroup>
                 <Label>Quy mô nhân sự:</Label>
-                <Select 
-                  name="staffSize" 
-                  value={formData.staffSize} 
+                <Select
+                  name="staffSize"
+                  value={formData.staffSize}
                   onChange={handleChange}
                   $hasError={!!errors.staffSize}
                 >
@@ -235,6 +250,8 @@ const PageContainer = styled.div`
   min-height: 100vh;
   background-color: #f0f8ff;
   padding: 20px;
+  width: 100%; // Đảm bảo container chiếm toàn bộ chiều rộng
+  box-sizing: border-box; // Đảm bảo padding không làm tăng kích thước tổng thể
 `;
 
 const ContentWrapper = styled.div`
@@ -244,7 +261,7 @@ const ContentWrapper = styled.div`
   overflow: hidden;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 1200px;
+  max-width: 1300px; // Tăng từ 1200px lên 1400px
 
   @media (max-width: 1024px) {
     flex-direction: column;

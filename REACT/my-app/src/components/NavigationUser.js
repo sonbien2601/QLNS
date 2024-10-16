@@ -14,9 +14,6 @@ const NavigationUser = () => {
 
   return (
     <div className="user-sidebar">
-      <div className="user-sidebar-header">
-        <h3>Quản lý nhân sự</h3>
-      </div>
       <ul className="user-sidebar-menu">
         {/* Hiển thị cho người dùng có vai trò 'user' */}
         {role === 'user' && (

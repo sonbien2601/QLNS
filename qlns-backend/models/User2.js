@@ -14,6 +14,7 @@ const user2Schema = new mongoose.Schema({
   contractEnd: { type: Date },
   contractType: { type: String },
   contractStatus: { type: String, enum: ['active', 'inactive', 'expired'] },
+  employeeType: { type: String, enum: ['thử việc', 'chính thức'], default: 'thử việc' } 
 }, { timestamps: true });
 
 const User2 = mongoose.model('User2', user2Schema);

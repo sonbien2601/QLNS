@@ -46,19 +46,9 @@ const styles = {
     margin: '0 auto',
     padding: '2rem',
   },
-  leftSection: {
-    flex: 1,
-    color: 'white',
-    paddingRight: '15rem',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    textAlign: 'left', // Căn trái nội dung
-    marginLeft: '-50px',
-  },
   logo: {
     fontSize: '1.5rem',
-    marginBottom: '2rem',
+    marginBottom: '500px',
     color: 'white',
     textAlign: 'left',
     marginBottom: '180px',
@@ -77,7 +67,6 @@ const styles = {
     color: 'white',
   },
   button: {
-
     padding: '0.25rem 1rem', // Giảm padding để nút nhỏ hơn
     width: '150px', // Thiết lập chiều rộng nhỏ hơn
     fontSize: '1rem', // Giảm kích thước chữ nếu cần
@@ -96,12 +85,23 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: '-80px',
+    textAlign: 'right'
+  },
+  leftSection: {
+    flex: 1,
+    color: 'white',
+    paddingRight: '15rem',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    textAlign: 'left', // Căn trái nội dung
+    marginLeft: '-50px',
   },
   image: {
     maxWidth: '597px',
     height: '424px',
     marginTop: '180px',
-    borderRadius:'10px'
+    borderRadius: '10px'
   },
   bottomSpace: {
     height: '85px',

@@ -24,8 +24,27 @@ const AddEmployee = () => {
     contractEnd: '',
     contractType: '',
     contractStatus: 'active',
+    employeeType: 'thử việc',
   });
+  const fadeIn = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1 }
+  };
 
+  const slideUp = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1 }
+  };
+
+  const staggerChildren = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -39,28 +58,43 @@ const AddEmployee = () => {
     const newErrors = {};
     
     if (!formData.fullName.trim()) newErrors.fullName = 'Vui lòng nhập tên nhân viên';
-    if (!formData.username.trim()) newErrors.username = 'Vui lòng nhập tên đăng nhập';
+    
+    if (!formData.username.trim()) {
+      newErrors.username = 'Vui lòng nhập tên đăng nhập';
+    } else if (formData.username.length <= 6 || !/\d/.test(formData.username)) {
+      newErrors.username = 'Tên đăng nhập phải trên 6 ký tự và chứa ít nhất một số';
+    }
+    
     if (!formData.email.trim()) newErrors.email = 'Vui lòng nhập email';
-    if (!formData.password) newErrors.password = 'Vui lòng nhập mật khẩu';
-    if (!formData.confirmPassword) newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
+    
+    if (!formData.password) {
+      newErrors.password = 'Vui lòng nhập mật khẩu';
+    } else if (formData.password.length <= 6 || !/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
+      newErrors.password = 'Mật khẩu phải trên 6 ký tự và chứa ít nhất một ký tự đặc biệt';
+    }
+    
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
+    }
+    
     if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
     if (!formData.position.trim()) newErrors.position = 'Vui lòng nhập chức vụ';
     if (!formData.basicSalary) newErrors.basicSalary = 'Vui lòng nhập lương cơ bản';
     if (!formData.contractStart) newErrors.contractStart = 'Vui lòng nhập ngày bắt đầu hợp đồng';
     if (!formData.contractType) newErrors.contractType = 'Vui lòng chọn loại hợp đồng';
+    if (!formData.employeeType) newErrors.employeeType = 'Vui lòng chọn loại nhân viên';
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRegex.test(formData.email)) {
       newErrors.email = 'Email không hợp lệ';
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
 
   const handleChange = (e) => {
     setFormData({
@@ -112,6 +146,7 @@ const AddEmployee = () => {
         contractEnd: '',
         contractType: '',
         contractStatus: 'active',
+        employeeType: 'thử việc',
       });
       setErrors({});
     } catch (error) {
@@ -164,7 +199,7 @@ const AddEmployee = () => {
                     transition={{ delay: index * 0.1, duration: 0.5 }}
                   >
                     <Label htmlFor={key}>{getLabelText(key)}:</Label>
-                    {key === 'contractType' || key === 'contractStatus' ? (
+                    {key === 'contractType' || key === 'contractStatus' || key === 'employeeType' ? (
                       <Select
                         id={key}
                         name={key}
@@ -205,6 +240,7 @@ const AddEmployee = () => {
     </PageContainer>
   );
 };
+
 
 // Styled components
 const PageContainer = styled(motion.div)`
@@ -328,7 +364,8 @@ const getLabelText = (key) => {
     contractStart: 'Ngày bắt đầu hợp đồng',
     contractEnd: 'Ngày kết thúc hợp đồng',
     contractType: 'Loại hợp đồng',
-    contractStatus: 'Trạng thái hợp đồng'
+    contractStatus: 'Trạng thái hợp đồng',
+    employeeType: 'Loại nhân viên'
   };
   return labels[key] || key;
 };
@@ -376,6 +413,13 @@ const getOptions = (key) => {
         <option value="active">Đang hoạt động</option>
         <option value="inactive">Không hoạt động</option>
         <option value="expired">Đã hết hạn</option>
+      </>
+    );
+  } else if (key === 'employeeType') {
+    return (
+      <>
+        <option value="thử việc">Thử việc</option>
+        <option value="chính thức">Chính thức</option>
       </>
     );
   }

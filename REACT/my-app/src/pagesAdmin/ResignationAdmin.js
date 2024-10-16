@@ -94,6 +94,21 @@ const ResignationAdmin = () => {
         } else {
           return;
         }
+      } else if (status === 'approved') {
+        const confirmResult = await MySwal.fire({
+          title: 'Xác nhận chấp nhận nghỉ việc',
+          text: "Hành động này sẽ xóa toàn bộ thông tin của nhân viên khỏi hệ thống. Bạn có chắc chắn muốn tiếp tục?",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Đồng ý',
+          cancelButtonText: 'Hủy'
+        });
+
+        if (!confirmResult.isConfirmed) {
+          return;
+        }
       }
 
       const token = localStorage.getItem('token');
@@ -105,10 +120,15 @@ const ResignationAdmin = () => {
           }
         }
       );
+
+      let message = status === 'approved' 
+        ? 'Yêu cầu nghỉ việc đã được chấp nhận và thông tin nhân viên đã bị xóa khỏi hệ thống.'
+        : `Yêu cầu nghỉ việc đã được ${status === 'rejected' ? 'từ chối' : 'cập nhật'}.`;
+
       MySwal.fire({
         icon: 'success',
         title: 'Cập nhật thành công!',
-        text: `Yêu cầu nghỉ việc đã được ${status === 'approved' ? 'phê duyệt' : 'từ chối'}.`,
+        text: message,
       });
       fetchResignations();
     } catch (error) {
@@ -147,54 +167,6 @@ const ResignationAdmin = () => {
     } catch (error) {
       console.error('Error deleting resignation request:', error);
       handleApiError(error);
-    }
-  };
-
-  const handleEditResignation = async (resignation) => {
-    const { value: formValues } = await MySwal.fire({
-      title: 'Chỉnh sửa yêu cầu nghỉ việc',
-      html:
-        `<input id="swal-input1" class="swal2-input swal2-input-custom" placeholder="Lý do" value="${resignation.reason}">` +
-        `<select id="swal-input2" class="swal2-select swal2-input-custom">` +
-        `<option value="pending" ${resignation.status === 'pending' ? 'selected' : ''}>Đang chờ</option>` +
-        `<option value="approved" ${resignation.status === 'approved' ? 'selected' : ''}>Phê duyệt</option>` +
-        `<option value="rejected" ${resignation.status === 'rejected' ? 'selected' : ''}>Từ chối</option>` +
-        `</select>` +
-        `<input id="swal-input3" class="swal2-input swal2-input-custom" placeholder="Phản hồi của admin" value="${resignation.adminResponse || ''}">`,
-      focusConfirm: false,
-      preConfirm: () => {
-        return {
-          reason: document.getElementById('swal-input1').value,
-          status: document.getElementById('swal-input2').value,
-          adminResponse: document.getElementById('swal-input3').value
-        }
-      },
-      customClass: {
-        htmlContainer: 'swal2-custom-container'
-      }
-    });
-
-    if (formValues) {
-      try {
-        const token = localStorage.getItem('token');
-        await axios.put(`http://localhost:5000/api/auth/resignation-requests/${resignation._id}`, 
-          formValues,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          }
-        );
-        MySwal.fire({
-          icon: 'success',
-          title: 'Cập nhật thành công!',
-          text: 'Yêu cầu nghỉ việc đã được cập nhật.',
-        });
-        fetchResignations();
-      } catch (error) {
-        console.error('Error updating resignation:', error);
-        handleApiError(error);
-      }
     }
   };
 
@@ -266,9 +238,6 @@ const ResignationAdmin = () => {
                           Thay đổi thành từ chối
                         </RejectButton>
                       )}
-                      <EditButton onClick={() => handleEditResignation(resignation)}>
-                        Chỉnh sửa
-                      </EditButton>
                     </ButtonGroup>
                     <DeleteButton onClick={() => handleDeleteResignation(resignation._id)}>
                       Xóa yêu cầu

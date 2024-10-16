@@ -210,7 +210,7 @@ const SalaryAdmin = () => {
   const formatCurrency = (value) => {
     const number = parseFloat(value);
     if (isNaN(number)) return '';
-    return new Intl.NumberFormat('vi-VN', { 
+    return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND',
       minimumFractionDigits: 0,
@@ -228,6 +228,12 @@ const SalaryAdmin = () => {
     const minutes = Math.round((hours - wholeHours) * 60);
     return `${wholeHours} giờ ${minutes} phút`;
   };
+
+  // Giải thích:
+  // - formatCurrency: Chuyển đổi số thành định dạng tiền tệ Việt Nam
+  //   Ví dụ: 5000000 -> "5.000.000 ₫"
+  // - formatWorkHours: Chuyển đổi số giờ thành định dạng "X giờ Y phút"
+  //   Ví dụ: 8.5 -> "8 giờ 30 phút"
 
   const fetchSalaries = useCallback(async () => {
     try {
@@ -265,7 +271,7 @@ const SalaryAdmin = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const users = response.data.users;
-      const feedbackPromises = users.map(user => 
+      const feedbackPromises = users.map(user =>
         axios.get(`http://localhost:5000/api/auth/feedback-salary/${user._id}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -295,7 +301,7 @@ const SalaryAdmin = () => {
     } else {
       setFormData({ ...formData, [name]: value });
     }
-    
+
     if (name === 'userId') {
       const selectedEmployee = employees.find(emp => emp._id === value);
       if (selectedEmployee) {
@@ -389,7 +395,7 @@ const SalaryAdmin = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/auth/feedback-salary', 
+      await axios.post('http://localhost:5000/api/auth/feedback-salary',
         { message: newFeedbackMessage, userId: selectedUserForFeedback },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -445,7 +451,7 @@ const SalaryAdmin = () => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-    <ContentContainer>
+      <ContentContainer>
         <Title
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -520,7 +526,7 @@ const SalaryAdmin = () => {
             )}
           </form>
         </SalaryForm>
-        
+
         <SubTitle
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -612,7 +618,7 @@ const SalaryAdmin = () => {
         <AnimatePresence>
           {selectedUserForFeedback && (
             <FeedbackSection
-              initial={{ opacity: 0, y: 20 }} 
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
@@ -657,3 +663,67 @@ const SalaryAdmin = () => {
 };
 
 export default SalaryAdmin;
+
+
+
+// 1. Tính tổng số giờ làm việc thực tế:
+
+//    GiờLàmThựcTế = Tổng(Giờ + Phút/60)
+
+//    Trong đó:
+//    - GiờLàmThựcTế: Tổng số giờ làm việc thực tế của nhân viên
+//    - Giờ: Số giờ trong mỗi lần chấm công
+//    - Phút: Số phút trong mỗi lần chấm công (nếu có)
+
+// 2. Tính lương theo giờ:
+
+//    LươngTheoGiờ = LươngCơBản / GiờChuẩn
+
+//    Trong đó:
+//    - LươngTheoGiờ: Mức lương cho mỗi giờ làm việc
+//    - LươngCơBản: Lương cơ bản hàng tháng
+//    - GiờChuẩn: Số giờ làm việc tiêu chuẩn trong một tháng (thường là 176 giờ)
+
+// 3. Tính lương thực tế:
+
+//    LươngThựcTế = (LươngTheoGiờ × GiờLàmThựcTế) + Thưởng
+
+//    Trong đó:
+//    - LươngThựcTế: Tổng số tiền lương nhân viên nhận được
+//    - LươngTheoGiờ: Đã tính ở bước 2
+//    - GiờLàmThựcTế: Đã tính ở bước 1
+//    - Thưởng: Các khoản thưởng (nếu có)
+
+// Công thức tổng hợp:
+
+// LươngThựcTế = (LươngCơBản / GiờChuẩn) × GiờLàmThựcTế + Thưởng
+
+// Ví dụ cụ thể:
+// Giả sử:
+// - LươngCơBản = 5,000,000 VNĐ
+// - GiờChuẩn = 176 giờ
+// - GiờLàmThựcTế = 160 giờ (ví dụ nhân viên làm thiếu 16 giờ trong tháng)
+// - Thưởng = 500,000 VNĐ
+
+// Áp dụng công thức:
+
+// 1. Tính LươngTheoGiờ:
+//    LươngTheoGiờ = 5,000,000 / 176 ≈ 28,409 VNĐ/giờ
+
+// 2. Tính LươngThựcTế:
+//    LươngThựcTế = (28,409 × 160) + 500,000
+//                 ≈ 4,545,440 + 500,000
+//                 ≈ 5,045,440 VNĐ
+
+// Giải thích:
+// - Nhân viên được trả 28,409 VNĐ cho mỗi giờ làm việc.
+// - Họ đã làm việc 160 giờ trong tháng.
+// - Lương dựa trên giờ làm việc là 4,545,440 VNĐ.
+// - Cộng thêm khoản thưởng 500,000 VNĐ.
+// - Tổng lương thực tế là 5,045,440 VNĐ.
+
+// Lưu ý:
+// 1. Công thức này giả định lương được tính dựa trên số giờ làm việc thực tế.
+// 2. Trong thực tế, có thể có thêm nhiều yếu tố khác như phụ cấp, 
+//    khấu trừ, chính sách làm thêm giờ, v.v.
+// 3. Các con số được làm tròn có thể dẫn đến sai số nhỏ trong tính toán.
