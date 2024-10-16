@@ -39,7 +39,7 @@ const authenticate = (req, res, next) => {
 
 // Route đăng ký
 router.post('/register', async (req, res) => {
-  const { username, fullName, email, password, phoneNumber, position, companyName, city, staffSize } = req.body;
+  const { username, fullName, email, password, phoneNumber, position, companyName, city, gender } = req.body;
 
   try {
     // Kiểm tra username và email đã tồn tại chưa
@@ -68,8 +68,8 @@ router.post('/register', async (req, res) => {
       position,
       companyName,
       city,
-      staffSize,
       role,
+      gender
     });
 
     await newUser.save(); // Lưu người dùng mới vào cơ sở dữ liệu
@@ -142,7 +142,8 @@ router.post('/create-user', authenticate, async (req, res) => {
     contractEnd,
     contractType,
     contractStatus,
-    employeeType // Thêm trường mới này
+    employeeType,
+    gender, 
   } = req.body;
 
   try {
@@ -178,6 +179,7 @@ router.post('/create-user', authenticate, async (req, res) => {
       contractEnd,
       contractType,
       contractStatus,
+      gender,
       employeeType: employeeType || 'thử việc' // Sử dụng giá trị được cung cấp hoặc mặc định
     });
 
@@ -201,7 +203,8 @@ router.post('/create-user', authenticate, async (req, res) => {
         contractEnd: newUser.contractEnd,
         contractType: newUser.contractType,
         contractStatus: newUser.contractStatus,
-        employeeType: newUser.employeeType // Thêm trường này vào response
+        gender: newUser.gender,
+        employeeType: newUser.employeeType
       },
       newToken // Trả về token mới cho admin
     });

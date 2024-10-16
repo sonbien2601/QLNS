@@ -25,26 +25,9 @@ const AddEmployee = () => {
     contractType: '',
     contractStatus: 'active',
     employeeType: 'thử việc',
+    gender: '', // New field for gender
   });
-  const fadeIn = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1 }
-  };
 
-  const slideUp = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1 }
-  };
-
-  const staggerChildren = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -85,6 +68,7 @@ const AddEmployee = () => {
     if (!formData.contractStart) newErrors.contractStart = 'Vui lòng nhập ngày bắt đầu hợp đồng';
     if (!formData.contractType) newErrors.contractType = 'Vui lòng chọn loại hợp đồng';
     if (!formData.employeeType) newErrors.employeeType = 'Vui lòng chọn loại nhân viên';
+    if (!formData.gender) newErrors.gender = 'Vui lòng chọn giới tính'; // New validation for gender
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (formData.email && !emailRegex.test(formData.email)) {
@@ -94,7 +78,6 @@ const AddEmployee = () => {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
 
   const handleChange = (e) => {
     setFormData({
@@ -147,6 +130,7 @@ const AddEmployee = () => {
         contractType: '',
         contractStatus: 'active',
         employeeType: 'thử việc',
+        gender: '',
       });
       setErrors({});
     } catch (error) {
@@ -199,7 +183,7 @@ const AddEmployee = () => {
                     transition={{ delay: index * 0.1, duration: 0.5 }}
                   >
                     <Label htmlFor={key}>{getLabelText(key)}:</Label>
-                    {key === 'contractType' || key === 'contractStatus' || key === 'employeeType' ? (
+                    {key === 'contractType' || key === 'contractStatus' || key === 'employeeType' || key === 'gender' ? (
                       <Select
                         id={key}
                         name={key}
@@ -240,7 +224,6 @@ const AddEmployee = () => {
     </PageContainer>
   );
 };
-
 
 // Styled components
 const PageContainer = styled(motion.div)`
@@ -350,7 +333,7 @@ const SubmitButton = styled(motion.button)`
   }
 `;
 
-// Hàm hỗ trợ
+// Helper functions
 const getLabelText = (key) => {
   const labels = {
     fullName: 'Tên Nhân Viên',
@@ -365,7 +348,8 @@ const getLabelText = (key) => {
     contractEnd: 'Ngày kết thúc hợp đồng',
     contractType: 'Loại hợp đồng',
     contractStatus: 'Trạng thái hợp đồng',
-    employeeType: 'Loại nhân viên'
+    employeeType: 'Loại nhân viên',
+    gender: 'Giới tính' // New label for gender
   };
   return labels[key] || key;
 };
@@ -418,8 +402,18 @@ const getOptions = (key) => {
   } else if (key === 'employeeType') {
     return (
       <>
+        <option value="">Chọn loại nhân viên</option>
         <option value="thử việc">Thử việc</option>
         <option value="chính thức">Chính thức</option>
+      </>
+    );
+  } else if (key === 'gender') {
+    return (
+      <>
+        <option value="">Chọn giới tính</option>
+        <option value="male">Nam</option>
+        <option value="female">Nữ</option>
+        <option value="other">Khác</option>
       </>
     );
   }

@@ -17,7 +17,7 @@ const Register = () => {
     position: '',
     companyName: '',
     city: '',
-    staffSize: '',
+    gender: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -63,7 +63,7 @@ const Register = () => {
     if (!formData.position) newErrors.position = 'Vui lòng chọn vị trí công việc';
     if (!formData.companyName.trim()) newErrors.companyName = 'Tên công ty là bắt buộc';
     if (!formData.city) newErrors.city = 'Vui lòng chọn thành phố';
-    if (!formData.staffSize) newErrors.staffSize = 'Vui lòng chọn quy mô nhân sự';
+    if (!formData.gender) newErrors.gender = 'Vui lòng chọn giới tính';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -142,6 +142,18 @@ const Register = () => {
                 {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
+                <Label>Số điện thoại:</Label>
+                <Input
+                  type="tel"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  placeholder="Ví dụ: 0123456789"
+                  $hasError={!!errors.phoneNumber}
+                />
+                {errors.phoneNumber && <ErrorMessage>{errors.phoneNumber}</ErrorMessage>}
+              </FormGroup>
+              <FormGroup>
                 <Label>Mật khẩu:</Label>
                 <Input
                   type="password"
@@ -164,18 +176,6 @@ const Register = () => {
                   $hasError={!!errors.confirmPassword}
                 />
                 {errors.confirmPassword && <ErrorMessage>{errors.confirmPassword}</ErrorMessage>}
-              </FormGroup>
-              <FormGroup>
-                <Label>Số điện thoại:</Label>
-                <Input
-                  type="tel"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  placeholder="Ví dụ: 0123456789"
-                  $hasError={!!errors.phoneNumber}
-                />
-                {errors.phoneNumber && <ErrorMessage>{errors.phoneNumber}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
                 <Label>Vị trí công việc:</Label>
@@ -220,19 +220,19 @@ const Register = () => {
                 {errors.city && <ErrorMessage>{errors.city}</ErrorMessage>}
               </FormGroup>
               <FormGroup>
-                <Label>Quy mô nhân sự:</Label>
+                <Label>Giới tính:</Label>
                 <Select
-                  name="staffSize"
-                  value={formData.staffSize}
+                  name="gender"
+                  value={formData.gender}
                   onChange={handleChange}
-                  $hasError={!!errors.staffSize}
+                  $hasError={!!errors.gender}
                 >
-                  <option value="">Chọn quy mô nhân sự</option>
-                  <option value="small">Dưới 50</option>
-                  <option value="medium">50 - 200</option>
-                  <option value="large">Trên 200</option>
+                  <option value="">Chọn giới tính</option>
+                  <option value="male">Nam</option>
+                  <option value="female">Nữ</option>
+                  <option value="other">Khác</option>
                 </Select>
-                {errors.staffSize && <ErrorMessage>{errors.staffSize}</ErrorMessage>}
+                {errors.gender && <ErrorMessage>{errors.gender}</ErrorMessage>}
               </FormGroup>
             </FormGrid>
             <SubmitButton type="submit">Đăng ký</SubmitButton>
