@@ -7,7 +7,6 @@ import Swal from 'sweetalert2';
 const OverviewUser = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [overviewData, setOverviewData] = useState({
     userInfo: {},
     attendanceRecords: [],
@@ -17,6 +16,8 @@ const OverviewUser = () => {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [editedUserInfo, setEditedUserInfo] = useState({});
+  const [error, setError] = useState(null);
+  const [tasks, setTasks] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -25,15 +26,51 @@ const OverviewUser = () => {
         const headers = { Authorization: `Bearer ${token}` };
         const userId = localStorage.getItem('userId');
 
-        const [attendanceResponse, salaryResponse, contractResponse, tasksResponse, userResponse] = await Promise.all([
-          axios.get(`http://localhost:5000/api/auth/attendance/history`, { headers }),
-          axios.get(`http://localhost:5000/api/auth/salary/${userId}`, { headers }),
-          axios.get(`http://localhost:5000/api/auth/user-contract/${userId}`, { headers }),
-          axios.get(`http://localhost:5000/api/auth/tasks/${userId}`, { headers }),
-          axios.get(`http://localhost:5000/api/auth/users`, { headers })
+        const tasksResponse = await axios.get(`http://localhost:5000/api/auth/tasks/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const fetchedTasks = tasksResponse.data.tasks;
+        setTasks(fetchedTasks);
+
+        const overdueTasks = fetchedTasks.filter(task => 
+          new Date(task.dueDate) < new Date() && task.status !== 'completed'
+        );
+
+        if (overdueTasks.length > 0) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Công việc quá hạn',
+            text: `Bạn có ${overdueTasks.length} công việc đã quá hạn và chưa hoàn thành. Vui lòng kiểm tra và cập nhật trạng thái.`,
+          });
+
+          try {
+            await axios.post('http://localhost:5000/api/auth/notify-admin-overdue-tasks', 
+              { overdueTasks }, 
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+          } catch (error) {
+            console.error('Error notifying admin about overdue tasks:', error);
+          }
+        }
+
+        const fetchSafely = async (url) => {
+          try {
+            const response = await axios.get(url, { headers });
+            return response.data;
+          } catch (error) {
+            console.error(`Error fetching ${url}:`, error);
+            return null;
+          }
+        };
+
+        const [attendanceData, salaryData, contractData, userData] = await Promise.all([
+          fetchSafely(`http://localhost:5000/api/auth/attendance/history`),
+          fetchSafely(`http://localhost:5000/api/auth/salary/${userId}`),
+          fetchSafely(`http://localhost:5000/api/auth/user-contract/${userId}`),
+          fetchSafely(`http://localhost:5000/api/auth/users`)
         ]);
 
-        const userInfo = userResponse.data.users.find(user => user._id === userId) || {};
+        const userInfo = userData?.users?.find(user => user._id === userId) || {};
 
         setOverviewData({
           userInfo: {
@@ -43,10 +80,10 @@ const OverviewUser = () => {
             phoneNumber: userInfo.phoneNumber || 'N/A',
             username: userInfo.username || 'N/A'
           },
-          attendanceRecords: attendanceResponse.data.history || [],
-          salary: salaryResponse.data.salary || {},
-          contract: contractResponse.data || {},
-          tasks: tasksResponse.data.tasks || []
+          attendanceRecords: attendanceData?.history || [],
+          salary: salaryData?.salary || {},
+          contract: contractData || {},
+          tasks: fetchedTasks
         });
 
         setEditedUserInfo({
@@ -59,13 +96,56 @@ const OverviewUser = () => {
         setIsLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
-        setError('Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.');
         setIsLoading(false);
+        setError('Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Lỗi!',
+          text: 'Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.',
+        });
       }
     };
 
     fetchData();
   }, []);
+
+  
+
+
+  const handleCompleteTask = async (taskId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(`http://localhost:5000/api/auth/tasks/${taskId}/complete`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const updatedTask = response.data.task;
+      setTasks(tasks.map(task => 
+        task._id === taskId ? updatedTask : task
+      ));
+
+      if (response.data.penalty) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Công việc hoàn thành trễ hạn',
+          text: `Công việc đã được đánh dấu hoàn thành, nhưng bị trễ hạn. Bạn bị phạt ${response.data.penalty.toLocaleString()} VND.`,
+        });
+      } else {
+        Swal.fire({
+          icon: 'success',
+          title: 'Thành công!',
+          text: 'Công việc đã được đánh dấu hoàn thành.',
+        });
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Lỗi!',
+        text: 'Có lỗi xảy ra khi cập nhật trạng thái công việc. Vui lòng thử lại sau.',
+      });
+    }
+  };
 
   const handleEditToggle = () => {
     setIsEditing(prev => !prev);
@@ -132,9 +212,17 @@ const OverviewUser = () => {
       hours: hours
     };
   });
-  const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    return new Date(dateString).toLocaleDateString('vi-VN', options);
+
+  const formatDateTime = (dateTimeString) => {
+    const options = { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true
+    };
+    return new Date(dateTimeString).toLocaleString('vi-VN', options);
   };
 
   return (
@@ -241,15 +329,21 @@ const OverviewUser = () => {
         </div>
         <div className="chart-card fade-in">
           <h3>Nhắc việc</h3>
-          {overviewData.tasks.length > 0 ? (
+          {tasks.length > 0 ? (
             <ul className="task-list">
-              {overviewData.tasks.map((task, index) => (
-                <li key={index} className="task-item slide-in-bottom">
+              {tasks.map((task) => (
+                <li key={task._id} className={`task-item slide-in-bottom ${new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>
                   <h4>{task.title}</h4>
                   <p>{task.description}</p>
-                  <p>Hạn chót: {formatDate(task.dueDate)}</p>
+                  <p>Hạn chót: {formatDateTime(task.dueDate)}</p>
                   <p>Thời gian hoàn thành dự kiến: {task.expectedCompletionTime}</p>
-                  <p>Thời gian tạo: {formatDate(task.createdAt)}</p>
+                  <p>Trạng thái: {task.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}</p>
+                  {task.status !== 'completed' && (
+                    <button onClick={() => handleCompleteTask(task._id)}>Đánh dấu hoàn thành</button>
+                  )}
+                  {new Date(task.dueDate) < new Date() && task.status !== 'completed' && (
+                    <p className="overdue-warning">Công việc đã quá hạn! Bạn có thể bị phạt.</p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -260,183 +354,216 @@ const OverviewUser = () => {
       </div>
 
       <style jsx>{`
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
 
-  @keyframes slideInLeft {
-    from { transform: translateX(-50px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
+        @keyframes slideInLeft {
+          from { transform: translateX(-50px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
 
-  @keyframes slideInRight {
-    from { transform: translateX(50px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
+        @keyframes slideInRight {
+          from { transform: translateX(50px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
 
-  @keyframes slideInTop {
-    from { transform: translateY(-50px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
+        @keyframes slideInTop {
+          from { transform: translateY(-50px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
 
-  @keyframes slideInBottom {
-    from { transform: translateY(50px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
+        @keyframes slideInBottom {
+          from { transform: translateY(50px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
 
-  .overview-container {
-    width: 100%;
-    padding: 20px;
-    background: linear-gradient(135deg, #e2e8f0, #edf2f7);
-    min-height: 100vh;
-    font-family: 'Arial', sans-serif;
-  }
+        .overview-container {
+          width: 100%;
+          padding: 20px;
+          background: linear-gradient(135deg, #e2e8f0, #edf2f7);
+          min-height: 100vh;
+          font-family: 'Arial', sans-serif;
+        }
 
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    animation: fadeIn 0.5s ease-out;
-  }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+          animation: fadeIn 0.5s ease-out;
+        }
 
-  .user-info-grid, .charts-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    margin-bottom: 20px;
-  }
+        .user-info-grid, .charts-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+          margin-bottom: 20px;
+        }
 
-  .charts-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+        .charts-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
 
-  .info-card, .chart-card {
-    background-color: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
-  }
+        .info-card, .chart-card {
+          background-color: white;
+          border-radius: 12px;
+          padding: 20px;
+          box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+          transition: all 0.3s ease;
+        }
 
-  .info-card:hover, .chart-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
-  }
+        .info-card:hover, .chart-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+        }
 
-  .info-card h3, .chart-card h3 {
-    color: #2d3748; /* Darker color for headings */
-    margin-bottom: 15px;
-    font-size: 1.4rem;
-  }
+        .info-card h3, .chart-card h3 {
+          color: #2d3748;
+          margin-bottom: 15px;
+          font-size: 1.4rem;
+        }
 
-  .task-list {
-    list-style-type: none;
-    padding: 0;
-    max-height: 300px;
-    overflow-y: auto;
-  }
+        .task-list {
+          list-style-type: none;
+          padding: 0;
+          max-height: 300px;
+          overflow-y: auto;
+        }
 
-  .task-item {
-    border-bottom: 1px solid #e5e7eb;
-    padding: 10px 0;
-    animation: slideInBottom 0.5s ease-out;
-    background-color: #f7fafc; /* Light background for tasks */
-    border-radius: 6px;
-  }
+        .task-item {
+          border-bottom: 1px solid #e5e7eb;
+          padding: 15px;
+          margin-bottom: 10px;
+          animation: slideInBottom 0.5s ease-out;
+          background-color: #f7fafc;
+          border-radius: 8px;
+          transition: all 0.3s ease;
+        }
 
-  .task-item:last-child {
-    border-bottom: none;
-  }
+        .task-item:hover {
+          background-color: #edf2f7;
+          transform: translateY(-2px);
+        }
 
-  .task-item h4 {
-    margin: 0 0 5px 0;
-    color: #4a5568; /* Darker text for task title */
-  }
+        .task-item:last-child {
+          border-bottom: none;
+        }
 
-  .task-item p {
-    margin: 5px 0;
-    color: #718096; /* Lighter text for task details */
-  }
+        .task-item h4 {
+          margin: 0 0 10px 0;
+          color: #2d3748;
+          font-size: 1.1rem;
+        }
 
-  .info-card form {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
+        .task-item p {
+          margin: 5px 0;
+          color: #4a5568;
+          font-size: 0.9rem;
+        }
 
-  .info-card input {
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    transition: border 0.3s;
-  }
+        .task-item button {
+          margin-top: 10px;
+          padding: 8px 12px;
+          background-color: #4f46e5;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.3s ease;
+        }
 
-  .info-card input:focus {
-    border-color: #4f46e5; /* Highlight border on focus */
-    outline: none;
-  }
+        .task-item button:hover {
+          background-color: #4338ca;
+        }
 
-  .info-card button {
-    padding: 10px 16px;
-    background-color: #4f46e5; /* Primary button color */
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease;
-  }
+        .info-card form {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
 
-  .info-card button:hover {
-    background-color: #4338ca; /* Darker shade on hover */
-    transform: translateY(-2px);
-  }
+        .info-card input {
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          transition: border 0.3s;
+        }
 
-  .info-card button[type="button"] {
-    background-color: #9ca3af; /* Secondary button color */
-  }
+        .info-card input:focus {
+          border-color: #4f46e5;
+          outline: none;
+        }
 
-  .info-card button[type="button"]:hover {
-    background-color: #6b7280; /* Darker shade on hover */
-  }
+        .info-card button {
+          padding: 10px 16px;
+          background-color: #4f46e5;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.3s ease, transform 0.2s ease;
+        }
 
-  .fade-in {
-    animation: fadeIn 0.5s ease-out;
-  }
+        .info-card button:hover {
+          background-color: #4338ca;
+          transform: translateY(-2px);
+        }
 
-  .slide-in-left {
-    animation: slideInLeft 0.5s ease-out;
-  }
+        .info-card button[type="button"] {
+          background-color: #9ca3af;
+        }
 
-  .slide-in-right {
-    animation: slideInRight 0.5s ease-out;
-  }
+        .info-card button[type="button"]:hover {
+          background-color: #6b7280;
+        }
 
-  .slide-in-top {
-    animation: slideInTop 0.5s ease-out;
-  }
+        .fade-in {
+          animation: fadeIn 0.5s ease-out;
+        }
 
-  .slide-in-bottom {
-    animation: slideInBottom 0.5s ease-out;
-  }
+        .slide-in-left {
+          animation: slideInLeft 0.5s ease-out;
+        }
 
-  .loading, .error {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    font-size: 1.5rem;
-    color: #4b5563;
-    animation: fadeIn 0.5s ease-out;
-  }
+        .slide-in-right {
+          animation: slideInRight 0.5s ease-out;
+        }
 
-  @media (max-width: 768px) {
-    .user-info-grid, .charts-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-`}</style>
+        .slide-in-top {
+          animation: slideInTop 0.5s ease-out;
+        }
+
+        .slide-in-bottom {
+          animation: slideInBottom 0.5s ease-out;
+        }
+
+        .loading, .error {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          font-size: 1.5rem;
+          color: #4b5563;
+          animation: fadeIn 0.5s ease-out;
+        }
+
+        .overdue-warning {
+          color: #e74c3c;
+          font-weight: bold;
+        }
+
+        .task-item.overdue {
+          border: 2px solid #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+          .user-info-grid, .charts-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </div>
   );
 };

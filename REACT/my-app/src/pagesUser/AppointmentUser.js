@@ -8,12 +8,14 @@ const MySwal = withReactContent(Swal);
 
 const AppointmentStatus = () => {
   const [appointments, setAppointments] = useState([]);
-  const [oldPosition, setOldPosition] = useState('');
+  const [currentPosition, setCurrentPosition] = useState('');
   const [newPosition, setNewPosition] = useState('');
   const [reason, setReason] = useState('');
+  const [userInfo, setUserInfo] = useState(null);
 
   useEffect(() => {
     fetchAppointments();
+    fetchUserInfo();
   }, []);
 
   const fetchAppointments = async () => {
@@ -30,6 +32,21 @@ const AppointmentStatus = () => {
         title: 'Oops...',
         text: 'Không thể tải danh sách bổ nhiệm. Vui lòng thử lại sau.',
       });
+    }
+  };
+
+  const fetchUserInfo = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+      const response = await axios.get(`http://localhost:5000/api/auth/user-info`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserInfo(response.data);
+      setCurrentPosition(response.data.position || 'Không có thông tin');
+    } catch (error) {
+      console.error('Lỗi khi lấy thông tin người dùng', error);
+      setCurrentPosition('Không thể lấy thông tin');
     }
   };
 
@@ -73,7 +90,7 @@ const AppointmentStatus = () => {
       const token = localStorage.getItem('token');
       await axios.post(
         'http://localhost:5000/api/auth/appointment-request',
-        { oldPosition, newPosition, reason },
+        { newPosition, reason },
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -83,7 +100,6 @@ const AppointmentStatus = () => {
         title: 'Thành công!',
         text: 'Yêu cầu bổ nhiệm đã được gửi.',
       });
-      setOldPosition('');
       setNewPosition('');
       setReason('');
       fetchAppointments();
@@ -104,14 +120,13 @@ const AppointmentStatus = () => {
 
         <form style={styles.form} onSubmit={handleSubmit}>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Vị Trí Cũ:</label>
+            <label style={styles.label}>Vị Trí Hiện Tại:</label>
             <input
               style={styles.input}
               type="text"
-              value={oldPosition}
-              onChange={(e) => setOldPosition(e.target.value)}
-              placeholder="Nhập vị trí cũ"
-              required
+              value={currentPosition}
+              readOnly
+              disabled
             />
           </div>
           <div style={styles.formGroup}>
@@ -186,6 +201,7 @@ const AppointmentStatus = () => {
     </div>
   );
 };
+
 
 const styles = {
   page: {

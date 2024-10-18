@@ -244,8 +244,8 @@ const SalaryAdmin = () => {
       });
       setSalaries(response.data.salaries);
     } catch (error) {
-      setError('Không thể lấy dữ liệu lương');
-      console.error('Error fetching salaries:', error);
+      console.error('Lỗi chi tiết khi lấy dữ liệu lương:', error.response?.data || error.message);
+      setError(`Không thể lấy dữ liệu lương: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
     }
@@ -259,11 +259,11 @@ const SalaryAdmin = () => {
       });
       setEmployees(response.data.users);
     } catch (error) {
-      setError('Không thể lấy danh sách nhân viên');
+      setError(`Không thể lấy danh sách nhân viên: ${error.message}`);
       console.error('Error fetching employees:', error);
     }
   }, []);
-
+  
   const fetchAllFeedbacks = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -283,8 +283,8 @@ const SalaryAdmin = () => {
       });
       setFeedbacks(allFeedbacks);
     } catch (error) {
+      setError(`Không thể lấy feedback: ${error.message}`);
       console.error('Error fetching feedbacks:', error);
-      setError('Không thể lấy feedback. Vui lòng thử lại sau.');
     }
   }, []);
 
@@ -338,7 +338,7 @@ const SalaryAdmin = () => {
         timer: 1500
       });
     } catch (error) {
-      console.error('Error submitting salary:', error);
+      setError(`Không thể cập nhật hoặc tạo mới lương: ${error.message}`);
       Swal.fire({
         icon: 'error',
         title: 'Lỗi!',
@@ -544,77 +544,76 @@ const SalaryAdmin = () => {
           </motion.p>
         ) : (
           <TableContainer>
-            <Table
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.8 }}
-            >
-              <thead>
-                <tr>
-                  <Th>Tên nhân viên</Th>
-                  <Th>Chức vụ</Th>
-                  <Th>Lương cơ bản</Th>
-                  <Th>Lương theo giờ</Th>
-                  <Th>Số giờ làm việc</Th>
-                  <Th>Thưởng</Th>
-                  <Th>Lương thực tế</Th>
-                  <Th>Feedback gần nhất</Th>
-                  <Th>Hành động</Th>
-                </tr>
-              </thead>
-              <AnimatePresence>
-                <tbody>
-                  {salaries.map((salary) => (
-                    <Tr
-                      key={salary._id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Td>{salary.userId.fullName}</Td>
-                      <Td>{salary.userId.position}</Td>
-                      <Td>{formatCurrency(salary.basicSalary)}</Td>
-                      <Td>{formatCurrency(salary.hourlyRate)}</Td>
-                      <Td>{formatWorkHours(salary.actualWorkHours)}</Td>
-                      <Td>{formatCurrency(salary.bonus)}</Td>
-                      <Td>{formatCurrency(salary.actualSalary)}</Td>
-                      <Td>
-                        {feedbacks[salary.userId._id] && feedbacks[salary.userId._id][0]
-                          ? feedbacks[salary.userId._id][0].message.substring(0, 30) + '...'
-                          : 'Chưa có feedback'}
-                      </Td>
-                      <Td>
-                        <ActionButton
-                          onClick={() => handleUpdateClick(salary)}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          Cập nhật
-                        </ActionButton>
-                        <DeleteButton
-                          onClick={() => handleDelete(salary.userId._id)}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          Xóa
-                        </DeleteButton>
-                        <FeedbackButton
-                          onClick={() => setSelectedUserForFeedback(salary.userId._id)}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          Xem/Trả lời Feedback
-                        </FeedbackButton>
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </AnimatePresence>
-            </Table>
-          </TableContainer>
+          <Table
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.8 }}
+          >
+            <thead>
+              <tr>
+                <Th>Tên nhân viên</Th>
+                <Th>Chức vụ</Th>
+                <Th>Lương cơ bản</Th>
+                <Th>Lương theo giờ</Th>
+                <Th>Số giờ làm việc</Th>
+                <Th>Thưởng</Th>
+                <Th>Lương thực tế</Th>
+                <Th>Feedback gần nhất</Th>
+                <Th>Hành động</Th>
+              </tr>
+            </thead>
+            <AnimatePresence>
+              <tbody>
+                {salaries.map((salary) => (
+                  <Tr
+                    key={salary._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Td>{salary.fullName || 'N/A'}</Td>
+                    <Td>{salary.position || 'N/A'}</Td>
+                    <Td>{formatCurrency(salary.basicSalary)}</Td>
+                    <Td>{formatCurrency(salary.hourlyRate)}</Td>
+                    <Td>{formatWorkHours(salary.actualWorkHours)}</Td>
+                    <Td>{formatCurrency(salary.bonus)}</Td>
+                    <Td>{formatCurrency(salary.actualSalary)}</Td>
+                    <Td>
+                      {feedbacks[salary.userId?._id] && feedbacks[salary.userId._id][0]
+                        ? feedbacks[salary.userId._id][0].message.substring(0, 30) + '...'
+                        : 'Chưa có feedback'}
+                    </Td>
+                    <Td>
+                      <ActionButton
+                        onClick={() => handleUpdateClick(salary)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Cập nhật
+                      </ActionButton>
+                      <DeleteButton
+                        onClick={() => handleDelete(salary.userId?._id)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Xóa
+                      </DeleteButton>
+                      <FeedbackButton
+                        onClick={() => setSelectedUserForFeedback(salary.userId?._id)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Xem/Trả lời Feedback
+                      </FeedbackButton>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </AnimatePresence>
+          </Table>
+        </TableContainer>
         )}
-
         <AnimatePresence>
           {selectedUserForFeedback && (
             <FeedbackSection

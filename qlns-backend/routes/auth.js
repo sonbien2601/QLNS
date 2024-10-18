@@ -229,23 +229,50 @@ router.post('/refresh-token', authenticate, (req, res) => {
 
 
 // ================== API YÊU CẦU BỔ NHIỆM ==================
-// Route để tạo yêu cầu bổ nhiệm
+
+// Route để lấy thông tin người dùng
+router.get('/user-info', authenticate, async (req, res) => {
+  try {
+    let user = await User.findById(req.user.userId).select('-password');
+    if (!user) {
+      user = await User2.findById(req.user.userId).select('-password');
+    }
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Lỗi khi lấy thông tin người dùng:', error);
+    res.status(500).json({ message: 'Lỗi server khi lấy thông tin người dùng' });
+  }
+});
+// Cập nhật route tạo yêu cầu bổ nhiệm
 router.post('/appointment-request', authenticate, async (req, res) => {
-  const { oldPosition, newPosition, reason } = req.body;
+  const { newPosition, reason } = req.body;
 
   try {
-    // Tạo yêu cầu bổ nhiệm mới
+    let user = await User.findById(req.user.userId);
+    if (!user) {
+      user = await User2.findById(req.user.userId);
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
+    }
+
     const appointment = new Appointment({
-      userId: req.user.userId,  // Lấy ID của người dùng hiện tại
-      oldPosition,
+      userId: req.user.userId,
+      oldPosition: user.position || 'Không có thông tin',
       newPosition,
-      reason,  // Lưu lý do bổ nhiệm
-      status: 'pending',  // Mặc định trạng thái là 'pending'
+      reason,
+      status: 'pending',
     });
 
-    await appointment.save();  // Lưu vào cơ sở dữ liệu
+    await appointment.save();
 
-    res.status(201).json({ message: 'Yêu cầu bổ nhiệm đã được gửi' });
+    res.status(201).json({ message: 'Yêu cầu bổ nhiệm đã được gửi', appointment });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi gửi yêu cầu bổ nhiệm', error: error.message });
   }
@@ -259,11 +286,19 @@ router.get('/user-appointments', authenticate, async (req, res) => {
 
   try {
     const appointments = await Appointment.find({ userId: req.user.userId });
-    res.json({ appointments });
+    const user = await User2.findById(req.user.userId);
+    
+    const appointmentsWithOldPosition = appointments.map(appointment => ({
+      ...appointment.toObject(),
+      oldPosition: user.position // Thêm vị trí hiện tại của user vào mỗi appointment
+    }));
+
+    res.json({ appointments: appointmentsWithOldPosition });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy danh sách bổ nhiệm', error: error.message });
   }
 });
+
 
 // Lấy danh sách bổ nhiệm cho admin
 router.get('/get-appointments', authenticate, async (req, res) => {
@@ -522,24 +557,35 @@ router.get('/attendance/summary', authenticate, async (req, res) => {
 router.get('/contracts', authenticate, async (req, res) => {
   try {
     const users = await User2.find({}, 'fullName position contractType contractStart contractEnd contractStatus');
-    const contracts = users.map(user => ({
-      _id: user._id,
-      employeeId: {
+    
+    const currentDate = new Date();
+
+    const contracts = users.map(user => {
+      // Kiểm tra nếu hợp đồng hết hạn
+      const isExpired = new Date(user.contractEnd) < currentDate;
+      const contractStatus = isExpired ? 'Hết hiệu lực' : 'Còn hiệu lực';
+
+      return {
         _id: user._id,
-        fullName: user.fullName,
-        position: user.position
-      },
-      contractType: user.contractType,
-      startDate: user.contractStart,
-      endDate: user.contractEnd,
-      status: user.contractStatus === 'active' ? 'Còn hiệu lực' : 'Hết hiệu lực'
-    }));
+        employeeId: {
+          _id: user._id,
+          fullName: user.fullName,
+          position: user.position
+        },
+        contractType: user.contractType,
+        startDate: user.contractStart,
+        endDate: user.contractEnd,
+        status: contractStatus
+      };
+    });
+
     res.json(contracts);
   } catch (error) {
     console.error('Lỗi khi lấy danh sách hợp đồng:', error);
     res.status(500).json({ message: 'Lỗi khi lấy danh sách hợp đồng', error: error.message });
   }
 });
+
 
 // API để cập nhật hợp đồng
 router.put('/contracts/:id', authenticate, async (req, res) => {
@@ -752,6 +798,7 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
 // ================== API LƯƠNG ==================
 
 // Hàm helper để tính tổng số giờ làm việc
+// Hàm tính tổng số giờ làm việc
 const calculateTotalWorkHours = (attendanceRecords) => {
   return attendanceRecords.reduce((total, record) => {
     if (record.totalHours) {
@@ -766,7 +813,6 @@ const calculateTotalWorkHours = (attendanceRecords) => {
         else if (unit.includes('phút')) minutes += value;
       }
 
-      // Chuyển đổi phút thành giờ và cộng vào tổng số giờ
       return total + hours + minutes / 60;
     }
     return total;
@@ -783,6 +829,9 @@ const calculateTotalWorkHours = (attendanceRecords) => {
 // Nếu có 2 bản ghi: "8 giờ 30 phút" và "7 giờ 45 phút"
 // Kết quả sẽ là: (8 + 30/60) + (7 + 45/60) = 8.5 + 7.75 = 16.25 giờ
 
+
+
+
 // API lấy danh sách lương
 router.get('/salary', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
@@ -790,80 +839,81 @@ router.get('/salary', authenticate, async (req, res) => {
   }
 
   try {
+    console.log('Bắt đầu xử lý yêu cầu lấy dữ liệu lương');
     const salaries = await Salary.find().populate('userId', 'fullName position');
+    if (!salaries || salaries.length === 0) {
+      return res.status(404).json({ message: 'Không tìm thấy dữ liệu lương' });
+    }
 
     const updatedSalaries = await Promise.all(salaries.map(async (salary) => {
-      const attendanceRecords = await Attendance.find({ userId: salary.userId._id });
-      const actualWorkHours = calculateTotalWorkHours(attendanceRecords);
+      try {
+        if (!salary.userId) {
+          console.log('Không tìm thấy thông tin người dùng cho lương:', salary);
+          return {
+            ...salary.toObject(),
+            error: 'Không tìm thấy thông tin người dùng'
+          };
+        }
 
-      // Số giờ làm việc tiêu chuẩn trong một tháng (8 giờ * 22 ngày)
-      const standardWorkHours = 176; // 8 giờ * 22 ngày
+        const attendanceRecords = await Attendance.find({ userId: salary.userId._id });
+        const actualWorkHours = calculateTotalWorkHours(attendanceRecords);
+        const standardWorkHours = 176; // 8 giờ * 22 ngày
+        const hourlyRate = salary.basicSalary / standardWorkHours;
+        const actualSalary = hourlyRate * actualWorkHours + (salary.bonus || 0);
 
-      // Tính lương theo giờ
-      const hourlyRate = salary.basicSalary / standardWorkHours;
-      
-      // Tính lương thực tế
-      const actualSalary = hourlyRate * actualWorkHours + salary.bonus;
-
-      return {
-        ...salary.toObject(),
-        actualWorkHours: parseFloat(actualWorkHours.toFixed(2)),
-        hourlyRate: parseFloat(hourlyRate.toFixed(2)),
-        actualSalary: Math.round(actualSalary),
-        standardWorkHours,
-      };
+        return {
+          ...salary.toObject(),
+          fullName: salary.userId.fullName,
+          position: salary.userId.position,
+          actualWorkHours: parseFloat(actualWorkHours.toFixed(2)),
+          hourlyRate: parseFloat(hourlyRate.toFixed(2)),
+          actualSalary: Math.round(actualSalary),
+          standardWorkHours,
+        };
+      } catch (innerError) {
+        console.error(`Lỗi khi tính toán lương cho nhân viên ${salary.userId?._id}:`, innerError);
+        return {
+          ...salary.toObject(),
+          error: `Không thể tính toán lương cho nhân viên này: ${innerError.message}`
+        };
+      }
     }));
 
-    res.json({ salaries: updatedSalaries });
+    res.status(200).json({ salaries: updatedSalaries });
   } catch (error) {
-    console.error('Error fetching salaries:', error);
-    res.status(500).json({ message: 'Lỗi khi lấy lương', error: error.message });
+    console.error('Lỗi chi tiết khi lấy dữ liệu lương:', error);
+    res.status(500).json({ 
+      message: 'Lỗi khi lấy dữ liệu lương', 
+      error: error.message,
+      stack: error.stack
+    });
   }
 });
-// Giải thích chi tiết:
-// a. Lương theo giờ (hourlyRate):
-//    - Công thức: hourlyRate = basicSalary / standardWorkHours
-//    - Ví dụ: Nếu lương cơ bản (basicSalary) là 5,000,000 VND
-//      hourlyRate = 5,000,000 / 176 ≈ 28,409 VND/giờ
-
-// b. Lương thực tế (actualSalary):
-//    - Công thức: actualSalary = (hourlyRate * actualWorkHours) + bonus
-//    - Ví dụ: 
-//      Giả sử actualWorkHours = 160 giờ, bonus = 500,000 VND
-//      actualSalary = (28,409 * 160) + 500,000 = 5,045,440 VND
 
 
-
-
-//API cập nhật lương
+// API cập nhật lương
 router.post('/salary/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
   }
 
-  const { basicSalary, bonus, workingDays } = req.body;
+  const { basicSalary, bonus } = req.body;
 
   try {
-    const standardWorkHours = workingDays * 8;
-    const totalSalary = basicSalary + bonus;
+    let salary = await Salary.findOne({ userId: req.params.id });
+    if (!salary) {
+      salary = new Salary({ userId: req.params.id });
+    }
 
-    const salaryData = {
-      userId: req.params.id,
-      basicSalary,
-      bonus,
-      totalSalary,
-      workingDays,
-      standardWorkHours,
-    };
+    salary.basicSalary = basicSalary;
+    salary.bonus = bonus;
+    salary.totalSalary = basicSalary + bonus;
 
-    const existingSalary = await Salary.findOneAndUpdate(
-      { userId: req.params.id },
-      salaryData,
-      { new: true, upsert: true }
-    );
+    await salary.save();
 
-    res.status(200).json({ message: 'Cập nhật lương thành công', salary: existingSalary });
+    res.status(200).json({ message: 'Cập nhật lương thành công', salary });
   } catch (error) {
+    console.error('Lỗi khi cập nhật lương:', error);
     res.status(500).json({ message: 'Lỗi khi cập nhật lương', error: error.message });
   }
 });
@@ -878,6 +928,7 @@ router.delete('/salary/:id', authenticate, async (req, res) => {
     await Salary.findOneAndDelete({ userId: req.params.id });
     res.status(200).json({ message: 'Xóa lương thành công' });
   } catch (error) {
+    console.error('Lỗi khi xóa lương:', error);
     res.status(500).json({ message: 'Lỗi khi xóa lương', error: error.message });
   }
 });
@@ -887,29 +938,43 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
   try {
     const userId = req.params.userId;
 
-    // Kiểm tra xem người dùng có quyền xem thông tin lương này không
+    // Kiểm tra quyền truy cập
     if (req.user.role !== 'admin' && req.user.userId !== userId) {
       return res.status(403).json({ message: 'Bạn không có quyền truy cập thông tin này' });
     }
 
-    const salary = await Salary.findOne({ userId }).populate('userId', 'fullName position');
+    // Tìm thông tin lương
+    let salary = await Salary.findOne({ userId }).populate('userId', 'fullName position');
 
     if (!salary) {
-      return res.status(404).json({ message: 'Không tìm thấy thông tin lương' });
+      // Nếu không tìm thấy thông tin lương, tạo một bản ghi mới với thông tin cơ bản
+      const user = await User2.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
+      }
+      salary = new Salary({
+        userId: user._id,
+        basicSalary: user.basicSalary || 0,
+        bonus: 0,
+        totalSalary: user.basicSalary || 0
+      });
+      await salary.save();
     }
 
+    // Tính toán số giờ làm việc thực tế
     const attendanceRecords = await Attendance.find({ userId });
     const actualWorkHours = calculateTotalWorkHours(attendanceRecords);
 
     const standardWorkHours = 176; // 8 giờ * 22 ngày
     const hourlyRate = salary.basicSalary / standardWorkHours;
-    const actualSalary = hourlyRate * actualWorkHours + salary.bonus;
+    const actualSalary = hourlyRate * actualWorkHours + (salary.bonus || 0);
 
     const salaryInfo = {
       ...salary.toObject(),
       actualWorkHours: parseFloat(actualWorkHours.toFixed(2)),
       hourlyRate: parseFloat(hourlyRate.toFixed(2)),
       actualSalary: Math.round(actualSalary),
+      standardWorkHours
     };
 
     res.json({ salary: salaryInfo });
@@ -949,56 +1014,257 @@ router.get('/feedback-salary/:userId', authenticate, async (req, res) => {
   }
 });
 
-
 // ================== API TỔNG QUAN ==================
+
+// Create a new task
+router.post('/tasks', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+  }
+
+  const { 
+    title, 
+    description, 
+    dueDate, 
+    expectedCompletionTime, 
+    assignedTo, 
+    bonus, 
+    penalty,
+    priority
+  } = req.body;
+
+  try {
+    // Kiểm tra các trường bắt buộc
+    if (!title || !dueDate || !assignedTo) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+
+    // Tạo đối tượng Date từ chuỗi ISO
+    const dueDateObj = new Date(dueDate);
+    
+    if (isNaN(dueDateObj.getTime())) {
+      return res.status(400).json({ message: 'Ngày không hợp lệ' });
+    }
+
+    const newTask = new Task({
+      title,
+      description,
+      dueDate: dueDateObj,
+      expectedCompletionTime,
+      assignedTo,
+      createdBy: req.user.userId,
+      status: 'pending',
+      bonus: bonus || 0,
+      penalty: penalty || 0,
+      priority: priority || 'medium'
+    });
+
+    const savedTask = await newTask.save();
+    
+    await savedTask.populate('assignedTo', 'fullName');
+    await savedTask.populate('createdBy', 'fullName');
+
+    res.status(201).json({
+      success: true,
+      message: 'Công việc đã được thêm thành công',
+      task: savedTask
+    });
+  } catch (error) {
+    console.error('Error adding task:', error);
+    res.status(500).json({ message: 'Lỗi khi thêm công việc', error: error.message });
+  }
+});
 
 // Get all tasks (for admin)
 router.get('/tasks', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
   }
+
   try {
-    const tasks = await Task.find().populate('assignedTo', 'fullName');
-    res.json({ tasks });
+    const tasks = await Task.find()
+      .populate('assignedTo', 'fullName')
+      .populate('createdBy', 'fullName')
+      .sort({ createdAt: -1 });
+    
+    const formattedTasks = tasks.map(task => ({
+      ...task.toObject(),
+      dueDate: task.dueDate ? new Date(task.dueDate).toLocaleString() : null,
+      completedAt: task.completedAt ? new Date(task.completedAt).toLocaleString() : null
+    }));
+
+    res.json({ tasks: formattedTasks });
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ message: 'Error fetching tasks', error: error.message });
-  }
-});
-// Add new task route
-router.post('/tasks', authenticate, async (req, res) => {
-  try {
-    const { title, description, dueDate, expectedCompletionTime, assignedTo } = req.body;
-
-    const newTask = new Task({
-      title,
-      description,
-      dueDate,
-      expectedCompletionTime,
-      assignedTo,
-      createdBy: req.user.userId // Assuming the authenticate middleware adds user info to req
-    });
-
-    await newTask.save();
-
-    res.status(201).json({ message: 'Task created successfully', task: newTask });
-  } catch (error) {
-    console.error('Error creating task:', error);
-    res.status(500).json({ message: 'Error creating task', error: error.message });
   }
 });
 
 // Get tasks for a specific user
 router.get('/tasks/:userId', authenticate, async (req, res) => {
   try {
-    const tasks = await Task.find({ assignedTo: req.params.userId });
-    res.json({ tasks });
+    const tasks = await Task.find({ assignedTo: req.params.userId })
+      .populate('createdBy', 'fullName')
+      .sort({ createdAt: -1 });
+    
+    const formattedTasks = tasks.map(task => ({
+      ...task.toObject(),
+      dueDate: task.dueDate ? new Date(task.dueDate).toLocaleString() : null,
+      completedAt: task.completedAt ? new Date(task.completedAt).toLocaleString() : null
+    }));
+
+    res.json({ tasks: formattedTasks });
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ message: 'Error fetching tasks', error: error.message });
   }
 });
 
+// Update task status
+router.put('/tasks/:taskId/status', authenticate, async (req, res) => {
+  try {
+    const { status, feedback, completedDate, completedTime } = req.body;
+    const task = await Task.findById(req.params.taskId);
+    
+    if (!task) {
+      return res.status(404).json({ message: 'Không tìm thấy công việc' });
+    }
+    
+    if (task.assignedTo.toString() !== req.user.userId && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Bạn không có quyền cập nhật công việc này' });
+    }
+    
+    task.status = status;
+    if (status === 'completed') {
+      task.completedAt = completedDate && completedTime 
+        ? `${completedDate}T${completedTime}:00` 
+        : new Date().toISOString();
+    }
+    if (feedback) {
+      task.feedback = feedback;
+    }
+    
+    await task.save();
+
+    res.json({ message: 'Cập nhật trạng thái công việc thành công', task });
+  } catch (error) {
+    console.error('Error updating task status:', error);
+    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái công việc', error: error.message });
+  }
+});
+
+router.delete('/tasks/:taskId', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền xóa công việc' });
+  }
+
+  try {
+    const { taskId } = req.params;
+    const deletedTask = await Task.findByIdAndDelete(taskId);
+
+    if (!deletedTask) {
+      return res.status(404).json({ message: 'Không tìm thấy công việc' });
+    }
+
+    res.json({ message: 'Công việc đã được xóa thành công', deletedTask });
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    res.status(500).json({ message: 'Lỗi khi xóa công việc', error: error.message });
+  }
+});
+
+// Route to update task details (for admin)
+router.put('/tasks/:taskId', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền cập nhật công việc' });
+  }
+
+  try {
+    const { taskId } = req.params;
+    const { 
+      title, 
+      description, 
+      dueDate, 
+      dueTime, 
+      expectedCompletionTime, 
+      assignedTo, 
+      bonus, 
+      penalty, 
+      priority, 
+      status 
+    } = req.body;
+
+    // Tạo đối tượng chứa dữ liệu cần cập nhật
+    let updateData = {
+      title,
+      description,
+      dueDate: dueDate && dueTime ? `${dueDate}T${dueTime}:00` : dueDate,
+      expectedCompletionTime,
+      assignedTo,
+      bonus,
+      penalty,
+      priority,
+      status
+    };
+
+    // Xóa các trường không có giá trị (undefined) trong updateData
+    Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
+    // Cập nhật dữ liệu công việc và trả về kết quả đã cập nhật
+    const updatedTask = await Task.findByIdAndUpdate(
+      taskId,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('assignedTo', 'fullName').populate('createdBy', 'fullName');
+
+    if (!updatedTask) {
+      return res.status(404).json({ message: 'Không tìm thấy công việc' });
+    }
+
+    res.json({ message: 'Cập nhật công việc thành công', task: updatedTask });
+  } catch (error) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ message: 'Lỗi khi cập nhật công việc', error: error.message });
+  }
+});
+
+
+
+// Hoàn thành công việc
+router.put('/tasks/:taskId/complete', authenticate, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const task = await Task.findById(taskId);
+
+    if (!task) {
+      return res.status(404).json({ message: 'Không tìm thấy công việc' });
+    }
+
+    if (task.status === 'completed') {
+      return res.status(400).json({ message: 'Công việc đã hoàn thành trước đó' });
+    }
+
+    task.status = 'completed';
+    task.completedAt = new Date();
+
+    // Kiểm tra nếu công việc hoàn thành sau thời hạn thì áp dụng hình phạt
+    let penalty = 0;
+    if (task.dueDate && new Date(task.completedAt) > new Date(task.dueDate)) {
+      penalty = task.penalty || 0;
+    }
+
+    await task.save();
+
+    res.json({ 
+      message: 'Công việc đã được đánh dấu hoàn thành', 
+      task, 
+      penalty: penalty > 0 ? penalty : null 
+    });
+  } catch (error) {
+    console.error('Lỗi khi hoàn thành công việc:', error);
+    res.status(500).json({ message: 'Lỗi khi hoàn thành công việc', error: error.message });
+  }
+});
 
 // ================== API NGHỈ VIỆC ==================
 // Route để gửi yêu cầu nghỉ việc (cho user)

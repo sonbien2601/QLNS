@@ -28,9 +28,10 @@ const ContractAdmin = () => {
       case 'temporary':
         return 'Tạm thời';
       default:
-        return type;
+        return type || 'Không xác định';
     }
   };
+
 
   const fetchContracts = async () => {
     try {
@@ -234,9 +235,10 @@ const ContractAdmin = () => {
                         <Label>Loại Hợp Đồng:</Label>
                         <Select
                           name="contractType"
-                          value={currentContract.contractType}
+                          value={currentContract.contractType || ''}
                           onChange={handleInputChange}
                         >
+                          <option value="">Chọn loại hợp đồng</option>
                           <option value="fullTime">Toàn thời gian</option>
                           <option value="partTime">Bán thời gian</option>
                           <option value="temporary">Tạm thời</option>
@@ -264,9 +266,10 @@ const ContractAdmin = () => {
                         <Label>Trạng Thái:</Label>
                         <Select
                           name="status"
-                          value={currentContract.status}
+                          value={currentContract.status || ''}
                           onChange={handleInputChange}
                         >
+                          <option value="">Chọn trạng thái</option>
                           <option value="Còn hiệu lực">Còn hiệu lực</option>
                           <option value="Hết hiệu lực">Hết hiệu lực</option>
                         </Select>

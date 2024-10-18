@@ -99,37 +99,104 @@ const AdminProfileManagement = () => {
     };
 
     const handleUpdate = async (field) => {
-        const result = await MySwal.fire({
-            title: `Chỉnh sửa ${labelMap[field]}`,
-            input: 'text',
-            inputValue: selectedUser[field],
-            inputAttributes: {
-                'aria-label': 'Nhập giá trị mới',
-                style: 'width: 100%; max-width: 350px; margin: auto; margin-top: 12px;' // Đảm bảo input không bị tràn và canh giữa
-            },
-            showCancelButton: true,
-            confirmButtonText: 'Lưu',
-            cancelButtonText: 'Hủy',
-            customClass: {
-                confirmButton: 'swal2-confirm',
-                cancelButton: 'swal2-cancel'
-            }
-        });
-
+        let result;
+        if (field === 'employeeType') {
+            result = await MySwal.fire({
+                title: `Chỉnh sửa ${labelMap[field]}`,
+                input: 'select',
+                inputOptions: {
+                    'thử việc': 'Thử việc',
+                    'chính thức': 'Chính thức'
+                },
+                inputValue: selectedUser[field],
+                showCancelButton: true,
+                confirmButtonText: 'Lưu',
+                cancelButtonText: 'Hủy',
+                customClass: {
+                    confirmButton: 'swal2-confirm',
+                    cancelButton: 'swal2-cancel'
+                }
+            });
+        } else {
+            result = await MySwal.fire({
+                title: `Chỉnh sửa ${labelMap[field]}`,
+                input: 'text',
+                inputValue: selectedUser[field],
+                inputAttributes: {
+                    'aria-label': 'Nhập giá trị mới',
+                    style: 'width: 100%; max-width: 350px; margin: auto; margin-top: 12px;'
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Lưu',
+                cancelButtonText: 'Hủy',
+                customClass: {
+                    confirmButton: 'swal2-confirm',
+                    cancelButton: 'swal2-cancel'
+                }
+            });
+        }
+    
         if (result.isConfirmed) {
             const newValue = result.value;
             try {
                 const token = localStorage.getItem('token');
                 const userId = selectedUser._id;
-                await axios.put(`http://localhost:5000/api/auth/admin/user/${userId}`, { [field]: newValue }, {
+                
+                let updateData = { [field]: newValue };
+    
+                // Nếu đang cập nhật từ 'thử việc' sang 'chính thức'
+                if (field === 'employeeType' && newValue === 'chính thức' && selectedUser.employeeType === 'thử việc') {
+                    const contractResult = await MySwal.fire({
+                        title: 'Nhập thông tin hợp đồng',
+                        html:
+                            '<select id="contractType" class="swal2-select" style="width: 100%; margin-bottom: 10px;">' +
+                            '<option value="">Chọn loại hợp đồng</option>' +
+                            '<option value="fullTime">Toàn thời gian</option>' +
+                            '<option value="partTime">Bán thời gian</option>' +
+                            '<option value="temporary">Tạm thời</option>' +
+                            '</select>' +
+                            '<input id="contractStart" class="swal2-input" type="date" placeholder="Ngày bắt đầu" style="width: 100%; margin-bottom: 10px;">' +
+                            '<input id="contractEnd" class="swal2-input" type="date" placeholder="Ngày kết thúc" style="width: 100%; margin-bottom: 10px;">',
+                        focusConfirm: false,
+                        preConfirm: () => {
+                            return {
+                                contractType: document.getElementById('contractType').value,
+                                contractStart: document.getElementById('contractStart').value,
+                                contractEnd: document.getElementById('contractEnd').value,
+                            }
+                        },
+                        showCancelButton: true,
+                        confirmButtonText: 'Lưu',
+                        cancelButtonText: 'Hủy',
+                        customClass: {
+                            confirmButton: 'swal2-confirm',
+                            cancelButton: 'swal2-cancel'
+                        }
+                    });
+    
+                    if (contractResult.isConfirmed) {
+                        updateData = {
+                            ...updateData,
+                            ...contractResult.value,
+                            contractStatus: 'active'
+                        };
+                    } else {
+                        // Nếu người dùng không nhập thông tin hợp đồng, hủy cập nhật
+                        return;
+                    }
+                }
+    
+                await axios.put(`http://localhost:5000/api/auth/admin/user/${userId}`, updateData, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
+    
                 MySwal.fire({
                     icon: 'success',
                     title: 'Cập nhật thành công!',
                     showConfirmButton: false,
                     timer: 1500
                 });
+    
                 fetchUserData();
             } catch (err) {
                 console.error(`Lỗi khi cập nhật ${labelMap[field]}:`, err);

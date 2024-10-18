@@ -70,6 +70,7 @@ const ResignationAdmin = () => {
     }
   };
 
+
   const handleStatusUpdate = async (id, status, adminResponse) => {
     try {
       let response = adminResponse;
@@ -207,7 +208,7 @@ const ResignationAdmin = () => {
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <h3>{resignation.userId.fullName}</h3>
+                    <h3>{resignation.userId?.fullName || 'Không có tên'}</h3>
                     <p><strong>Lý do:</strong> {resignation.reason}</p>
                     <p><strong>Trạng thái:</strong> <StatusBadge status={resignation.status}>{resignation.status}</StatusBadge></p>
                     <p><strong>Ngày yêu cầu:</strong> {new Date(resignation.submittedAt).toLocaleString()}</p>

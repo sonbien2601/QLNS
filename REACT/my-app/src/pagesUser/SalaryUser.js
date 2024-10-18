@@ -9,7 +9,7 @@ const SalaryUser = () => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [newFeedbackMessage, setNewFeedbackMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null); // Define the error state 
 
   useEffect(() => {
     fetchSalaryAndFeedbacks();
@@ -112,7 +112,7 @@ const SalaryUser = () => {
         <div style={styles.salaryInfo}>
           <p><strong>Lương cơ bản:</strong> {formatCurrency(salary.basicSalary)}</p>
           <p><strong>Thưởng:</strong> {formatCurrency(salary.bonus)}</p>
-          <p><strong>Số giờ làm việc:</strong> {formatWorkHours(salary.actualWorkHours)}</p>
+          <p><strong>Số giờ làm việc thực tế:</strong> {formatWorkHours(salary.actualWorkHours)}</p>
           <p><strong>Lương theo giờ:</strong> {formatCurrency(salary.hourlyRate)}</p>
           <p><strong>Lương thực tế:</strong> {formatCurrency(salary.actualSalary)}</p>
         </div>
