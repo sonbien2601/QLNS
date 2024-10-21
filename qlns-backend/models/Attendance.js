@@ -1,12 +1,17 @@
+// Attendance Schema
 const mongoose = require('mongoose');
 
 const attendanceSchema = new mongoose.Schema({
-  // Liên kết với User2 model, lưu ID của nhân viên chấm công
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User2', required: true },
-  checkIn: { type: Date, required: true },
-  checkOut: { type: Date },
-  totalHours: { type: String },  // Lưu tổng số giờ làm việc dưới dạng chuỗi
+  date: { type: Date, required: true },
+  morningCheckIn: { type: Date },
+  morningCheckOut: { type: Date },
+  afternoonCheckIn: { type: Date },
+  afternoonCheckOut: { type: Date },
+  totalHours: { type: String },
+  status: { type: String, enum: ['present', 'late', 'absent'], default: 'absent' },
 }, { timestamps: true });
 
 const Attendance = mongoose.model('Attendance', attendanceSchema);
+
 module.exports = Attendance;

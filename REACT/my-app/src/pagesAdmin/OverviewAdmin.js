@@ -7,6 +7,744 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
 import { X, AlertCircle, Trash2 } from 'lucide-react';
 
+// Styled components
+const PageContainer = styled(motion.div)`
+  width: 100%;
+  padding: 16px;
+  background-color: #f3f4f6;
+  min-height: 100vh;
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 1.5rem;
+  color: #4b5563;
+`;
+
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 8px;
+
+  button {
+    white-space: nowrap;
+  }
+`;
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+
+  @media (max-width: 1280px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const StatCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+  }
+
+  &.new-employees::before { background-color: #10b981; }
+  &.total-employees::before { background-color: #3b82f6; }
+  &.permanent-employees::before { background-color: #6366f1; }
+  &.trial-employees::before { background-color: #f59e0b; }
+  &.resignations::before { background-color: #ef4444; }
+
+  h3 {
+    margin-top: 0;
+    font-size: 1rem;
+    color: #374151;
+  }
+`;
+
+const StatValue = styled.div`
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 8px 0;
+`;
+
+const StatPrevious = styled.div`
+  font-size: 0.875rem;
+  color: #6b7280;
+`;
+
+const ChartsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+
+  &.two-columns {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ChartCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  h3 {
+    margin-top: 0;
+    font-size: 1rem;
+    color: #374151;
+  }
+`;
+
+const ChartSubtitle = styled.p`
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 16px;
+`;
+
+const TaskGrid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  width: 100%;
+`;
+
+const TaskCardBase = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  flex: 1 1 calc(33.333% - 16px);
+  min-width: 250px;
+  min-height: 200px;
+  
+  h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.1rem;
+    color: #374151;
+  }
+
+  div {
+    margin-bottom: 8px;
+  }
+
+  p {
+    margin: 4px 0;
+    font-size: 0.875rem;
+    color: #4b5563;
+  }
+
+  @media (max-width: 1024px) {
+    flex: 1 1 calc(50% - 16px);
+  }
+
+  @media (max-width: 768px) {
+    flex: 1 1 100%;
+  }
+`;
+
+const ScrollableList = styled.div`
+  flex-grow: 1;
+  overflow-y: auto;
+  margin-bottom: 15px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+`;
+
+const ListItem = styled.div`
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+`;
+
+const ItemTitle = styled.strong`
+  display: block;
+  font-size: 1rem;
+  color: #2c3e50;
+  margin-bottom: 5px;
+`;
+
+const ItemDetail = styled.span`
+  display: block;
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  margin-bottom: 3px;
+`;
+
+const Badge = styled.span`
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-top: 5px;
+  color: white;
+`;
+
+const ViewMoreButton = styled.button`
+  background: none;
+  border: none;
+  color: #3498db;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 8px;
+  width: 100%;
+  transition: background-color 0.3s ease;
+  border-radius: 4px;
+
+  &:hover {
+    background-color: #ebf5fb;
+    text-decoration: underline;
+  }
+`;
+
+const ExpiredContractCard = styled(TaskCardBase)`
+  ${ScrollableList} {
+    max-height: 250px;
+  }
+`;
+
+const TrialEmployeesCard = styled(TaskCardBase)`
+  ${ScrollableList} {
+    max-height: 250px;
+  }
+`;
+
+const AssignedTasksCard = styled(TaskCardBase)`
+  ${ScrollableList} {
+    max-height: 250px;
+  }
+`;
+
+const OverdueTasksCard = styled(TaskCardBase)`
+  ${ScrollableList} {
+    max-height: 250px;
+  }
+`;
+
+const EmployeeRewardsCard = styled(TaskCardBase)`
+  ${ScrollableList} {
+    max-height: 250px;
+  }
+`;
+
+const EmployeeBirthdaysCard = styled(TaskCardBase)`
+  ${ScrollableList} {
+    max-height: 250px;
+  }
+`;
+
+const NotificationBadge = styled.div`
+  display: flex;
+  align-items: center;
+  background-color: #ef4444;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  margin-left: 16px;
+
+  svg {
+    margin-right: 8px;
+  }
+`;
+
+const Modal = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled(motion.div)`
+  background-color: white;
+  padding: 30px;
+  border-radius: 12px;
+  width: 90%; // Tăng chiều rộng
+  max-width: 1200px; // Đặt chiều rộng tối đa
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  margin-bottom: 20px;
+  padding: 12px 15px;
+  border: 1px solid #e1e1e1;
+  border-radius: 12px;
+  font-size: 14px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  &::placeholder {
+    font-size: 16px;
+    color: #b0b0b0;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  margin-bottom: 20px;
+  padding: 12px 15px;
+  border: 1px solid #e1e1e1;
+  border-radius: 12px;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 120px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  &::placeholder {
+    font-size: 16px;
+    color: #b0b0b0;
+  }
+  &:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+`;
+
+const Select = styled.select`
+  width: 100%;
+  margin-bottom: 20px;
+  padding: 12px 15px;
+  border: 1px solid #e1e1e1;
+  border-radius: 12px;
+  font-size: 16px;
+  background-color: white;
+  appearance: none;
+  background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23131313%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+  background-repeat: no-repeat;
+  background-position: right 15px top 50%;
+  background-size: 12px auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 25px;
+`;
+
+const ButtonContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 15px;
+`;
+
+const Button = styled(motion.button)`
+  flex: 1;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &.btn-primary {
+    background-color: #3498db;
+    color: white;
+    &:hover {
+      background-color: #2980b9;
+    }
+  }
+
+  &.btn-secondary {
+    background-color: #ecf0f1;
+    color: #34495e;
+    &:hover {
+      background-color: #bdc3c7;
+    }
+  }
+
+  &.btn-third {
+    background-color: #e74c3c;
+    color: white;
+    &:hover {
+      background-color: #c0392b;
+    }
+  }
+`;
+
+const DeleteButton = styled(Button)`
+  background-color: #e74c3c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 10px;
+
+  &:hover {
+    background-color: #c0392b;
+  }
+`;
+
+const InputGroup = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+
+  input {
+    flex: 1;
+  }
+`;
+
+const ModalOverlay = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+
+  h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #2c3e50;
+  }
+`;
+
+const ModalBody = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const CloseModalButton = styled.button`
+  display: flex;
+  width: 70px;
+  align-items: center;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-left: 500px;
+
+  &:hover {
+    background-color: #c0392b;
+  }
+
+  span {
+    margin-left: 1px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+`;
+
+const TaskList = styled.div`
+  max-height: 300px;
+  overflow-y: auto;
+`;
+
+const TaskItem = styled.div`
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 1 1 calc(25% - 15px); // Điều chỉnh này sẽ tạo ra 4 cột
+    min-width: 250px; // Đảm bảo các item không bị quá nhỏ
+    margin-bottom: 20px;
+
+
+    @media (max-width: 1400px) {
+      flex: 1 1 calc(33.333% - 15px); // 3 cột trên màn hình nhỏ hơn
+    }
+
+    @media (max-width: 1100px) {
+      flex: 1 1 calc(50% - 15px); // 2 cột trên màn hình tablet
+    }
+
+    @media (max-width: 768px) {
+      flex: 1 1 100%; // 1 cột trên màn hình mobile
+    }
+  `;
+
+// Component functions
+const ExpiredContracts = ({ contracts }) => (
+  <ExpiredContractCard>
+    <h3>Nhân viên hết hạn hợp đồng</h3>
+    <ScrollableList>
+      {contracts.length > 0 ? contracts.map((contract) => (
+        <ListItem key={contract._id}>
+          <ItemTitle>{contract.employeeId.fullName}</ItemTitle>
+          <ItemDetail>Bắt đầu: {new Date(contract.startDate).toLocaleDateString()}</ItemDetail>
+          <ItemDetail>Kết thúc: {new Date(contract.endDate).toLocaleDateString()}</ItemDetail>
+          <Badge style={{ backgroundColor: '#e74c3c' }}>Hết hạn</Badge>
+        </ListItem>
+      )) : (
+        <p>Không có nhân viên nào.</p>
+      )}
+    </ScrollableList>
+  </ExpiredContractCard>
+);
+
+const TrialEmployees = ({ employees }) => (
+  <TrialEmployeesCard>
+    <h3>Nhân viên chưa ký hợp đồng</h3>
+    <ScrollableList>
+      {employees.length > 0 ? employees.map((employee) => (
+        <ListItem key={employee._id}>
+          <ItemTitle>{employee.fullName}</ItemTitle>
+          <Badge style={{ backgroundColor: '#f39c12' }}>Thử việc</Badge>
+        </ListItem>
+      )) : (
+        <p>Không có nhân viên thử việc nào.</p>
+      )}
+    </ScrollableList>
+  </TrialEmployeesCard>
+);
+
+const AssignedTasks = ({ tasks, onViewMore }) => (
+  <AssignedTasksCard>
+    <h3>Công việc đã giao</h3>
+    <ScrollableList>
+      {tasks.map((task, index) => (
+        <ListItem key={index}>
+          <ItemTitle>{task.title}</ItemTitle>
+          <ItemDetail>{task.assignee}</ItemDetail>
+          <ItemDetail>Hạn: {task.dueDate}</ItemDetail>
+          <Badge style={{ backgroundColor: task.status === 'completed' ? '#2ecc71' : '#3498db' }}>
+            {task.status}
+          </Badge>
+        </ListItem>
+      ))}
+    </ScrollableList>
+    <ViewMoreButton onClick={onViewMore}>
+      Xem tất cả ({tasks.length} công việc)
+    </ViewMoreButton>
+  </AssignedTasksCard>
+);
+
+const OverdueTasks = ({ tasks }) => (
+  <OverdueTasksCard>
+    <h3>Nhân viên trễ hạn công việc</h3>
+    <ScrollableList>
+      {tasks.length > 0 ? tasks.map((task) => (
+        <ListItem key={task._id}>
+          <ItemTitle>{task.assignedTo?.fullName || 'Chưa được gán'}</ItemTitle>
+          <ItemDetail>Công việc: {task.title}</ItemDetail>
+          <ItemDetail>Deadline: {new Date(task.dueDate).toLocaleString()}</ItemDetail>
+          <ItemDetail>Hoàn thành: {new Date(task.completedAt).toLocaleString()}</ItemDetail>
+          <Badge style={{ backgroundColor: '#e74c3c' }}>Trễ hạn</Badge>
+        </ListItem>
+      )) : (
+        <p>Không có nhân viên nào trễ hạn công việc.</p>
+      )}
+    </ScrollableList>
+  </OverdueTasksCard>
+);
+
+const EmployeeRewards = () => (
+  <EmployeeRewardsCard>
+    <h3>Khen thưởng nhân viên</h3>
+    <ScrollableList>
+      <p>Chưa có thông tin khen thưởng.</p>
+    </ScrollableList>
+  </EmployeeRewardsCard>
+);
+
+const EmployeeBirthdays = () => (
+  <EmployeeBirthdaysCard>
+    <h3>Sinh nhật nhân viên</h3>
+    <ScrollableList>
+      <p>Chưa có thông tin sinh nhật.</p>
+    </ScrollableList>
+  </EmployeeBirthdaysCard>
+);
+
+const AssignedTasksModal = ({ isOpen, onClose, tasks, users, setSelectedTask, setNewDeadline, setShowUpdateDeadlineModal, handleDeleteTask }) => {
+  if (!isOpen) return null;
+
+  return (
+    <ModalOverlay
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <ModalContent
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: -50, opacity: 0 }}
+      >
+        <ModalHeader>
+          <h2>Công việc đã giao</h2>
+          <CloseModalButton onClick={onClose}>
+            <X size={24} />
+            <span>Đóng</span>
+          </CloseModalButton>
+        </ModalHeader>
+        <ModalBody>
+          {tasks.length > 0 ? (
+            <TaskGrid>
+              {tasks.map(task => {
+                const assignedUser = users.find(user => user._id === task.assignedTo);
+                const dueDate = new Date(task.dueDate);
+                return (
+                  <TaskItem key={task._id}>
+                    <div>
+                      <h3>{task.title}</h3>
+                      <p><strong>Mô tả:</strong> {task.description}</p>
+                      <p><strong>Hạn chót:</strong> {dueDate.toLocaleString()}</p>
+                      <p><strong>Người được giao:</strong> {assignedUser ? assignedUser.fullName : 'Chưa được gán'}</p>
+                      <p><strong>Thưởng:</strong> {task.bonus || 'Không'}</p>
+                      <p><strong>Phạt:</strong> {task.penalty || 'Không'}</p>
+                      <p><strong>Trạng thái:</strong> {task.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}</p>
+                      {task.completedAt && (
+                        <p><strong>Thời gian hoàn thành:</strong> {new Date(task.completedAt).toLocaleString()}</p>
+                      )}
+                    </div>
+                    <ButtonContainer>
+                      <Button
+                        className="btn-primary"
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setNewDeadline({
+                            date: dueDate.toISOString().split('T')[0],
+                            time: dueDate.toTimeString().split(' ')[0].slice(0, 5)
+                          });
+                          setShowUpdateDeadlineModal(true);
+                        }}
+                      >
+                        Cập nhật Deadline
+                      </Button>
+                      <DeleteButton
+                        onClick={() => handleDeleteTask(task._id)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Trash2 size={16} />
+                        Xóa
+                      </DeleteButton>
+                    </ButtonContainer>
+                  </TaskItem>
+                );
+              })}
+            </TaskGrid>
+          ) : (
+            <p>Chưa có công việc nào được giao.</p>
+          )}
+        </ModalBody>
+      </ModalContent>
+    </ModalOverlay>
+  );
+};
+
 const OverviewAdmin = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -24,11 +762,6 @@ const OverviewAdmin = () => {
   const [uncompletedTasks, setUncompletedTasks] = useState([]);
   const [overdueTasks, setOverdueTasks] = useState([]);
   const [tasksPreview, setTasksPreview] = useState([]);
-
-
-  const handleTaskCardClick = () => {
-    setActiveSection('task');
-  };
 
   const [newTask, setNewTask] = useState({
     title: '',
@@ -55,6 +788,10 @@ const OverviewAdmin = () => {
     approvedResignations: 0
   });
 
+  const handleTaskCardClick = () => {
+    setActiveSection('task');
+  };
+
   const handleAddTask = async () => {
     try {
       if (!newTask.title || !newTask.dueDate || !newTask.dueTime || !newTask.assignedTo) {
@@ -65,26 +802,26 @@ const OverviewAdmin = () => {
         });
         return;
       }
-  
+
       const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId'); // Lấy userId từ localStorage
+      const userId = localStorage.getItem('userId');
       const headers = { Authorization: `Bearer ${token}` };
-  
+
       const taskData = {
         ...newTask,
-        createdBy: userId, // Thêm trường createdBy vào dữ liệu gửi đi
-        dueDate: `${newTask.dueDate}T${newTask.dueTime}:00` // Kết hợp ngày và giờ
+        createdBy: userId,
+        dueDate: `${newTask.dueDate}T${newTask.dueTime}:00`
       };
-  
+
       console.log('Sending task data:', taskData);
-  
+
       const response = await axios.post('http://localhost:5000/api/auth/tasks', taskData, { headers });
-  
+
       console.log('Server response:', response.data);
-  
+
       if (response.data && response.data.task) {
         setTasks(prevTasks => [...prevTasks, response.data.task]);
-  
+
         setNewTask({
           title: '',
           description: '',
@@ -95,7 +832,7 @@ const OverviewAdmin = () => {
           bonus: '',
           penalty: ''
         });
-  
+
         Swal.fire({
           icon: 'success',
           title: 'Tạo nhắc việc thành công',
@@ -103,7 +840,7 @@ const OverviewAdmin = () => {
           showConfirmButton: false,
           timer: 1500
         });
-  
+
         setShowTaskModal(false);
       } else {
         throw new Error('Thêm công việc không thành công');
@@ -111,15 +848,15 @@ const OverviewAdmin = () => {
     } catch (error) {
       console.error('Error adding task:', error);
       console.error('Error response:', error.response?.data);
-      
+
       let errorMessage = 'Có lỗi xảy ra khi thêm công việc. Vui lòng thử lại.';
       let errorDetails = '';
-  
+
       if (error.response) {
         errorMessage = error.response.data.message || errorMessage;
         errorDetails = JSON.stringify(error.response.data, null, 2);
       }
-  
+
       Swal.fire({
         icon: 'error',
         title: 'Lỗi',
@@ -147,17 +884,13 @@ const OverviewAdmin = () => {
 
       if (result.isConfirmed) {
         const token = localStorage.getItem('token');
-        
-        // Send delete request to the backend
+
         await axios.delete(`http://localhost:5000/api/auth/tasks/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        
-        // If the delete request is successful, update the frontend state
-        setTasks(prevTasks => prevTasks.filter(task => task._id !== taskId));
 
-        // Update uncompleted tasks
-        setUncompletedTasks(prevUncompletedTasks => 
+        setTasks(prevTasks => prevTasks.filter(task => task._id !== taskId));
+        setUncompletedTasks(prevUncompletedTasks =>
           prevUncompletedTasks.filter(task => task._id !== taskId)
         );
 
@@ -176,43 +909,37 @@ const OverviewAdmin = () => {
       );
     }
   };
-  
+
   const handleUpdateDeadline = async () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-  
-      // Tạo timestamp của deadline mới
+
       const updatedDueDate = `${newDeadline.date}T${newDeadline.time}:00`;
-  
-      // Gửi yêu cầu cập nhật deadline đến server
+
       const response = await axios.put(
         `http://localhost:5000/api/auth/tasks/${selectedTask._id}`,
         { dueDate: updatedDueDate },
         { headers }
       );
-  
+
       if (response.status === 200) {
-        // Cập nhật task mới với dữ liệu từ server để đảm bảo nhất quán
         const updatedTask = response.data.task;
-  
-        // Cập nhật danh sách task với task đã được sửa đổi
+
         const updatedTasks = tasks.map(task =>
           task._id === updatedTask._id ? updatedTask : task
         );
-  
+
         setTasks(updatedTasks);
-  
-        // Tính toán lại các task chưa hoàn thành
+
         const currentDate = new Date();
         const newUncompletedTasks = updatedTasks.filter(task =>
           task.status !== 'completed' && new Date(task.dueDate) < currentDate
         );
         setUncompletedTasks(newUncompletedTasks);
-  
-        // Đóng modal và hiển thị thông báo
+
         setShowUpdateDeadlineModal(false);
-  
+
         Swal.fire(
           'Thành công',
           new Date(updatedDueDate) > currentDate
@@ -228,7 +955,6 @@ const OverviewAdmin = () => {
       Swal.fire('Lỗi', 'Không thể cập nhật deadline', 'error');
     }
   };
-  
 
   const handleEditTask = async (taskId) => {
     const taskToEdit = tasks.find(task => task._id === taskId);
@@ -254,83 +980,13 @@ const OverviewAdmin = () => {
     }
   };
 
-  const AssignedTasksModal = ({ isOpen, onClose, tasks, users, setSelectedTask, setNewDeadline, setShowUpdateDeadlineModal, handleDeleteTask }) => {
-    if (!isOpen) return null;
-  
-    return (
-      <ModalOverlay
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      >
-        <ModalContent
-          initial={{ y: -50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -50, opacity: 0 }}
-        >
-          <ModalHeader>
-            <h2>Công việc đã giao</h2>
-            <CloseModalButton onClick={onClose}>
-              <X size={24} />
-              <span>Đóng</span>
-            </CloseModalButton>
-          </ModalHeader>
-          <ModalBody>
-            {tasks.length > 0 ? (
-              <TaskGrid>
-                {tasks.map(task => {
-                  const assignedUser = users.find(user => user._id === task.assignedTo);
-                  const dueDate = new Date(task.dueDate);
-                  return (
-                    <TaskItem key={task._id}>
-                      <h3>{task.title}</h3>
-                      <p><strong>Mô tả:</strong> {task.description}</p>
-                      <p><strong>Hạn chót:</strong> {dueDate.toLocaleString()}</p>
-                      <p><strong>Người được giao:</strong> {task.assignedTo && task.assignedTo.fullName ? task.assignedTo.fullName : 'Chưa được gán'}</p>
-                      <p><strong>Thưởng:</strong> {task.bonus || 'Không'}</p>
-                      <p><strong>Phạt:</strong> {task.penalty || 'Không'}</p>
-                      <p><strong>Trạng thái:</strong> {task.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}</p>
-                      {task.completedAt && (
-                        <p><strong>Thời gian hoàn thành:</strong> {new Date(task.completedAt).toLocaleString()}</p>
-                      )}
-                      <Button onClick={() => {
-                        setSelectedTask(task);
-                        setNewDeadline({
-                          date: dueDate.toISOString().split('T')[0],
-                          time: dueDate.toTimeString().split(' ')[0].slice(0, 5)
-                        });
-                        setShowUpdateDeadlineModal(true);
-                      }}>
-                        Cập nhật Deadline
-                      </Button>
-                      <DeleteButton
-                        onClick={() => handleDeleteTask(task._id)}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <Trash2 size={16} />
-                        Xóa
-                      </DeleteButton>
-                    </TaskItem>
-                  );
-                })}
-              </TaskGrid>
-            ) : (
-              <p>Chưa có công việc nào được giao.</p>
-            )}
-          </ModalBody>
-        </ModalContent>
-      </ModalOverlay>
-    );
-  };
-
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
-  
+
         const endpoints = [
           'http://localhost:5000/api/auth/users',
           'http://localhost:5000/api/auth/contracts',
@@ -339,30 +995,29 @@ const OverviewAdmin = () => {
           'http://localhost:5000/api/auth/resignation-requests',
           'http://localhost:5000/api/auth/tasks'
         ];
-  
+
         const results = await Promise.allSettled(
           endpoints.map(endpoint => axios.get(endpoint, { headers }))
         );
-  
+
         const processData = (response, defaultValue) => response.status === 'fulfilled' ? response.value.data : defaultValue;
-  
+
         const usersData = processData(results[0], { users: [] }).users;
         setUsers(usersData);
-  
+
         const contracts = processData(results[1], []);
         const expiredContracts = contracts.filter(contract => contract.status === 'Hết hiệu lực');
         setExpiredContracts(expiredContracts);
-  
+
         const trialEmployeesList = usersData.filter(user => user.employeeType === 'thử việc');
         setTrialEmployeesList(trialEmployeesList);
-  
+
         const attendanceRecords = processData(results[2], { attendanceRecords: [] }).attendanceRecords;
         const salaries = processData(results[3], { salaries: [] }).salaries;
         const resignations = processData(results[4], { resignations: [] }).resignations;
         const tasksData = processData(results[5], { tasks: [] }).tasks;
         setTasks(tasksData);
-  
-        // Xử lý dữ liệu xem trước cho công việc đã giao
+
         const tasksPreviewData = tasksData.slice(0, 3).map(task => ({
           title: task.title,
           assignee: task.assignedTo?.fullName || 'Chưa phân công',
@@ -370,21 +1025,18 @@ const OverviewAdmin = () => {
           status: task.status
         }));
         setTasksPreview(tasksPreviewData);
-  
-        // Calculate overdue tasks
+
         const currentDate = new Date();
-        const overdueTasksData = tasksData.filter(task => 
+        const overdueTasksData = tasksData.filter(task =>
           task.status === 'completed' && new Date(task.completedAt) > new Date(task.dueDate)
         );
         setOverdueTasks(overdueTasksData);
-  
-        // Calculate uncompleted tasks
+
         const uncompletedTasksData = tasksData.filter(task =>
           task.status !== 'completed' && new Date(task.dueDate) < currentDate
         );
         setUncompletedTasks(uncompletedTasksData);
-  
-        // If there are uncompleted tasks, show a notification
+
         if (uncompletedTasksData.length > 0) {
           Swal.fire({
             icon: 'warning',
@@ -392,7 +1044,7 @@ const OverviewAdmin = () => {
             text: `Có ${uncompletedTasksData.length} công việc đã quá hạn và chưa hoàn thành.`,
           });
         }
-  
+
         const totalEmployees = usersData.length;
         const threeDaysAgo = new Date();
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
@@ -400,29 +1052,29 @@ const OverviewAdmin = () => {
         const activeEmployees = usersData.filter(user => user.status === 'active').length;
         const permanentEmployees = usersData.filter(user => user.employeeType === 'chính thức').length;
         const trialEmployees = usersData.filter(user => user.employeeType === 'thử việc').length;
-  
+
         const contractTypes = contracts.reduce((acc, contract) => {
           acc[contract.contractType] = (acc[contract.contractType] || 0) + 1;
           return acc;
         }, {});
-  
+
         const approvedResignations = resignations.filter(resignation =>
           resignation.status === 'approved' &&
           new Date(resignation.processedAt).getMonth() === new Date().getMonth()
         ).length;
-  
+
         const staffChanges = [
           { name: 'Tháng 1', nhận: 2, nghỉ: 1 },
           { name: 'Tháng 2', nhận: 3, nghỉ: 0 },
           { name: 'Tháng 3', nhận: 1, nghỉ: approvedResignations },
         ];
-  
+
         const staffCounts = [
           { name: 'Tháng 1', số_lượng: totalEmployees - 2 },
           { name: 'Tháng 2', số_lượng: totalEmployees - 1 },
           { name: 'Tháng 3', số_lượng: totalEmployees - approvedResignations },
         ];
-  
+
         setOverviewData({
           totalEmployees,
           newEmployees,
@@ -436,7 +1088,7 @@ const OverviewAdmin = () => {
           salaries,
           approvedResignations
         });
-  
+
         const completedTasks = tasksData.filter(task => task.status === 'completed');
         if (completedTasks.length > 0) {
           Swal.fire({
@@ -445,14 +1097,14 @@ const OverviewAdmin = () => {
             text: `Có ${completedTasks.length} công việc đã được hoàn thành.`,
           });
         }
-  
+
         setIsLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
         setIsLoading(false);
       }
     };
-  
+
     fetchData();
   }, []);
 
@@ -464,7 +1116,6 @@ const OverviewAdmin = () => {
 
   return (
     <PageContainer
-      as={motion.div}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.1 }}
@@ -610,8 +1261,8 @@ const OverviewAdmin = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.4, duration: 0.2 }}
-              onClick={handleTaskCardClick} // Add this onClick handler
-              style={{ cursor: 'pointer' }} // Add this to show it's clickable
+              onClick={handleTaskCardClick}
+              style={{ cursor: 'pointer' }}
             >
               <h3>Nhắc việc</h3>
               <TaskList>
@@ -684,74 +1335,17 @@ const OverviewAdmin = () => {
         </>
       )}
 
-{activeSection === 'task' && (
+      {activeSection === 'task' && (
         <TaskGrid>
-          <TaskCard as={ExpiredContractCard}>
-            <h3>Nhân viên hết hạn hợp đồng</h3>
-            {expiredContracts.length > 0 ? (
-              expiredContracts.map((contract) => (
-                <div key={contract._id}>
-                  <p>Tên: {contract.employeeId.fullName}</p>
-                  <p>Bắt đầu: {new Date(contract.startDate).toLocaleDateString()}</p>
-                  <p>Kết thúc: {new Date(contract.endDate).toLocaleDateString()}</p>
-                </div>
-              ))
-            ) : (
-              <p>Không có nhân viên nào.</p>
-            )}
-          </TaskCard>
-
-          <TaskCard>
-            <h3>Nhân viên chưa ký hợp đồng</h3>
-            {trialEmployeesList.length > 0 ? (
-              trialEmployeesList.map((employee) => (
-                <p key={employee._id}>{employee.fullName}</p>
-              ))
-            ) : (
-              <p>Không có nhân viên thử việc nào.</p>
-            )}
-          </TaskCard>
-
-          <TaskCard onClick={() => setShowAssignedTasksModal(true)}>
-            <h3>Công việc đã giao</h3>
-            <TaskPreviewList>
-              {tasksPreview.map((task, index) => (
-                <TaskPreviewItem key={index}>
-                  <strong>{task.title}</strong>
-                  <span>{task.assignee}</span>
-                  <span>Hạn: {task.dueDate}</span>
-                  <StatusBadge status={task.status}>{task.status}</StatusBadge>
-                </TaskPreviewItem>
-              ))}
-            </TaskPreviewList>
-            <ViewMoreButton>Xem tất cả ({tasks.length} công việc)</ViewMoreButton>
-          </TaskCard>
-
-          <TaskCard>
-            <h3>Nhân viên trễ hạn công việc</h3>
-            {overdueTasks.length > 0 ? (
-              overdueTasks.map((task) => (
-                <div key={task._id}>
-                  <p><strong>Họ tên:</strong> {task.assignedTo && task.assignedTo.fullName ? task.assignedTo.fullName : 'Chưa được gán'}</p>
-                  <p><strong>Công việc:</strong> {task.title}</p>
-                  <p><strong>Deadline:</strong> {new Date(task.dueDate).toLocaleString()}</p>
-                  <p><strong>Thời gian hoàn thành:</strong> {new Date(task.completedAt).toLocaleString()}</p>
-                </div>
-              ))
-            ) : (
-              <p>Không có nhân viên nào trễ hạn công việc.</p>
-            )}
-          </TaskCard>
-
-          <TaskCard>
-            <h3>Khen thưởng nhân viên</h3>
-            {/* Add content for employee rewards here */}
-          </TaskCard>
-
-          <TaskCard>
-            <h3>Sinh nhật nhân viên</h3>
-            {/* Add content for employee birthdays here */}
-          </TaskCard>
+          <ExpiredContracts contracts={expiredContracts} />
+          <TrialEmployees employees={trialEmployeesList} />
+          <AssignedTasks 
+            tasks={tasksPreview} 
+            onViewMore={() => setShowAssignedTasksModal(true)}
+          />
+          <OverdueTasks tasks={overdueTasks} />
+          <EmployeeRewards />
+          <EmployeeBirthdays />
         </TaskGrid>
       )}
 
@@ -854,573 +1448,3 @@ const OverviewAdmin = () => {
 };
 
 export default OverviewAdmin;
-
-// Styled components
-const TaskGrid = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 16px;
-  background-color: #f3f4f6;
-`;
-
-const TaskCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  flex: 1 1 calc(33.333% - 16px);
-  min-width: 250px;
-  min-height: 200px;
-  
-  h3 {
-    margin: 0 0 10px 0;
-    font-size: 1.1rem;
-    color: #374151;
-  }
-
-  div {
-    margin-bottom: 8px;
-  }
-
-  p {
-    margin: 4px 0;
-    font-size: 0.875rem;
-    color: #4b5563;
-  }
-
-  @media (max-width: 1024px) {
-    flex: 1 1 calc(50% - 16px);
-  }
-
-  @media (max-width: 768px) {
-    flex: 1 1 100%;
-  }
-`;
-
-
-const PageContainer = styled.div`
-  width: 100%;
-  padding: 16px;
-  background-color: #f3f4f6;
-  min-height: 100vh;
-`;
-
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  font-size: 1.5rem;
-  color: #4b5563;
-`;
-
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-`;
-
-const ButtonGroup = styled.div`
-  display: flex;
-  gap: 8px;
-
-  button {
-    white-space: nowrap;
-  }
-`;
-
-const StatsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
-
-  @media (max-width: 1280px) {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  @media (max-width: 768px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 480px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const StatCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-  }
-
-  &.new-employees::before { background-color: #10b981; }
-  &.total-employees::before { background-color: #3b82f6; }
-  &.permanent-employees::before { background-color: #6366f1; }
-  &.trial-employees::before { background-color: #f59e0b; }
-  &.resignations::before { background-color: #ef4444; }
-
-  h3 {
-    margin-top: 0;
-    font-size: 1rem;
-    color: #374151;
-  }
-`;
-
-const StatValue = styled.div`
-  font-size: 2rem;
-  font-weight: bold;
-  margin: 8px 0;
-`;
-
-const StatPrevious = styled.div`
-  font-size: 0.875rem;
-  color: #6b7280;
-`;
-
-const ChartsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
-
-  &.two-columns {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const ChartCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-
-  h3 {
-    margin-top: 0;
-    font-size: 1rem;
-    color: #374151;
-  }
-`;
-
-const ChartSubtitle = styled.p`
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin-bottom: 16px;
-`;
-
-const TaskList = styled.div`
-  max-height: 300px;
-  overflow-y: auto;
-`;
-
-// const TaskItem = styled.div`
-//   border-bottom: 1px solid #e5e7eb;
-//   padding: 10px 0;
-
-//   &:last-child {
-//     border-bottom: none;
-//   }
-
-//   h4 {
-//     margin: 0 0 5px 0;
-//     color: #3b82f6;
-//   }
-
-//   p {
-//     margin: 0 0 5px 0;
-//     font-size: 0.9em;
-//     color: #4b5563;
-//   }
-// `;
-
-const Modal = styled(motion.div)`
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-`;
-
-// const ModalContent = styled(motion.div)`
-//   background-color: white;
-//   padding: 30px;
-//   border-radius: 12px;
-//   width: 400px;
-//   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-
-//   h2 {
-//     margin-top: 0;
-//     margin-bottom: 25px;
-//     color: #2c3e50;
-//     font-size: 1.8rem;
-//     font-weight: 600;
-//     text-align: center;
-//     white-space: nowrap;
-//   }
-// `;
-
-const NotificationBadge = styled.div`
-  display: flex;
-  align-items: center;
-  background-color: #ef4444;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: bold;
-  margin-left: 16px;
-
-  svg {
-    margin-right: 8px;
-  }
-`;
-
-const Input = styled.input`
-  width: 100%;
-  margin-bottom: 20px;
-  padding: 12px 15px;
-  border: 1px solid #e1e1e1;
-  border-radius: 12px;
-  font-size: 14px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-  &::placeholder {
-    font-size: 16px;
-    color: #b0b0b0;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: #3498db;
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-`;
-
-const TextArea = styled.textarea`
-  width: 100%;
-  margin-bottom: 20px;
-  padding: 12px 15px;
-  border: 1px solid #e1e1e1;
-  border-radius: 12px;
-  font-size: 14px;
-  resize: vertical;
-  min-height: 120px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-  &::placeholder {
-    font-size: 16px;
-    color: #b0b0b0;
-  }
-  &:focus {
-    outline: none;
-    border-color: #3498db;
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-`;
-
-const Select = styled.select`
-  width: 100%;
-  margin-bottom: 20px;
-  padding: 12px 15px;
-  border: 1px solid #e1e1e1;
-  border-radius: 12px;
-  font-size: 16px;
-  background-color: white;
-  appearance: none;
-  background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23131313%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
-  background-repeat: no-repeat;
-  background-position: right 15px top 50%;
-  background-size: 12px auto;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  &:focus {
-    outline: none;
-    border-color: #3498db;
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-`;
-
-const ModalButtons = styled.div`
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  margin-top: 25px;
-`;
-
-const Button = styled(motion.button)`
-  flex: 1;
-  padding: 12px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &.btn-primary {
-    background-color: #3498db;
-    color: white;
-    &:hover {
-      background-color: #2980b9;
-    }
-  }
-
-  &.btn-secondary {
-    background-color: #ecf0f1;
-    color: #34495e;
-    &:hover {
-      background-color: #bdc3c7;
-    }
-  }
-
-  &.btn-third {
-    background-color: #e74c3c;
-    color: white;
-    &:hover {
-      background-color: #c0392b;
-    }
-  }
-`;
-
-const ExpiredContractCard = styled(TaskCard)`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 20px;
-  height: 200px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: #f5f5f5;
-    border-radius: 10px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: #c0c0c0;
-    border-radius: 10px;
-  }
-
-  p {
-    font-size: 0.875rem;
-    color: #4b5563;
-    margin-bottom: 8px;
-  }
-
-  p:nth-child(odd) {
-    color: #374151;
-    font-weight: bold;
-  }
-`;
-
-const ModalOverlay = styled(motion.div)`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled(motion.div)`
-  background-color: white;
-  padding: 20px;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 1200px;
-  max-height: 80vh;
-  overflow-y: auto;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-`;
-
-const CloseModalButton = styled.button`
-  display: flex;
-  width: 70px;
-  align-items: center;
-  background-color: #e74c3c;
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  margin-left: 500px;
-
-  &:hover {
-    background-color: #c0392b;
-  }
-
-  span {
-    margin-left: 1px;
-    font-size: 14px;
-    font-weight: 600;
-  }
-`;
-
-const ModalHeader = styled.div`
-  display: flex;
-  justify-content: center; // Centers the title
-  align-items: center;
-  margin-bottom: 20px;
-
-  h2 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: #2c3e50;
-  }
-`;
-
-const ModalBody = styled.div`
-  display: flex;
-  flex-direction: column;
-`;
-
-const TaskItem = styled.div`
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-
-  h3 {
-    margin-top: 0;
-    color: #3498db;
-  }
-
-  p {
-    margin: 5px 0;
-    font-size: 0.9rem;
-  }
-
-  button {
-    margin-top: 10px;
-  }
-`;
-
-const DeleteButton = styled(Button)`
-  background-color: #e74c3c;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  margin-top: 10px;
-
-  &:hover {
-    background-color: #c0392b;
-  }
-`;
-
-const InputGroup = styled.div`
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-
-  input {
-    flex: 1;
-  }
-`;
-
-const TaskPreviewList = styled.div`
-  margin-top: 10px;
-`;
-
-const TaskPreviewItem = styled.div`
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  padding: 8px;
-  margin-bottom: 8px;
-  font-size: 0.9rem;
-  display: flex;
-  flex-direction: column;
-
-  strong {
-    margin-bottom: 4px;
-  }
-
-  span {
-    font-size: 0.8rem;
-    color: #6c757d;
-  }
-`;
-
-const StatusBadge = styled.span`
-  padding: 2px 6px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  text-transform: uppercase;
-  background-color: ${props => {
-    switch (props.status) {
-      case 'completed': return '#28a745';
-      case 'in progress': return '#ffc107';
-      case 'pending': return '#17a2b8';
-      default: return '#6c757d';
-    }
-  }};
-  color: white;
-  align-self: flex-start;
-`;
-
-const ViewMoreButton = styled.button`
-  background: none;
-  border: none;
-  color: #007bff;
-  cursor: pointer;
-  font-size: 0.9rem;
-  margin-top: 10px;
-  padding: 0;
-  text-align: left;
-
-  &:hover {
-    text-decoration: underline;
-  }
-`;

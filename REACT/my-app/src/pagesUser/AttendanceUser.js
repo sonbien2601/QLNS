@@ -9,9 +9,9 @@ const MySwal = withReactContent(Swal);
 const AttendanceRow = ({ record }) => {
   return (
     <tr style={styles.tableRow}>
-      <td style={styles.tableCell}>{new Date(record.checkIn).toLocaleDateString()}</td>
-      <td style={styles.tableCell}>{new Date(record.checkIn).toLocaleTimeString()}</td>
-      <td style={styles.tableCell}>{record.checkOut ? new Date(record.checkOut).toLocaleTimeString() : 'Chưa check-out'}</td>
+      <td style={styles.tableCell}>{record.date}</td>
+      <td style={styles.tableCell}>{record.checkIn || 'Không có dữ liệu'}</td>
+      <td style={styles.tableCell}>{record.checkOut || 'Chưa check-out'}</td>
       <td style={styles.tableCell}>{record.totalHours || 'Chưa có thông tin'}</td>
     </tr>
   );
@@ -30,8 +30,8 @@ const AttendanceTable = ({ attendanceRecords }) => {
           </tr>
         </thead>
         <tbody>
-          {attendanceRecords.map((record) => (
-            <AttendanceRow key={record._id} record={record} />
+          {attendanceRecords.map((record, index) => (
+            <AttendanceRow key={record.date || index} record={record} />
           ))}
         </tbody>
       </table>
@@ -41,8 +41,8 @@ const AttendanceTable = ({ attendanceRecords }) => {
 
 const AttendanceUser = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [canCheckOut, setCanCheckOut] = useState(false);
 
   const fetchAttendance = async () => {
     const token = localStorage.getItem('token');
@@ -51,12 +51,13 @@ const AttendanceUser = () => {
       const response = await axios.get('http://localhost:5000/api/auth/attendance/history', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      console.log('Received attendance data:', response.data);
       setAttendanceRecords(response.data.history);
-      const today = new Date().setHours(0, 0, 0, 0);
-      const todayRecord = response.data.history.find(record => 
-        new Date(record.checkIn).setHours(0, 0, 0, 0) === today && !record.checkOut
-      );
-      setIsCheckingOut(!!todayRecord);
+      
+      // Check if user can check out
+      const today = new Date().toISOString().split('T')[0];
+      const todayRecord = response.data.history.find(record => record.date === today);
+      setCanCheckOut(todayRecord && todayRecord.checkIn && !todayRecord.checkOut);
     } catch (error) {
       console.error('Lỗi khi lấy dữ liệu chấm công:', error);
       MySwal.fire({
@@ -76,16 +77,19 @@ const AttendanceUser = () => {
   const handleCheckIn = async () => {
     const token = localStorage.getItem('token');
     try {
-      await axios.post('http://localhost:5000/api/auth/attendance/check-in', null, {
+      const response = await axios.post('http://localhost:5000/api/auth/attendance/check-in', null, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      await fetchAttendance();
+      console.log('Check-in response:', response.data);
       MySwal.fire({
         icon: 'success',
         title: 'Check-in thành công!',
+        text: `Thời gian check-in: ${response.data.attendance.checkIn}`,
         showConfirmButton: false,
         timer: 1500
       });
+      // Chỉ lấy dữ liệu mới khi check-in thành công
+      await fetchAttendance();
     } catch (error) {
       console.error('Lỗi khi check-in:', error);
       MySwal.fire({
@@ -99,16 +103,19 @@ const AttendanceUser = () => {
   const handleCheckOut = async () => {
     const token = localStorage.getItem('token');
     try {
-      await axios.post('http://localhost:5000/api/auth/attendance/check-out', null, {
+      const response = await axios.post('http://localhost:5000/api/auth/attendance/check-out', null, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      await fetchAttendance();
+      console.log('Check-out response:', response.data);
       MySwal.fire({
         icon: 'success',
         title: 'Check-out thành công!',
+        text: `Thời gian check-out: ${response.data.attendance.checkOut}`,
         showConfirmButton: false,
         timer: 1500
       });
+      // Chỉ lấy dữ liệu mới khi check-out thành công
+      await fetchAttendance();
     } catch (error) {
       console.error('Lỗi khi check-out:', error);
       MySwal.fire({
@@ -125,10 +132,9 @@ const AttendanceUser = () => {
       <div style={styles.container}>
         <h2 style={styles.title}>Chấm Công Của Bạn</h2>
         <div style={styles.attendanceActions}>
-          {isCheckingOut ? (
+          <button onClick={handleCheckIn} style={styles.checkinBtn}>Check-in</button>
+          {canCheckOut && (
             <button onClick={handleCheckOut} style={styles.checkoutBtn}>Check-out</button>
-          ) : (
-            <button onClick={handleCheckIn} style={styles.checkinBtn}>Check-in</button>
           )}
         </div>
         {loading ? (
@@ -240,6 +246,18 @@ const styles = {
     backgroundColor: '#fde8e8',
     borderRadius: '8px',
   },
+  checkoutBtn: {
+    padding: '12px 24px',
+    fontSize: '18px',
+    color: '#ffffff',
+    backgroundColor: '#e74c3c',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s ease',
+    marginLeft: '10px', // Thêm khoảng cách giữa nút check-in và check-out
+  },
+
 };
 
 export default AttendanceUser;
