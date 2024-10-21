@@ -34,10 +34,14 @@ const Login = () => {
       }
     } catch (error) {
       console.error('Login error:', error);
-      setError('Đăng nhập thất bại, vui lòng kiểm tra thông tin đăng nhập');
+      if (error.response && error.response.data && error.response.data.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Lỗi đăng nhập, vui lòng thử lại sau');
+      }
     }
   };
-
+  
   return (
     <PageContainer>
       <LoginForm onSubmit={handleLogin}>

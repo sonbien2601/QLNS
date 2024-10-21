@@ -124,6 +124,7 @@ router.post('/login', async (req, res) => {
 });
 
 
+
 // Route tạo tài khoản người dùng từ admin
 router.post('/create-user', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
@@ -745,11 +746,10 @@ router.get('/users', authenticate, async (req, res) => {
   }
 });
 
-// Cập nhật route cập nhật thông tin người dùng
 router.put('/admin/user/:userId', authenticate, async (req, res) => {
   try {
     const { userId } = req.params;
-    const updateData = req.body;
+    const { password, ...updateData } = req.body;
 
     // Kiểm tra vai trò của người dùng
     if (req.user.role === 'admin') {
@@ -766,10 +766,27 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
         return res.status(404).json({ message: 'Không tìm thấy người dùng' });
       }
 
+      // Cập nhật thông tin người dùng
+      if (password) {
+        // Nếu người dùng cập nhật mật khẩu
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user.password = hashedPassword;
+      }
+
       Object.assign(user, updateData);
       await user.save();
 
-      res.json({ message: 'Cập nhật thông tin người dùng thành công', user });
+      // Tạo token mới
+      const newToken = generateToken({
+        userId: user._id,
+        role: user.role
+      });
+
+      res.json({
+        message: 'Cập nhật thông tin người dùng thành công',
+        user,
+        newToken
+      });
     } else {
       // Nếu không phải admin, chỉ cập nhật thông tin của người dùng đang đăng nhập
       let user = await User.findById(req.user.userId);
@@ -784,10 +801,27 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
         return res.status(404).json({ message: 'Không tìm thấy người dùng' });
       }
 
+      // Cập nhật thông tin người dùng
+      if (password) {
+        // Nếu người dùng cập nhật mật khẩu
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user.password = hashedPassword;
+      }
+
       Object.assign(user, updateData);
       await user.save();
 
-      res.json({ message: 'Cập nhật thông tin người dùng thành công', user });
+      // Tạo token mới
+      const newToken = generateToken({
+        userId: user._id,
+        role: user.role
+      });
+
+      res.json({
+        message: 'Cập nhật thông tin người dùng thành công',
+        user,
+        newToken
+      });
     }
   } catch (error) {
     console.error('Lỗi khi cập nhật thông tin người dùng:', error);
@@ -1015,8 +1049,7 @@ router.get('/feedback-salary/:userId', authenticate, async (req, res) => {
 });
 
 // ================== API TỔNG QUAN ==================
-
-// Create a new task
+//Thêm task
 router.post('/tasks', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
@@ -1030,12 +1063,15 @@ router.post('/tasks', authenticate, async (req, res) => {
     assignedTo, 
     bonus, 
     penalty,
-    priority
+    priority,
+    createdBy // Thêm trường này
   } = req.body;
 
   try {
+    console.log('Received task data:', req.body);
+
     // Kiểm tra các trường bắt buộc
-    if (!title || !dueDate || !assignedTo) {
+    if (!title || !dueDate || !assignedTo || !createdBy) {
       return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
     }
 
@@ -1052,14 +1088,17 @@ router.post('/tasks', authenticate, async (req, res) => {
       dueDate: dueDateObj,
       expectedCompletionTime,
       assignedTo,
-      createdBy: req.user.userId,
+      createdBy, // Sử dụng giá trị từ req.body
       status: 'pending',
       bonus: bonus || 0,
       penalty: penalty || 0,
       priority: priority || 'medium'
     });
 
+    console.log('New task object:', newTask);
+
     const savedTask = await newTask.save();
+    console.log('Saved task:', savedTask);
     
     await savedTask.populate('assignedTo', 'fullName');
     await savedTask.populate('createdBy', 'fullName');
@@ -1071,7 +1110,16 @@ router.post('/tasks', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Error adding task:', error);
-    res.status(500).json({ message: 'Lỗi khi thêm công việc', error: error.message });
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
+    res.status(500).json({ 
+      message: 'Lỗi khi thêm công việc', 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

@@ -58,26 +58,29 @@ const OverviewAdmin = () => {
   const handleAddTask = async () => {
     try {
       if (!newTask.title || !newTask.dueDate || !newTask.dueTime || !newTask.assignedTo) {
-        alert('Vui lòng điền đầy đủ thông tin bắt buộc: Tên công việc, Ngày hết hạn, Giờ hết hạn và Người được giao.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Thông tin không đầy đủ',
+          text: 'Vui lòng điền đầy đủ thông tin bắt buộc: Tên công việc, Ngày hết hạn, Giờ hết hạn và Người được giao.',
+        });
         return;
       }
   
       const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId'); // Lấy userId từ localStorage
       const headers = { Authorization: `Bearer ${token}` };
   
-      const dueDateTime = new Date(`${newTask.dueDate}T${newTask.dueTime}`);
-      
-      if (isNaN(dueDateTime.getTime())) {
-        alert('Ngày hoặc giờ không hợp lệ. Vui lòng kiểm tra lại.');
-        return;
-      }
-  
-      const payload = {
+      const taskData = {
         ...newTask,
-        dueDate: dueDateTime.toISOString()
+        createdBy: userId, // Thêm trường createdBy vào dữ liệu gửi đi
+        dueDate: `${newTask.dueDate}T${newTask.dueTime}:00` // Kết hợp ngày và giờ
       };
   
-      const response = await axios.post('http://localhost:5000/api/auth/tasks', payload, { headers });
+      console.log('Sending task data:', taskData);
+  
+      const response = await axios.post('http://localhost:5000/api/auth/tasks', taskData, { headers });
+  
+      console.log('Server response:', response.data);
   
       if (response.data && response.data.task) {
         setTasks(prevTasks => [...prevTasks, response.data.task]);
@@ -93,14 +96,39 @@ const OverviewAdmin = () => {
           penalty: ''
         });
   
-        alert(response.data.message);
+        Swal.fire({
+          icon: 'success',
+          title: 'Tạo nhắc việc thành công',
+          text: 'Công việc mới đã được thêm vào danh sách.',
+          showConfirmButton: false,
+          timer: 1500
+        });
+  
         setShowTaskModal(false);
       } else {
-        alert('Thêm công việc không thành công. Vui lòng thử lại.');
+        throw new Error('Thêm công việc không thành công');
       }
     } catch (error) {
       console.error('Error adding task:', error);
-      alert(error.response?.data?.message || 'Có lỗi xảy ra khi thêm công việc. Vui lòng thử lại.');
+      console.error('Error response:', error.response?.data);
+      
+      let errorMessage = 'Có lỗi xảy ra khi thêm công việc. Vui lòng thử lại.';
+      let errorDetails = '';
+  
+      if (error.response) {
+        errorMessage = error.response.data.message || errorMessage;
+        errorDetails = JSON.stringify(error.response.data, null, 2);
+      }
+  
+      Swal.fire({
+        icon: 'error',
+        title: 'Lỗi',
+        text: errorMessage,
+        footer: `<pre>${errorDetails}</pre>`,
+        customClass: {
+          footer: 'error-details'
+        }
+      });
     }
   };
 
