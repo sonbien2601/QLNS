@@ -7,11 +7,21 @@ import withReactContent from 'sweetalert2-react-content';
 const MySwal = withReactContent(Swal);
 
 const AttendanceRow = ({ record }) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Không có dữ liệu';
+    return new Date(dateString).toLocaleDateString('vi-VN');
+  };
+
+  const formatTime = (dateString) => {
+    if (!dateString) return 'Không có dữ liệu';
+    return new Date(dateString).toLocaleTimeString('vi-VN');
+  };
+
   return (
     <tr style={styles.tableRow}>
-      <td style={styles.tableCell}>{new Date(record.checkIn).toLocaleDateString()}</td>
-      <td style={styles.tableCell}>{new Date(record.checkIn).toLocaleTimeString()}</td>
-      <td style={styles.tableCell}>{record.checkOut ? new Date(record.checkOut).toLocaleTimeString() : 'Chưa check-out'}</td>
+      <td style={styles.tableCell}>{formatDate(record.date)}</td>
+      <td style={styles.tableCell}>{formatTime(record.checkIn)}</td>
+      <td style={styles.tableCell}>{record.checkOut ? formatTime(record.checkOut) : 'Chưa check-out'}</td>
       <td style={styles.tableCell}>{record.totalHours || 'Chưa có thông tin'}</td>
     </tr>
   );
@@ -96,40 +106,13 @@ const AttendanceUser = () => {
     }
   };
 
-  const handleCheckOut = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      await axios.post('http://localhost:5000/api/auth/attendance/check-out', null, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      await fetchAttendance();
-      MySwal.fire({
-        icon: 'success',
-        title: 'Check-out thành công!',
-        showConfirmButton: false,
-        timer: 1500
-      });
-    } catch (error) {
-      console.error('Lỗi khi check-out:', error);
-      MySwal.fire({
-        icon: 'error',
-        title: 'Lỗi khi check-out',
-        text: error.response?.data?.message || 'Đã xảy ra lỗi, vui lòng thử lại.',
-      });
-    }
-  };
-
   return (
     <div style={styles.page}>
       <NavigationUser />
       <div style={styles.container}>
         <h2 style={styles.title}>Chấm Công Của Bạn</h2>
         <div style={styles.attendanceActions}>
-          {isCheckingOut ? (
-            <button onClick={handleCheckOut} style={styles.checkoutBtn}>Check-out</button>
-          ) : (
-            <button onClick={handleCheckIn} style={styles.checkinBtn}>Check-in</button>
-          )}
+          <button onClick={handleCheckIn} style={styles.checkinBtn}>Check-in</button>
         </div>
         {loading ? (
           <div style={styles.loading}>Đang tải dữ liệu...</div>

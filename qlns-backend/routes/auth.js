@@ -1,6 +1,9 @@
 const express = require('express'); // Nhập thư viện Express
 const bcrypt = require('bcryptjs'); // Nhập thư viện bcryptjs để mã hóa mật khẩu
 const jwt = require('jsonwebtoken'); // Nhập thư viện jsonwebtoken để tạo và xác minh JWT
+const moment = require('moment-timezone');
+const schedule = require('node-schedule');
+
 const User = require('../models/User'); // Nhập mô hình User
 const User2 = require('../models/User2'); // Nhập mô hình User2
 const Appointment = require('../models/Appointment'); // Nhập mô hình Appointment
@@ -10,8 +13,22 @@ const Contract = require('../models/Contract'); // Nhập mô hình Contract
 const FeedbackSalary = require('../models/FeedbackSalary');
 const Task = require('../models/Task');
 const Resignation = require('../models/Resignation');
+
 const router = express.Router(); // Tạo router từ Express
 
+// Hàm helper
+const getVietnamTime = () => moment().tz('Asia/Ho_Chi_Minh');
+
+const isWorkday = (date) => {
+  const day = date.day();
+  return day >= 1 && day <= 5;
+};
+
+const formatTimeDifference = (milliseconds) => {
+  const hours = Math.floor(milliseconds / (1000 * 60 * 60));
+  const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours} giờ ${minutes} phút`;
+};
 
 // Hàm tạo token
 const generateToken = (user) => {
@@ -29,7 +46,7 @@ const authenticate = (req, res, next) => {
     return res.status(401).json({ message: 'Bạn cần đăng nhập trước' }); // Nếu không có token, trả về lỗi 401
   }
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret'); // Xác minh token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret'); // Xác minh token
     req.user = decoded; // Gắn thông tin người dùng vào request
     next(); // Tiếp tục xử lý request
   } catch (error) {
@@ -83,7 +100,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-
 // Route đăng nhập
 router.post('/login', async (req, res) => {
   const { login, password } = req.body;
@@ -122,7 +138,6 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Lỗi server khi đăng nhập' });
   }
 });
-
 
 // Route tạo tài khoản người dùng từ admin
 router.post('/create-user', authenticate, async (req, res) => {
@@ -223,11 +238,6 @@ router.post('/refresh-token', authenticate, (req, res) => {
   res.json({ token: newToken });
 });
 
-
-
-
-
-
 // ================== API YÊU CẦU BỔ NHIỆM ==================
 
 // Route để lấy thông tin người dùng
@@ -248,6 +258,7 @@ router.get('/user-info', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi server khi lấy thông tin người dùng' });
   }
 });
+
 // Cập nhật route tạo yêu cầu bổ nhiệm
 router.post('/appointment-request', authenticate, async (req, res) => {
   const { newPosition, reason } = req.body;
@@ -298,7 +309,6 @@ router.get('/user-appointments', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi khi lấy danh sách bổ nhiệm', error: error.message });
   }
 });
-
 
 // Lấy danh sách bổ nhiệm cho admin
 router.get('/get-appointments', authenticate, async (req, res) => {
@@ -405,79 +415,103 @@ router.delete('/delete-appointment/:id', authenticate, async (req, res) => {
 });
 
 // ================== API CHẤM CÔNG ==================
-// Hàm helper để định dạng thời gian (đặt ở đầu file hoặc trong một file riêng)
-const formatTimeDifference = (milliseconds) => {
-  const seconds = Math.floor(milliseconds / 1000);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-
-  let result = [];
-  if (hours > 0) result.push(`${hours} giờ`);
-  if (minutes > 0) result.push(`${minutes} phút`);
-  if (remainingSeconds > 0 || result.length === 0) result.push(`${remainingSeconds} giây`);
-
-  return result.join(' ');
-};
-
 // Route Check-in
 router.post('/attendance/check-in', authenticate, async (req, res) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const existingAttendance = await Attendance.findOne({
-      userId: req.user.userId,
-      checkIn: { $gte: today }
-    });
+    const userId = req.user.userId;
+    const now = getVietnamTime();
+    const today = now.startOf('day').toDate();
 
-    if (existingAttendance) {
-      return res.status(400).json({ message: 'Bạn đã check-in hôm nay rồi!' });
+    if (!isWorkday(now)) {
+      return res.status(400).json({ message: 'Hôm nay không phải ngày làm việc' });
     }
 
-    const newAttendance = new Attendance({
-      userId: req.user.userId,
-      checkIn: new Date(),
-    });
-    await newAttendance.save();
-    res.status(201).json({ message: 'Check-in thành công', attendance: newAttendance });
+    let attendance = await Attendance.findOne({ userId, date: today });
+
+    if (!attendance) {
+      attendance = new Attendance({ userId, date: today });
+    }
+
+    const morningStart = moment(today).hours(8).minutes(0);
+    const morningEnd = moment(today).hours(12).minutes(0);
+    const afternoonStart = moment(today).hours(13).minutes(30);
+    const afternoonEnd = moment(today).hours(17).minutes(0);
+
+    // Kiểm tra nếu đã quá 60 phút so với giờ bắt đầu
+    if (now.isAfter(morningStart.clone().add(60, 'minutes')) && now.isBefore(afternoonStart)) {
+      return res.status(400).json({ message: 'Đã quá giờ check-in buổi sáng' });
+    }
+
+    if (now.isAfter(afternoonStart.clone().add(60, 'minutes'))) {
+      return res.status(400).json({ message: 'Đã quá giờ check-in buổi chiều' });
+    }
+
+    if (now.isBefore(morningEnd)) {
+      // Check-in buổi sáng
+      if (attendance.morningCheckIn) {
+        return res.status(400).json({ message: 'Bạn đã check-in buổi sáng rồi' });
+      }
+      // Nếu check-in trước 8h, ghi nhận là 8h
+      attendance.morningCheckIn = now.isBefore(morningStart) ? morningStart.toDate() : now.toDate();
+      attendance.status = now.isAfter(morningStart) ? 'late' : 'present';
+    } else if (now.isBetween(afternoonStart, afternoonEnd)) {
+      // Check-in buổi chiều
+      if (attendance.afternoonCheckIn) {
+        return res.status(400).json({ message: 'Bạn đã check-in buổi chiều rồi' });
+      }
+      if (!attendance.morningCheckIn) {
+        return res.status(400).json({ message: 'Bạn không thể check-in buổi chiều khi chưa check-in buổi sáng' });
+      }
+      attendance.afternoonCheckIn = now.toDate();
+    } else {
+      return res.status(400).json({ message: 'Không trong giờ làm việc' });
+    }
+
+    await attendance.save();
+    res.status(200).json({ message: 'Check-in thành công', attendance });
   } catch (error) {
     console.error('Lỗi khi check-in:', error);
-    res.status(500).json({ message: 'Lỗi khi check-in', error: error.message });
+    res.status(500).json({ message: 'Lỗi server khi check-in', error: error.message });
   }
 });
 
 // Route Check-out
 router.post('/attendance/check-out', authenticate, async (req, res) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const userId = req.user.userId;
+    const now = getVietnamTime();
+    const today = now.startOf('day').toDate();
 
-    const attendance = await Attendance.findOne({
-      userId: req.user.userId,
-      checkIn: { $gte: today },
-      checkOut: null
-    });
+    const attendance = await Attendance.findOne({ userId, date: today });
 
     if (!attendance) {
-      return res.status(404).json({ message: 'Không tìm thấy bản ghi check-in cho hôm nay' });
+      return res.status(404).json({ message: 'Không tìm thấy bản ghi chấm công cho hôm nay' });
     }
 
-    attendance.checkOut = new Date();
-    const timeDifference = attendance.checkOut - attendance.checkIn;
-    attendance.totalHours = formatTimeDifference(timeDifference);
+    const morningEnd = moment(today).hours(12).minutes(0);
+    const afternoonEnd = moment(today).hours(17).minutes(0);
+
+    if (now.isBefore(morningEnd) && attendance.morningCheckIn) {
+      attendance.morningCheckOut = now.toDate();
+    } else if (now.isAfter(morningEnd)) {
+      if (!attendance.morningCheckOut) {
+        attendance.morningCheckOut = morningEnd.toDate();
+      }
+      attendance.afternoonCheckOut = now.isAfter(afternoonEnd) ? afternoonEnd.toDate() : now.toDate();
+    }
+
+    // Tính tổng thời gian làm việc
+    let totalMilliseconds = 0;
+    if (attendance.morningCheckIn && attendance.morningCheckOut) {
+      totalMilliseconds += attendance.morningCheckOut - attendance.morningCheckIn;
+    }
+    if (attendance.afternoonCheckIn && attendance.afternoonCheckOut) {
+      totalMilliseconds += attendance.afternoonCheckOut - attendance.afternoonCheckIn;
+    }
+    attendance.totalHours = formatTimeDifference(totalMilliseconds);
 
     await attendance.save();
-
-    res.json({
-      message: 'Check-out thành công',
-      attendance: {
-        _id: attendance._id,
-        userId: attendance.userId,
-        checkIn: attendance.checkIn,
-        checkOut: attendance.checkOut,
-        totalHours: attendance.totalHours
-      }
-    });
+    res.status(200).json({ message: 'Check-out thành công', attendance });
   } catch (error) {
     console.error('Lỗi khi check-out:', error);
     res.status(500).json({ message: 'Lỗi server khi check-out', error: error.message });
@@ -487,12 +521,19 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
 // API lấy lịch sử chấm công
 router.get('/attendance/history', authenticate, async (req, res) => {
   try {
-    const history = await Attendance.find({ userId: req.user.userId }).sort({ checkIn: -1 });
-    res.json({ history });
+    const history = await Attendance.find({ userId: req.user.userId }).sort({ date: -1 });
+    const formattedHistory = history.map(record => ({
+      date: record.date,
+      checkIn: record.morningCheckIn || record.afternoonCheckIn,
+      checkOut: record.afternoonCheckOut || record.morningCheckOut,
+      totalHours: record.totalHours
+    }));
+    res.json({ history: formattedHistory });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy lịch sử chấm công', error: error.message });
   }
 });
+
 // Route để lấy tất cả bản ghi chấm công cho admin
 router.get('/attendance/all', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
@@ -548,10 +589,7 @@ router.get('/attendance/summary', authenticate, async (req, res) => {
   }
 });
 
-
 // ================== API HỢP ĐỒNG ==================
-
-
 
 // API để lấy danh sách hợp đồng từ User2
 router.get('/contracts', authenticate, async (req, res) => {
@@ -585,7 +623,6 @@ router.get('/contracts', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi khi lấy danh sách hợp đồng', error: error.message });
   }
 });
-
 
 // API để cập nhật hợp đồng
 router.put('/contracts/:id', authenticate, async (req, res) => {
@@ -627,36 +664,6 @@ router.put('/contracts/:id', authenticate, async (req, res) => {
   }
 });
 
-// API để cập nhật hợp đồng
-router.put('/contracts/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { contractType, startDate, endDate, status } = req.body;
-
-    const updatedContract = await Contract.findByIdAndUpdate(
-      id,
-      { contractType, startDate, endDate, status },
-      { new: true, runValidators: true }
-    ).populate('employeeId', 'fullName position');
-
-    if (!updatedContract) {
-      return res.status(404).json({ message: 'Không tìm thấy hợp đồng' });
-    }
-
-    // Cập nhật thông tin hợp đồng cho nhân viên
-    await User2.findByIdAndUpdate(updatedContract.employeeId, {
-      contractType,
-      contractStart: startDate,
-      contractEnd: endDate,
-      contractStatus: status === 'Còn hiệu lực' ? 'active' : 'inactive'
-    });
-
-    res.json(updatedContract);
-  } catch (error) {
-    res.status(400).json({ message: 'Lỗi khi cập nhật hợp đồng', error: error.message });
-  }
-});
-
 // API để lấy hợp đồng của người dùng
 router.get('/user-contract/:userId', authenticate, async (req, res) => {
   try {
@@ -679,7 +686,6 @@ router.get('/user-contract/:userId', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 });
-
 
 // API để xóa hợp đồng
 router.delete('/contracts/:id', authenticate, async (req, res) => {
@@ -716,8 +722,6 @@ router.delete('/contracts/:id', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi khi xóa hợp đồng', error: error.message, stack: error.stack });
   }
 });
-
-
 
 // ================== API HỒ SƠ ==================
 // Route để lấy danh sách user
@@ -797,41 +801,6 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
 
 // ================== API LƯƠNG ==================
 
-// Hàm helper để tính tổng số giờ làm việc
-// Hàm tính tổng số giờ làm việc
-const calculateTotalWorkHours = (attendanceRecords) => {
-  return attendanceRecords.reduce((total, record) => {
-    if (record.totalHours) {
-      const parts = record.totalHours.split(' ');
-      let hours = 0, minutes = 0;
-
-      for (let i = 0; i < parts.length; i += 2) {
-        const value = parseInt(parts[i]);
-        const unit = parts[i + 1];
-
-        if (unit.includes('giờ')) hours += value;
-        else if (unit.includes('phút')) minutes += value;
-      }
-
-      return total + hours + minutes / 60;
-    }
-    return total;
-  }, 0);
-};
-
-// Giải thích:
-// - Hàm này duyệt qua tất cả các bản ghi chấm công (attendanceRecords)
-// - Với mỗi bản ghi, nó tách chuỗi totalHours thành các phần (ví dụ: "8 giờ 30 phút")
-// - Sau đó, nó tính tổng số giờ và phút
-// - Cuối cùng, nó chuyển đổi phút thành giờ (chia cho 60) và cộng vào tổng số giờ
-
-// Ví dụ:
-// Nếu có 2 bản ghi: "8 giờ 30 phút" và "7 giờ 45 phút"
-// Kết quả sẽ là: (8 + 30/60) + (7 + 45/60) = 8.5 + 7.75 = 16.25 giờ
-
-
-
-
 // API lấy danh sách lương
 router.get('/salary', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
@@ -889,7 +858,6 @@ router.get('/salary', authenticate, async (req, res) => {
     });
   }
 });
-
 
 // API cập nhật lương
 router.post('/salary/:id', authenticate, async (req, res) => {
@@ -976,7 +944,6 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
       actualSalary: Math.round(actualSalary),
       standardWorkHours
     };
-
     res.json({ salary: salaryInfo });
   } catch (error) {
     console.error('Error fetching user salary:', error);
@@ -1228,8 +1195,6 @@ router.put('/tasks/:taskId', authenticate, async (req, res) => {
   }
 });
 
-
-
 // Hoàn thành công việc
 router.put('/tasks/:taskId/complete', authenticate, async (req, res) => {
   try {
@@ -1393,5 +1358,116 @@ router.delete('/user-resignation/:id', authenticate, async (req, res) => {
   }
 });
 
+// Hàm tự động check-out
+const autoCheckOut = async () => {
+  const now = getVietnamTime();
+  const today = now.startOf('day').toDate();
+
+  if (!isWorkday(now)) {
+    return;
+  }
+
+  const morningEnd = moment(today).hours(12).minutes(0);
+  const afternoonEnd = moment(today).hours(17).minutes(0);
+
+  if (now.isSame(morningEnd, 'minute') || now.isSame(afternoonEnd, 'minute')) {
+    const attendances = await Attendance.find({
+      date: today,
+      $or: [
+        { morningCheckOut: null, morningCheckIn: { $ne: null } },
+        { afternoonCheckOut: null, afternoonCheckIn: { $ne: null } }
+      ]
+    });
+
+    for (let attendance of attendances) {
+      if (now.isSame(morningEnd, 'minute') && !attendance.morningCheckOut) {
+        attendance.morningCheckOut = now.toDate();
+      } else if (now.isSame(afternoonEnd, 'minute') && !attendance.afternoonCheckOut) {
+        attendance.afternoonCheckOut = now.toDate();
+      }
+
+      // Tính lại tổng thời gian làm việc
+      let totalMilliseconds = 0;
+      if (attendance.morningCheckIn && attendance.morningCheckOut) {
+        totalMilliseconds += attendance.morningCheckOut - attendance.morningCheckIn;
+      }
+      if (attendance.afternoonCheckIn && attendance.afternoonCheckOut) {
+        totalMilliseconds += attendance.afternoonCheckOut - attendance.afternoonCheckIn;
+      }
+      attendance.totalHours = formatTimeDifference(totalMilliseconds);
+
+      await attendance.save();
+    }
+  }
+};
+
+// Hàm đánh dấu vắng mặt cho nhân viên không check-in
+const markAbsent = async () => {
+  const yesterday = getVietnamTime().subtract(1, 'day').startOf('day').toDate();
+  
+  if (isWorkday(moment(yesterday))) {
+    const absentEmployees = await User2.find({
+      _id: { $nin: await Attendance.distinct('userId', { date: yesterday }) }
+    });
+
+    for (let employee of absentEmployees) {
+      const absentRecord = new Attendance({
+        userId: employee._id,
+        date: yesterday,
+        status: 'absent'
+      });
+      await absentRecord.save();
+    }
+  }
+};
+
+// Hàm liên kết chấm công với công việc
+const linkAttendanceWithTasks = async (userId, date) => {
+  const tasks = await Task.find({
+    assignedTo: userId,
+    dueDate: { $gte: date, $lt: moment(date).add(1, 'day').toDate() },
+    status: { $in: ['completed', 'overdue'] }
+  });
+
+  const attendance = await Attendance.findOne({ userId, date });
+
+  if (attendance && attendance.status === 'present') {
+    for (let task of tasks) {
+      if (task.status === 'completed' && task.completedAt > task.dueDate) {
+        task.actualPenalty = task.penalty;
+      } else if (task.status === 'overdue') {
+        task.actualPenalty = task.penalty;
+      }
+      await task.save();
+    }
+  }
+};
+
+// Lên lịch cho các hàm tự động
+const scheduleAutoCheckOut = () => {
+  const scheduleTimes = ['12:00', '17:00'];
+  scheduleTimes.forEach(time => {
+    schedule.scheduleJob(time, autoCheckOut);
+  });
+};
+
+const scheduleMarkAbsent = () => {
+  schedule.scheduleJob('0 1 * * *', markAbsent);  // Chạy lúc 1 giờ sáng mỗi ngày
+};
+
+const scheduleLinkAttendanceWithTasks = () => {
+  schedule.scheduleJob('0 2 * * *', async () => {  // Chạy lúc 2 giờ sáng mỗi ngày
+    const yesterday = getVietnamTime().subtract(1, 'day').startOf('day').toDate();
+    const attendances = await Attendance.find({ date: yesterday });
+    for (let attendance of attendances) {
+      await linkAttendanceWithTasks(attendance.userId, attendance.date);
+    }
+  });
+};
+
+// Khởi tạo các lịch tự động
+scheduleAutoCheckOut();
+scheduleMarkAbsent();
+scheduleLinkAttendanceWithTasks();
 
 module.exports = router;
