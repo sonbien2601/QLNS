@@ -763,6 +763,50 @@ const OverviewAdmin = () => {
   const [overdueTasks, setOverdueTasks] = useState([]);
   const [tasksPreview, setTasksPreview] = useState([]);
 
+  const formatCurrency = (value) => {
+    // Remove non-digit characters
+    const number = value.replace(/[^\d]/g, '');
+    
+    // Format with thousand separators
+    return number.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' VND';
+  };
+
+  // Hàm parse giá trị tiền tệ thành số
+const parseCurrencyToNumber = (currencyString) => {
+  if (!currencyString) return 0;
+  return parseInt(currencyString.replace(/[^\d]/g, '')) || 0;
+};
+
+  const handleCurrencyChange = (e, field, setNewTask) => {
+    let value = e.target.value;
+    
+    // Xóa tất cả ký tự không phải số và "VND"
+    value = value.replace(/[^\d]/g, '');
+    
+    // Nếu giá trị rỗng, set về rỗng
+    if (!value) {
+      setNewTask(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+      return;
+    }
+
+   // Format số với dấu chấm phân cách hàng nghìn
+   const formattedValue = new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value);
+
+  setNewTask(prev => ({
+    ...prev,
+    [field]: formattedValue
+  }));
+};
+
+
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -798,7 +842,7 @@ const OverviewAdmin = () => {
         Swal.fire({
           icon: 'error',
           title: 'Thông tin không đầy đủ',
-          text: 'Vui lòng điền đầy đủ thông tin bắt buộc: Tên công việc, Ngày hết hạn, Giờ hết hạn và Người được giao.',
+          text: 'Vui lòng điền đầy đủ thông tin bắt buộc.',
         });
         return;
       }
@@ -807,21 +851,21 @@ const OverviewAdmin = () => {
       const userId = localStorage.getItem('userId');
       const headers = { Authorization: `Bearer ${token}` };
 
+      // Parse currency values to numbers before sending
       const taskData = {
         ...newTask,
+        bonus: parseCurrencyToNumber(newTask.bonus),
+        penalty: parseCurrencyToNumber(newTask.penalty),
         createdBy: userId,
         dueDate: `${newTask.dueDate}T${newTask.dueTime}:00`
       };
 
-      console.log('Sending task data:', taskData);
-
       const response = await axios.post('http://localhost:5000/api/auth/tasks', taskData, { headers });
-
-      console.log('Server response:', response.data);
 
       if (response.data && response.data.task) {
         setTasks(prevTasks => [...prevTasks, response.data.task]);
-
+        
+        // Reset form
         setNewTask({
           title: '',
           description: '',
@@ -836,38 +880,22 @@ const OverviewAdmin = () => {
         Swal.fire({
           icon: 'success',
           title: 'Tạo nhắc việc thành công',
-          text: 'Công việc mới đã được thêm vào danh sách.',
           showConfirmButton: false,
           timer: 1500
         });
 
         setShowTaskModal(false);
-      } else {
-        throw new Error('Thêm công việc không thành công');
       }
     } catch (error) {
       console.error('Error adding task:', error);
-      console.error('Error response:', error.response?.data);
-
-      let errorMessage = 'Có lỗi xảy ra khi thêm công việc. Vui lòng thử lại.';
-      let errorDetails = '';
-
-      if (error.response) {
-        errorMessage = error.response.data.message || errorMessage;
-        errorDetails = JSON.stringify(error.response.data, null, 2);
-      }
-
       Swal.fire({
         icon: 'error',
         title: 'Lỗi',
-        text: errorMessage,
-        footer: `<pre>${errorDetails}</pre>`,
-        customClass: {
-          footer: 'error-details'
-        }
+        text: 'Có lỗi xảy ra khi thêm công việc.'
       });
     }
   };
+
 
   const handleDeleteTask = async (taskId) => {
     try {
@@ -1339,8 +1367,8 @@ const OverviewAdmin = () => {
         <TaskGrid>
           <ExpiredContracts contracts={expiredContracts} />
           <TrialEmployees employees={trialEmployeesList} />
-          <AssignedTasks 
-            tasks={tasksPreview} 
+          <AssignedTasks
+            tasks={tasksPreview}
             onViewMore={() => setShowAssignedTasksModal(true)}
           />
           <OverdueTasks tasks={overdueTasks} />
@@ -1388,7 +1416,7 @@ const OverviewAdmin = () => {
         </Modal>
       )}
 
-      {showTaskModal && (
+{showTaskModal && (
         <Modal onClick={() => setShowTaskModal(false)}>
           <ModalContent onClick={e => e.stopPropagation()}>
             <h2>Thêm Công Việc Mới</h2>
@@ -1425,17 +1453,44 @@ const OverviewAdmin = () => {
               />
             </InputGroup>
             <Input
-              type="text"
-              placeholder="Thưởng"
-              value={newTask.bonus}
-              onChange={(e) => setNewTask({ ...newTask, bonus: e.target.value })}
-            />
-            <Input
-              type="text"
-              placeholder="Phạt"
-              value={newTask.penalty}
-              onChange={(e) => setNewTask({ ...newTask, penalty: e.target.value })}
-            />
+            type="text"
+            placeholder="Tiền thưởng (VND)"
+            value={newTask.bonus}
+            onChange={(e) => handleCurrencyChange(e, 'bonus', setNewTask)}
+            onFocus={(e) => {
+              // Khi focus, hiển thị giá trị số thuần
+              const numericValue = parseCurrencyToNumber(e.target.value);
+              setNewTask(prev => ({
+                ...prev,
+                bonus: numericValue ? numericValue.toString() : ''
+              }));
+            }}
+            onBlur={(e) => {
+              // Khi blur, format lại theo định dạng tiền tệ
+              if (e.target.value) {
+                handleCurrencyChange(e, 'bonus', setNewTask);
+              }
+            }}
+          />
+          
+          <Input
+            type="text"
+            placeholder="Tiền phạt (VND)"
+            value={newTask.penalty}
+            onChange={(e) => handleCurrencyChange(e, 'penalty', setNewTask)}
+            onFocus={(e) => {
+              const numericValue = parseCurrencyToNumber(e.target.value);
+              setNewTask(prev => ({
+                ...prev,
+                penalty: numericValue ? numericValue.toString() : ''
+              }));
+            }}
+            onBlur={(e) => {
+              if (e.target.value) {
+                handleCurrencyChange(e, 'penalty', setNewTask);
+              }
+            }}
+          />
             <ModalButtons>
               <Button className="btn-primary" onClick={handleAddTask}>Thêm Công Việc</Button>
               <Button className="btn-third" onClick={() => setShowTaskModal(false)}>Hủy</Button>

@@ -160,20 +160,30 @@ const OverviewUser = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
       const userId = localStorage.getItem('userId');
-
-      await axios.put(`http://localhost:5000/api/auth/admin/user/${userId}`, editedUserInfo, { headers });
-
+  
+      const response = await axios.put(
+        `http://localhost:5000/api/auth/user/${userId}`,
+        editedUserInfo,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+  
+      // Lấy token mới từ response header
+      const newToken = response.headers['new-token'];
+      if (newToken) {
+        localStorage.setItem('token', newToken);
+      }
+  
       setOverviewData(prev => ({
         ...prev,
         userInfo: {
           ...prev.userInfo,
-          ...editedUserInfo
+          ...response.data.user
         }
       }));
-
+  
       setIsEditing(false);
+  
       Swal.fire({
         icon: 'success',
         title: 'Cập nhật thành công!',
@@ -183,14 +193,21 @@ const OverviewUser = () => {
       });
     } catch (error) {
       console.error('Error updating user info:', error);
+      if (error.response?.status === 401) {
+        // Nếu token hết hạn thì đăng xuất
+        localStorage.clear();
+        navigate('/login');
+        return;
+      }
       Swal.fire({
-        icon: 'error',
+        icon: 'error', 
         title: 'Lỗi!',
-        text: 'Có lỗi xảy ra khi cập nhật thông tin. Vui lòng thử lại sau.',
+        text: error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật thông tin.',
       });
     }
   };
 
+  
   if (isLoading) {
     return <div className="loading">Đang tải dữ liệu...</div>;
   }

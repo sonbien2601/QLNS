@@ -3,16 +3,64 @@ import axios from 'axios';
 import NavigationUser from '../components/NavigationUser';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+const moment = require('moment-timezone');
 
 const MySwal = withReactContent(Swal);
 
+
+const formatTime = (time) => {
+  if (!time) return 'Không có dữ liệu';
+  // Nếu time đã là chuỗi HH:mm:ss, trả về luôn
+  if (typeof time === 'string' && time.match(/^\d{2}:\d{2}:\d{2}$/)) {
+    return time;
+  }
+  // Nếu time là Date hoặc chuỗi ISO, chuyển đổi sang HH:mm:ss
+  try {
+    return new Date(time).toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return 'Không có dữ liệu';
+  }
+};
+
+const formatTimeResponse = (time) => {
+  if (!time) return null;
+  return moment(time).format('HH:mm:ss');
+};
+
 const AttendanceRow = ({ record }) => {
+  // Tính tổng giờ làm việc từ workingHours
+  const getTotalWorkHours = () => {
+    if (record.workingHours?.total) {
+      return record.workingHours.total;
+    }
+    
+    // Nếu có checkIn và checkOut thì tính trực tiếp
+    if (record.checkIn && record.checkOut) {
+      const checkInTime = new Date(record.checkIn);
+      const checkOutTime = new Date(record.checkOut);
+      const diffMinutes = Math.floor((checkOutTime - checkInTime) / (1000 * 60));
+      const hours = Math.floor(diffMinutes / 60);
+      const minutes = diffMinutes % 60;
+      return `${hours} giờ ${minutes} phút`;
+    }
+
+    return 'Chưa có thông tin';
+  };
+
   return (
     <tr style={styles.tableRow}>
       <td style={styles.tableCell}>{record.date}</td>
-      <td style={styles.tableCell}>{record.checkIn || 'Không có dữ liệu'}</td>
-      <td style={styles.tableCell}>{record.checkOut || 'Chưa check-out'}</td>
-      <td style={styles.tableCell}>{record.totalHours || 'Chưa có thông tin'}</td>
+      <td style={styles.tableCell}>{formatTime(record.checkIn)}</td>
+      <td style={styles.tableCell}>
+        {record.checkOut ? formatTime(record.checkOut) : 'Chưa check-out'}
+      </td>
+      <td style={styles.tableCell}>{getTotalWorkHours()}</td>
     </tr>
   );
 };
@@ -43,6 +91,18 @@ const AttendanceUser = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [canCheckOut, setCanCheckOut] = useState(false);
+  const [error, setError] = useState(null);
+
+  const showAlert = (type, title, text, timer = null) => {
+    MySwal.fire({
+      icon: type,
+      title,
+      text,
+      showConfirmButton: !timer,
+      timer,
+      footer: process.env.NODE_ENV === 'development' && type === 'error' ? text : null
+    });
+  };
 
   const fetchAttendance = async () => {
     const token = localStorage.getItem('token');
@@ -51,20 +111,17 @@ const AttendanceUser = () => {
       const response = await axios.get('http://localhost:5000/api/auth/attendance/history', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log('Received attendance data:', response.data);
-      setAttendanceRecords(response.data.history);
-      
-      // Check if user can check out
+
+      const history = response.data.history || [];
+      setAttendanceRecords(history);
+
       const today = new Date().toISOString().split('T')[0];
-      const todayRecord = response.data.history.find(record => record.date === today);
+      const todayRecord = history.find(record => record.date === today);
       setCanCheckOut(todayRecord && todayRecord.checkIn && !todayRecord.checkOut);
     } catch (error) {
-      console.error('Lỗi khi lấy dữ liệu chấm công:', error);
-      MySwal.fire({
-        icon: 'error',
-        title: 'Oops...',
-        text: 'Không thể tải dữ liệu chấm công. Vui lòng thử lại sau.',
-      });
+      const errorMessage = error.response?.data?.message || 'Không thể tải dữ liệu chấm công';
+      setError(errorMessage);
+      showAlert('error', 'Oops...', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -74,57 +131,47 @@ const AttendanceUser = () => {
     fetchAttendance();
   }, []);
 
-  const handleCheckIn = async () => {
+  const handleAttendance = async (type) => {
     const token = localStorage.getItem('token');
+    if (!token) {
+      showAlert('error', 'Lỗi xác thực', 'Vui lòng đăng nhập lại');
+      return;
+    }
+  
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/attendance/check-in', null, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log('Check-in response:', response.data);
-      MySwal.fire({
-        icon: 'success',
-        title: 'Check-in thành công!',
-        text: `Thời gian check-in: ${response.data.attendance.checkIn}`,
-        showConfirmButton: false,
-        timer: 1500
-      });
-      // Chỉ lấy dữ liệu mới khi check-in thành công
-      await fetchAttendance();
+      setLoading(true);
+      const endpoint = type === 'in' ? 'check-in' : 'check-out';
+      const response = await axios.post(
+        `http://localhost:5000/api/auth/attendance/${endpoint}`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+  
+      if (response.data?.attendance) {
+        const timeKey = type === 'in' ? 'checkIn' : 'checkOut';
+        const time = response.data.attendance[timeKey];
+        
+        showAlert(
+          'success',
+          `Check-${type} thành công!`,
+          `Thời gian: ${formatTime(time)}`,
+          1500
+        );
+        await fetchAttendance();
+      }
     } catch (error) {
-      console.error('Lỗi khi check-in:', error);
-      MySwal.fire({
-        icon: 'error',
-        title: 'Lỗi khi check-in',
-        text: error.response?.data?.message || 'Đã xảy ra lỗi, vui lòng thử lại.',
-      });
+      const errorMessage = error.response?.data?.message || 'Đã xảy ra lỗi, vui lòng thử lại.';
+      showAlert('error', `Lỗi khi check-${type}`, errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleCheckOut = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const response = await axios.post('http://localhost:5000/api/auth/attendance/check-out', null, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log('Check-out response:', response.data);
-      MySwal.fire({
-        icon: 'success',
-        title: 'Check-out thành công!',
-        text: `Thời gian check-out: ${response.data.attendance.checkOut}`,
-        showConfirmButton: false,
-        timer: 1500
-      });
-      // Chỉ lấy dữ liệu mới khi check-out thành công
-      await fetchAttendance();
-    } catch (error) {
-      console.error('Lỗi khi check-out:', error);
-      MySwal.fire({
-        icon: 'error',
-        title: 'Lỗi khi check-out',
-        text: error.response?.data?.message || 'Đã xảy ra lỗi, vui lòng thử lại.',
-      });
-    }
-  };
+  
 
   return (
     <div style={styles.page}>
@@ -132,11 +179,26 @@ const AttendanceUser = () => {
       <div style={styles.container}>
         <h2 style={styles.title}>Chấm Công Của Bạn</h2>
         <div style={styles.attendanceActions}>
-          <button onClick={handleCheckIn} style={styles.checkinBtn}>Check-in</button>
+          <button
+            onClick={() => handleAttendance('in')}
+            style={styles.button.checkIn}
+            disabled={loading}
+          >
+            {loading ? 'Đang xử lý...' : 'Check-in'}
+          </button>
           {canCheckOut && (
-            <button onClick={handleCheckOut} style={styles.checkoutBtn}>Check-out</button>
+            <button
+              onClick={() => handleAttendance('out')}
+              style={styles.button.checkOut}
+              disabled={loading}
+            >
+              {loading ? 'Đang xử lý...' : 'Check-out'}
+            </button>
           )}
         </div>
+        {error && (
+          <div style={styles.error}>{error}</div>
+        )}
         {loading ? (
           <div style={styles.loading}>Đang tải dữ liệu...</div>
         ) : (
@@ -149,7 +211,6 @@ const AttendanceUser = () => {
     </div>
   );
 };
-
 
 const styles = {
   page: {
@@ -183,27 +244,38 @@ const styles = {
   attendanceActions: {
     display: 'flex',
     justifyContent: 'center',
+    gap: '10px',
     marginBottom: '30px',
   },
-  checkinBtn: {
-    padding: '12px 24px',
-    fontSize: '18px',
-    color: '#ffffff',
-    backgroundColor: '#27ae60',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s ease',
-  },
-  checkoutBtn: {
-    padding: '12px 24px',
-    fontSize: '18px',
-    color: '#ffffff',
-    backgroundColor: '#e74c3c',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s ease',
+  button: {
+    checkIn: {
+      padding: '12px 24px',
+      fontSize: '18px',
+      color: '#ffffff',
+      backgroundColor: '#27ae60',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      transition: 'background-color 0.3s ease',
+      '&:disabled': {
+        opacity: 0.7,
+        cursor: 'not-allowed',
+      },
+    },
+    checkOut: {
+      padding: '12px 24px',
+      fontSize: '18px',
+      color: '#ffffff',
+      backgroundColor: '#e74c3c',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      transition: 'background-color 0.3s ease',
+      '&:disabled': {
+        opacity: 0.7,
+        cursor: 'not-allowed',
+      },
+    }
   },
   tableContainer: {
     overflowX: 'auto',
@@ -245,19 +317,7 @@ const styles = {
     padding: '15px',
     backgroundColor: '#fde8e8',
     borderRadius: '8px',
-  },
-  checkoutBtn: {
-    padding: '12px 24px',
-    fontSize: '18px',
-    color: '#ffffff',
-    backgroundColor: '#e74c3c',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s ease',
-    marginLeft: '10px', // Thêm khoảng cách giữa nút check-in và check-out
-  },
-
+  }
 };
 
 export default AttendanceUser;

@@ -13,9 +13,10 @@ const user2Schema = new mongoose.Schema({
   contractStart: { type: Date },
   contractEnd: { type: Date },
   contractType: { type: String },
+  contractType: { type: String, enum: ['Toàn thời gian', 'Bán thời gian', 'Tạm thời'] },
   contractStatus: { type: String, enum: ['active', 'inactive', 'expired'] },
-  employeeType: { type: String, enum: ['thử việc', 'chính thức'], default: 'thử việc' },
-  gender: { type: String, enum: ['male', 'female', 'other'], required: true }
+  employeeType: { type: String, enum: ['Thử việc', 'Chính thức'], default: 'Thử việc' },
+  gender: { type: String, enum: ['Nam', 'Nữ', 'Khác'], required: true }
 }, { timestamps: true });
 
 const User2 = mongoose.model('User2', user2Schema);
