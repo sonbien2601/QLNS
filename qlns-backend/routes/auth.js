@@ -557,6 +557,7 @@ const performBackupCheckout = async (period) => {
       }
     };
 
+    // Only checkout if there's a corresponding check-in
     if (period === 'morning') {
       query.morningCheckIn = { $exists: true };
       query.morningCheckOut = { $exists: false };
@@ -598,6 +599,7 @@ const setupAutomaticCheckouts = () => {
       const now = moment().tz('Asia/Ho_Chi_Minh');
       const today = now.clone().startOf('day');
 
+      // Only auto-checkout records with morning check-in
       const attendances = await Attendance.find({
         date: {
           $gte: today.toDate(),
@@ -629,6 +631,7 @@ const setupAutomaticCheckouts = () => {
       const now = moment().tz('Asia/Ho_Chi_Minh');
       const today = now.clone().startOf('day');
 
+      // Only auto-checkout records with afternoon check-in
       const attendances = await Attendance.find({
         date: {
           $gte: today.toDate(),
@@ -669,6 +672,7 @@ const setupAutomaticCheckouts = () => {
       performBackupCheckout('afternoon');
     }
   });
+  console.log('Automatic checkout system initialized with enhanced validation');
 };
 
 // Logging middleware
