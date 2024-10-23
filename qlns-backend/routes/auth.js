@@ -36,10 +36,10 @@ const authenticate = (req, res, next) => {
     req.user = decoded;
     // Tạo token mới để gia hạn thời gian sử dụng
     const newToken = generateToken(decoded);
-    
+
     // Thêm token mới vào response header
     res.setHeader('New-Token', newToken);
-    
+
     next();
   } catch (error) {
     return res.status(401).json({ message: 'Token không hợp lệ' });
@@ -676,12 +676,12 @@ const attendanceLogger = (req, res, next) => {
   const start = Date.now();
   const oldJson = res.json;
 
-  res.json = function(data) {
+  res.json = function (data) {
     const responseTime = Date.now() - start;
     console.log(`[${moment().format('YYYY-MM-DD HH:mm:ss')}] ${req.method} ${req.originalUrl} - ${responseTime}ms`);
     console.log('Request body:', req.body);
     console.log('Response:', data);
-    
+
     oldJson.call(this, data);
   };
 
@@ -699,7 +699,7 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
     console.log('Starting check-in process...');
     const userId = req.user.userId;
     const user = await User2.findById(userId);
-    
+
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
     }
@@ -716,7 +716,7 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
     // Validate working period
     const period = checkWorkingPeriod(now);
     if (!period) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Ngoài giờ làm việc, không thể check-in',
         detail: `Giờ hiện tại: ${now.format('HH:mm')}`
       });
@@ -745,18 +745,18 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
         return res.status(400).json({ message: 'Bạn đã check-in buổi sáng rồi' });
       }
       attendance.morningCheckIn = now.toDate();
-      attendance.status = now.hour() > 8 || (now.hour() === 8 && now.minute() > 15) 
-        ? 'late' 
+      attendance.status = now.hour() > 8 || (now.hour() === 8 && now.minute() > 15)
+        ? 'late'
         : 'present';
     } else {
       if (attendance.afternoonCheckIn) {
         return res.status(400).json({ message: 'Bạn đã check-in buổi chiều rồi' });
       }
-      
+
       if (attendance.morningCheckIn && !attendance.morningCheckOut) {
         attendance.morningCheckOut = today.clone().hour(12).minute(0).second(0).toDate();
       }
-      
+
       attendance.afternoonCheckIn = now.toDate();
     }
 
@@ -800,10 +800,10 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
     const { MORNING, AFTERNOON } = TIME_CONSTANTS.WORKING_HOURS;
 
     // Validate checkout time
-    const isInMorningWindow = currentTime >= MORNING.START && 
-                             currentTime <= MORNING.END + MORNING.BUFFER;
-    const isInAfternoonWindow = currentTime >= AFTERNOON.START && 
-                               currentTime <= AFTERNOON.END + AFTERNOON.BUFFER;
+    const isInMorningWindow = currentTime >= MORNING.START &&
+      currentTime <= MORNING.END + MORNING.BUFFER;
+    const isInAfternoonWindow = currentTime >= AFTERNOON.START &&
+      currentTime <= AFTERNOON.END + AFTERNOON.BUFFER;
 
     if (!isInMorningWindow && !isInAfternoonWindow) {
       return res.status(400).json({
@@ -873,7 +873,7 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
 router.get('/attendance/history', authenticate, async (req, res) => {
   try {
     console.log('Fetching attendance history for user:', req.user.userId);
-    
+
     const user = await User2.findById(req.user.userId);
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
@@ -885,7 +885,7 @@ router.get('/attendance/history', authenticate, async (req, res) => {
 
     const formattedHistory = history.map(record => {
       const workingTime = calculateDailyWorkingTime(record);
-      
+
       return {
         date: moment(record.date).format('YYYY-MM-DD'),
         morningSession: {
@@ -906,7 +906,7 @@ router.get('/attendance/history', authenticate, async (req, res) => {
     res.json({ history: formattedHistory });
   } catch (error) {
     console.error('Error fetching attendance history:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Lỗi khi lấy lịch sử chấm công',
       error: error.message
     });
@@ -946,24 +946,24 @@ router.get('/attendance/all', authenticate, async (req, res) => {
 
     const formattedRecords = attendanceRecords.map(record => {
       const workingTime = calculateDailyWorkingTime(record);
-      
+
       return {
         ...record,
         morningSession: {
           checkIn: record.morningCheckIn ? formatTimeResponse(record.morningCheckIn) : null,
           checkOut: record.morningCheckOut ? formatTimeResponse(record.morningCheckOut) : null,
           duration: workingTime.morningHours,
-          isLate: record.morningCheckIn ? 
-            moment(record.morningCheckIn).hour() > 8 || 
-            (moment(record.morningCheckIn).hour() === 8 && moment(record.morningCheckIn).minute() > 15) 
+          isLate: record.morningCheckIn ?
+            moment(record.morningCheckIn).hour() > 8 ||
+            (moment(record.morningCheckIn).hour() === 8 && moment(record.morningCheckIn).minute() > 15)
             : null
         },
         afternoonSession: {
           checkIn: record.afternoonCheckIn ? formatTimeResponse(record.afternoonCheckIn) : null,
           checkOut: record.afternoonCheckOut ? formatTimeResponse(record.afternoonCheckOut) : null,
           duration: workingTime.afternoonHours,
-          isLate: record.afternoonCheckIn ? 
-            moment(record.afternoonCheckIn).hour() > 13 || 
+          isLate: record.afternoonCheckIn ?
+            moment(record.afternoonCheckIn).hour() > 13 ||
             (moment(record.afternoonCheckIn).hour() === 13 && moment(record.afternoonCheckIn).minute() > 45)
             : null
         },
@@ -975,20 +975,20 @@ router.get('/attendance/all', authenticate, async (req, res) => {
     // Calculate summary statistics
     const summary = {
       totalRecords: formattedRecords.length,
-      totalLateRecords: formattedRecords.filter(r => 
+      totalLateRecords: formattedRecords.filter(r =>
         r.morningSession.isLate || r.afternoonSession.isLate
       ).length,
-      averageWorkingHours: formattedRecords.reduce((acc, curr) => 
+      averageWorkingHours: formattedRecords.reduce((acc, curr) =>
         acc + curr.totalMinutes, 0) / (formattedRecords.length * 60),
     };
 
-    res.json({ 
+    res.json({
       attendanceRecords: formattedRecords,
       summary
     });
   } catch (error) {
     console.error('Error fetching attendance records:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Lỗi khi lấy dữ liệu chấm công',
       error: error.message
     });
@@ -1051,9 +1051,9 @@ router.get('/attendance/auto-checkout-status', authenticate, async (req, res) =>
     });
   } catch (error) {
     console.error('Error checking auto-checkout status:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Lỗi khi kiểm tra trạng thái auto-checkout',
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -1234,10 +1234,16 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
       return res.status(403).json({ message: 'Bạn không có quyền cập nhật' });
     }
 
-    // Tìm người dùng cần cập nhật
+    // Tìm người dùng trong cả hai collection
     let user = await User2.findById(userId);
+    let isUser2 = true;
+
     if (!user) {
-      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+      user = await User.findById(userId);
+      isUser2 = false;
+      if (!user) {
+        return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+      }
     }
 
     // Xử lý đặc biệt khi chuyển từ thử việc sang chính thức
@@ -1257,8 +1263,13 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
       }
     }
 
-    // Cập nhật thông tin người dùng
-    const updatedUser = await User2.findByIdAndUpdate(
+    // Nếu là admin và đang cập nhật mật khẩu
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    }
+
+    // Cập nhật người dùng trong collection tương ứng
+    const updatedUser = await (isUser2 ? User2 : User).findByIdAndUpdate(
       userId,
       { $set: updateData },
       { new: true, runValidators: true }

@@ -3,64 +3,189 @@ import axios from 'axios';
 import NavigationUser from '../components/NavigationUser';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-const moment = require('moment-timezone');
 
 const MySwal = withReactContent(Swal);
 
+const styles = {
+  page: {
+    minHeight: '100vh',
+    backgroundColor: '#f5f6fa'
+  },
+  container: {
+    maxWidth: '1280px',
+    margin: '0 auto',
+    padding: '2rem 1rem'
+  },
+  card: {
+    background: '#ffffff',
+    borderRadius: '12px',
+    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+    padding: '2rem',
+    marginTop: '2rem'
+  },
+  title: {
+    fontSize: '1.8rem',
+    fontWeight: '700',
+    color: '#2c3e50',
+    textAlign: 'center',
+    marginBottom: '2rem',
+    paddingBottom: '1rem',
+    borderBottom: '2px solid #eee'
+  },
+  sectionTitle: {
+    fontSize: '1.4rem',
+    fontWeight: '600',
+    color: '#34495e',
+    margin: '2rem 0 1.5rem'
+  },
+  actionButtons: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '1rem',
+    marginBottom: '2rem'
+  },
+  buttonBase: {
+    padding: '0.8rem 2rem',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '1rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease'
+  },
+  checkInButton: {
+    backgroundColor: '#2ecc71',
+    color: 'white',
+    ':hover': {
+      backgroundColor: '#27ae60',
+      transform: 'translateY(-1px)'
+    }
+  },
+  checkOutButton: {
+    backgroundColor: '#e74c3c',
+    color: 'white',
+    ':hover': {
+      backgroundColor: '#c0392b',
+      transform: 'translateY(-1px)'
+    }
+  },
+  disabledButton: {
+    opacity: '0.7',
+    cursor: 'not-allowed'
+  },
+  error: {
+    backgroundColor: '#fff3f3',
+    color: '#e74c3c',
+    padding: '1rem',
+    borderRadius: '8px',
+    marginBottom: '1rem',
+    border: '1px solid #ffd1d1'
+  },
+  loading: {
+    textAlign: 'center',
+    color: '#7f8c8d',
+    padding: '2rem',
+    fontSize: '1.1rem'
+  },
+  tableContainer: {
+    overflowX: 'auto',
+    margin: '1rem -1rem',
+    padding: '0 1rem'
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'separate',
+    borderSpacing: '0',
+    margin: '1rem 0'
+  },
+  th: {
+    padding: '1rem',
+    textAlign: 'left',
+    borderBottom: '1px solid #eee',
+    backgroundColor: '#f8f9fa',
+    fontWeight: '600',
+    color: '#2c3e50'
+  },
+  td: {
+    padding: '1rem',
+    textAlign: 'left',
+    borderBottom: '1px solid #eee',
+    color: '#34495e'
+  },
+  tr: {
+    ':hover': {
+      backgroundColor: '#f8f9fa'
+    }
+  },
+  statusBadge: {
+    base: {
+      display: 'inline-block',
+      padding: '0.4rem 0.8rem',
+      borderRadius: '20px',
+      fontSize: '0.9rem',
+      fontWeight: '500'
+    },
+    late: {
+      backgroundColor: '#fff3f3',
+      color: '#e74c3c'
+    },
+    present: {
+      backgroundColor: '#edfff5',
+      color: '#27ae60'
+    },
+    pending: {
+      backgroundColor: '#f8f9fa',
+      color: '#7f8c8d'
+    }
+  }
+};
 
 const formatTime = (time) => {
   if (!time) return 'Không có dữ liệu';
-  // Nếu time đã là chuỗi HH:mm:ss, trả về luôn
-  if (typeof time === 'string' && time.match(/^\d{2}:\d{2}:\d{2}$/)) {
-    return time;
-  }
-  // Nếu time là Date hoặc chuỗi ISO, chuyển đổi sang HH:mm:ss
-  try {
-    return new Date(time).toLocaleTimeString('vi-VN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    });
-  } catch (error) {
-    console.error('Error formatting time:', error);
-    return 'Không có dữ liệu';
-  }
-};
-
-const formatTimeResponse = (time) => {
-  if (!time) return null;
-  return moment(time).format('HH:mm:ss');
+  return time;
 };
 
 const AttendanceRow = ({ record }) => {
-  // Tính tổng giờ làm việc từ workingHours
-  const getTotalWorkHours = () => {
-    if (record.workingHours?.total) {
-      return record.workingHours.total;
+  const getStatusStyle = (status) => {
+    switch(status) {
+      case 'late':
+        return { ...styles.statusBadge.base, ...styles.statusBadge.late };
+      case 'present':
+        return { ...styles.statusBadge.base, ...styles.statusBadge.present };
+      default:
+        return { ...styles.statusBadge.base, ...styles.statusBadge.pending };
     }
-    
-    // Nếu có checkIn và checkOut thì tính trực tiếp
-    if (record.checkIn && record.checkOut) {
-      const checkInTime = new Date(record.checkIn);
-      const checkOutTime = new Date(record.checkOut);
-      const diffMinutes = Math.floor((checkOutTime - checkInTime) / (1000 * 60));
-      const hours = Math.floor(diffMinutes / 60);
-      const minutes = diffMinutes % 60;
-      return `${hours} giờ ${minutes} phút`;
-    }
+  };
 
-    return 'Chưa có thông tin';
+  const getStatusText = (status) => {
+    switch(status) {
+      case 'late': return 'Đi muộn';
+      case 'present': return 'Đúng giờ';
+      default: return 'Chưa xác định';
+    }
   };
 
   return (
-    <tr style={styles.tableRow}>
-      <td style={styles.tableCell}>{record.date}</td>
-      <td style={styles.tableCell}>{formatTime(record.checkIn)}</td>
-      <td style={styles.tableCell}>
-        {record.checkOut ? formatTime(record.checkOut) : 'Chưa check-out'}
+    <tr style={styles.tr}>
+      <td style={styles.td}>{record.date}</td>
+      <td style={styles.td}>
+        {record.morningSession.checkIn ? formatTime(record.morningSession.checkIn) : 'Chưa check-in'}
       </td>
-      <td style={styles.tableCell}>{getTotalWorkHours()}</td>
+      <td style={styles.td}>
+        {record.morningSession.checkOut ? formatTime(record.morningSession.checkOut) : 'Chưa check-out'}
+      </td>
+      <td style={styles.td}>
+        {record.afternoonSession.checkIn ? formatTime(record.afternoonSession.checkIn) : 'Chưa check-in'}
+      </td>
+      <td style={styles.td}>
+        {record.afternoonSession.checkOut ? formatTime(record.afternoonSession.checkOut) : 'Chưa check-out'}
+      </td>
+      <td style={styles.td}>{record.totalHours || 'Chưa có thông tin'}</td>
+      <td style={styles.td}>
+        <span style={getStatusStyle(record.status)}>
+          {getStatusText(record.status)}
+        </span>
+      </td>
     </tr>
   );
 };
@@ -71,10 +196,13 @@ const AttendanceTable = ({ attendanceRecords }) => {
       <table style={styles.table}>
         <thead>
           <tr>
-            <th style={styles.tableHeader}>Ngày</th>
-            <th style={styles.tableHeader}>Giờ Vào</th>
-            <th style={styles.tableHeader}>Giờ Ra</th>
-            <th style={styles.tableHeader}>Tổng Giờ Làm</th>
+            <th style={styles.th}>Ngày</th>
+            <th style={styles.th}>Check-in Sáng</th>
+            <th style={styles.th}>Check-out Sáng</th>
+            <th style={styles.th}>Check-in Chiều</th>
+            <th style={styles.th}>Check-out Chiều</th>
+            <th style={styles.th}>Tổng Giờ</th>
+            <th style={styles.th}>Trạng Thái</th>
           </tr>
         </thead>
         <tbody>
@@ -90,17 +218,15 @@ const AttendanceTable = ({ attendanceRecords }) => {
 const AttendanceUser = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [canCheckOut, setCanCheckOut] = useState(false);
   const [error, setError] = useState(null);
 
-  const showAlert = (type, title, text, timer = null) => {
+  const showAlert = (type, title, text) => {
     MySwal.fire({
       icon: type,
       title,
       text,
-      showConfirmButton: !timer,
-      timer,
-      footer: process.env.NODE_ENV === 'development' && type === 'error' ? text : null
+      timer: type === 'success' ? 1500 : undefined,
+      showConfirmButton: type !== 'success'
     });
   };
 
@@ -111,17 +237,11 @@ const AttendanceUser = () => {
       const response = await axios.get('http://localhost:5000/api/auth/attendance/history', {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      const history = response.data.history || [];
-      setAttendanceRecords(history);
-
-      const today = new Date().toISOString().split('T')[0];
-      const todayRecord = history.find(record => record.date === today);
-      setCanCheckOut(todayRecord && todayRecord.checkIn && !todayRecord.checkOut);
+      setAttendanceRecords(response.data.history || []);
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Không thể tải dữ liệu chấm công';
       setError(errorMessage);
-      showAlert('error', 'Oops...', errorMessage);
+      showAlert('error', 'Lỗi', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -137,187 +257,78 @@ const AttendanceUser = () => {
       showAlert('error', 'Lỗi xác thực', 'Vui lòng đăng nhập lại');
       return;
     }
-  
+
     try {
       setLoading(true);
-      const endpoint = type === 'in' ? 'check-in' : 'check-out';
-      const response = await axios.post(
-        `http://localhost:5000/api/auth/attendance/${endpoint}`,
-        {},
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-  
+      const endpoint = `http://localhost:5000/api/auth/attendance/check-${type}`;
+      const response = await axios.post(endpoint, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
       if (response.data?.attendance) {
-        const timeKey = type === 'in' ? 'checkIn' : 'checkOut';
-        const time = response.data.attendance[timeKey];
-        
         showAlert(
           'success',
           `Check-${type} thành công!`,
-          `Thời gian: ${formatTime(time)}`,
-          1500
+          `Thời gian: ${response.data.attendance.checkIn || response.data.attendance.checkOut}`
         );
         await fetchAttendance();
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Đã xảy ra lỗi, vui lòng thử lại.';
-      showAlert('error', `Lỗi khi check-${type}`, errorMessage);
+      const errorMessage = error.response?.data?.message || `Lỗi khi check-${type}`;
+      showAlert('error', 'Lỗi', errorMessage);
     } finally {
       setLoading(false);
     }
   };
-  
+
+  const getButtonStyle = (type) => ({
+    ...styles.buttonBase,
+    ...(type === 'in' ? styles.checkInButton : styles.checkOutButton),
+    ...(loading ? styles.disabledButton : {})
+  });
 
   return (
     <div style={styles.page}>
       <NavigationUser />
       <div style={styles.container}>
-        <h2 style={styles.title}>Chấm Công Của Bạn</h2>
-        <div style={styles.attendanceActions}>
-          <button
-            onClick={() => handleAttendance('in')}
-            style={styles.button.checkIn}
-            disabled={loading}
-          >
-            {loading ? 'Đang xử lý...' : 'Check-in'}
-          </button>
-          {canCheckOut && (
+        <div style={styles.card}>
+          <h2 style={styles.title}>Chấm Công Của Bạn</h2>
+          
+          <div style={styles.actionButtons}>
+            <button
+              onClick={() => handleAttendance('in')}
+              style={getButtonStyle('in')}
+              disabled={loading}
+            >
+              {loading ? 'Đang xử lý...' : 'Check-in'}
+            </button>
             <button
               onClick={() => handleAttendance('out')}
-              style={styles.button.checkOut}
+              style={getButtonStyle('out')}
               disabled={loading}
             >
               {loading ? 'Đang xử lý...' : 'Check-out'}
             </button>
+          </div>
+
+          {error && (
+            <div style={styles.error}>
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div style={styles.loading}>Đang tải dữ liệu...</div>
+          ) : (
+            <>
+              <h3 style={styles.sectionTitle}>Lịch sử chấm công</h3>
+              <AttendanceTable attendanceRecords={attendanceRecords} />
+            </>
           )}
         </div>
-        {error && (
-          <div style={styles.error}>{error}</div>
-        )}
-        {loading ? (
-          <div style={styles.loading}>Đang tải dữ liệu...</div>
-        ) : (
-          <>
-            <h3 style={styles.subtitle}>Lịch sử chấm công</h3>
-            <AttendanceTable attendanceRecords={attendanceRecords} />
-          </>
-        )}
       </div>
     </div>
   );
-};
-
-const styles = {
-  page: {
-    backgroundColor: '#f4f7f9',
-    minHeight: '100vh',
-  },
-  container: {
-    padding: '40px',
-    maxWidth: '1000px',
-    margin: '0 auto',
-    backgroundColor: '#ffffff',
-    borderRadius: '12px',
-    boxShadow: '0 6px 30px rgba(0, 0, 0, 0.1)',
-  },
-  title: {
-    fontSize: '32px',
-    marginBottom: '30px',
-    color: '#2c3e50',
-    fontWeight: '700',
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: '1px',
-  },
-  subtitle: {
-    fontSize: '24px',
-    marginTop: '40px',
-    marginBottom: '20px',
-    color: '#34495e',
-    fontWeight: '600',
-  },
-  attendanceActions: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '10px',
-    marginBottom: '30px',
-  },
-  button: {
-    checkIn: {
-      padding: '12px 24px',
-      fontSize: '18px',
-      color: '#ffffff',
-      backgroundColor: '#27ae60',
-      border: 'none',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      transition: 'background-color 0.3s ease',
-      '&:disabled': {
-        opacity: 0.7,
-        cursor: 'not-allowed',
-      },
-    },
-    checkOut: {
-      padding: '12px 24px',
-      fontSize: '18px',
-      color: '#ffffff',
-      backgroundColor: '#e74c3c',
-      border: 'none',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      transition: 'background-color 0.3s ease',
-      '&:disabled': {
-        opacity: 0.7,
-        cursor: 'not-allowed',
-      },
-    }
-  },
-  tableContainer: {
-    overflowX: 'auto',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'separate',
-    borderSpacing: '0 10px',
-  },
-  tableHeader: {
-    backgroundColor: '#34495e',
-    color: '#ffffff',
-    padding: '15px',
-    textAlign: 'left',
-    fontSize: '16px',
-    fontWeight: '600',
-  },
-  tableRow: {
-    backgroundColor: '#f8fafc',
-    transition: 'background-color 0.3s ease',
-  },
-  tableCell: {
-    padding: '15px',
-    fontSize: '16px',
-    color: '#2c3e50',
-    borderBottom: '1px solid #ecf0f1',
-  },
-  loading: {
-    textAlign: 'center',
-    fontSize: '18px',
-    color: '#3498db',
-    margin: '20px 0',
-  },
-  error: {
-    textAlign: 'center',
-    fontSize: '18px',
-    color: '#e74c3c',
-    margin: '20px 0',
-    padding: '15px',
-    backgroundColor: '#fde8e8',
-    borderRadius: '8px',
-  }
 };
 
 export default AttendanceUser;

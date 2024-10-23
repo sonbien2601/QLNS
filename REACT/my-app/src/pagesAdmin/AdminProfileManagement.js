@@ -26,7 +26,7 @@ const AdminProfileManagement = () => {
         companyName: 'Tên công ty',
         city: 'Thành phố',
         gender: 'Giới tính',
-        position: 'Chức vụ',    
+        position: 'Chức vụ',
         role: 'Vai trò',
         basicSalary: 'Lương cơ bản',
         contractStart: 'Ngày bắt đầu hợp đồng',
@@ -80,59 +80,59 @@ const AdminProfileManagement = () => {
     const handlePasswordUpdate = async () => {
         setPasswordError('');
         if (newPassword !== confirmPassword) {
-          setPasswordError('Mật khẩu mới và xác nhận mật khẩu không khớp');
-          return;
+            setPasswordError('Mật khẩu mới và xác nhận mật khẩu không khớp');
+            return;
         }
-      
-        try {
-          const token = localStorage.getItem('token');
-          const userId = selectedUser._id;
-      
-          // Gọi API để cập nhật mật khẩu
-          const response = await axios.put(`http://localhost:5000/api/auth/admin/user/${userId}`, 
-            { password: newPassword },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-      
-          // Lưu token mới và cập nhật thông tin người dùng trong local storage
-          localStorage.setItem('token', response.data.newToken);
-          localStorage.setItem('userId', response.data.user._id);
-          localStorage.setItem('role', response.data.user.role);
-          localStorage.setItem('fullName', response.data.user.fullName);
-          localStorage.setItem('username', response.data.user.username);
-      
-          MySwal.fire({
-            icon: 'success',
-            title: 'Cập nhật mật khẩu thành công',
-            showConfirmButton: false,
-            timer: 1500
-          });
-      
-          setNewPassword('');
-          setConfirmPassword('');
-        } catch (err) {
-          console.error('Lỗi khi cập nhật mật khẩu:', err);
-          let errorMessage = 'Lỗi khi cập nhật mật khẩu';
-          if (err.response) {
-            errorMessage += ': ' + (err.response.data.message || err.message);
-          } else if (err.request) {
-            errorMessage += ': Không thể kết nối đến server';
-          } else {
-            errorMessage += ': ' + err.message;
-          }
-          MySwal.fire({
-            icon: 'error',
-            title: 'Lỗi',
-            text: errorMessage
-          });
-        }
-      };
 
-      const handleUpdate = async (field) => {
+        try {
+            const token = localStorage.getItem('token');
+            const userId = selectedUser._id;
+
+            // Gọi API để cập nhật mật khẩu
+            const response = await axios.put(`http://localhost:5000/api/auth/admin/user/${userId}`,
+                { password: newPassword },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            // Lưu token mới và cập nhật thông tin người dùng trong local storage
+            localStorage.setItem('token', response.data.newToken);
+            localStorage.setItem('userId', response.data.user._id);
+            localStorage.setItem('role', response.data.user.role);
+            localStorage.setItem('fullName', response.data.user.fullName);
+            localStorage.setItem('username', response.data.user.username);
+
+            MySwal.fire({
+                icon: 'success',
+                title: 'Cập nhật mật khẩu thành công',
+                showConfirmButton: false,
+                timer: 1500
+            });
+
+            setNewPassword('');
+            setConfirmPassword('');
+        } catch (err) {
+            console.error('Lỗi khi cập nhật mật khẩu:', err);
+            let errorMessage = 'Lỗi khi cập nhật mật khẩu';
+            if (err.response) {
+                errorMessage += ': ' + (err.response.data.message || err.message);
+            } else if (err.request) {
+                errorMessage += ': Không thể kết nối đến server';
+            } else {
+                errorMessage += ': ' + err.message;
+            }
+            MySwal.fire({
+                icon: 'error',
+                title: 'Lỗi',
+                text: errorMessage
+            });
+        }
+    };
+
+    const handleUpdate = async (field) => {
         try {
             let result;
             const currentValue = selectedUser[field];
-    
+
             if (['gender', 'role', 'employeeType', 'contractType', 'contractStatus'].includes(field)) {
                 let options;
                 switch (field) {
@@ -144,7 +144,7 @@ const AdminProfileManagement = () => {
                         break;
                     case 'employeeType':
                         // Nếu là nhân viên chính thức, chỉ cho phép option "Chính thức"
-                        options = selectedUser.employeeType === 'Chính thức' 
+                        options = selectedUser.employeeType === 'Chính thức'
                             ? ['Chính thức']
                             : employeeTypeOptions;
                         break;
@@ -157,9 +157,9 @@ const AdminProfileManagement = () => {
                     default:
                         options = [];
                 }
-    
+
                 // Kiểm tra nếu đang cố chuyển từ chính thức về thử việc
-                if (field === 'employeeType' && 
+                if (field === 'employeeType' &&
                     selectedUser.employeeType === 'Chính thức') {
                     await MySwal.fire({
                         icon: 'error',
@@ -168,7 +168,7 @@ const AdminProfileManagement = () => {
                     });
                     return;
                 }
-    
+
                 result = await MySwal.fire({
                     title: `Chỉnh sửa ${labelMap[field]}`,
                     input: 'select',
@@ -182,7 +182,7 @@ const AdminProfileManagement = () => {
                         cancelButton: 'swal2-cancel'
                     }
                 });
-    
+
             } else if (['contractStart', 'contractEnd'].includes(field)) {
                 result = await MySwal.fire({
                     title: `Chỉnh sửa ${labelMap[field]}`,
@@ -213,13 +213,13 @@ const AdminProfileManagement = () => {
                     }
                 });
             }
-    
+
             if (result.isConfirmed) {
                 const newValue = result.value;
                 const token = localStorage.getItem('token');
                 const userId = selectedUser._id;
                 let updateData = { [field]: newValue };
-    
+
                 // Xử lý đặc biệt khi chuyển từ thử việc sang chính thức
                 if (field === 'employeeType' && newValue === 'Chính thức' && selectedUser.employeeType === 'Thử việc') {
                     const contractResult = await MySwal.fire({
@@ -257,20 +257,20 @@ const AdminProfileManagement = () => {
                             const contractType = document.getElementById('contractType').value;
                             const contractStart = document.getElementById('contractStart').value;
                             const contractEnd = document.getElementById('contractEnd').value;
-                            
+
                             if (!contractType || !contractStart || !contractEnd) {
                                 Swal.showValidationMessage('Vui lòng điền đầy đủ thông tin hợp đồng');
                                 return false;
                             }
-                            
+
                             const startDate = new Date(contractStart);
                             const endDate = new Date(contractEnd);
-                            
+
                             if (endDate <= startDate) {
                                 Swal.showValidationMessage('Ngày kết thúc phải sau ngày bắt đầu');
                                 return false;
                             }
-    
+
                             return {
                                 employeeType: 'Chính thức',
                                 contractType,
@@ -284,61 +284,61 @@ const AdminProfileManagement = () => {
                             cancelButton: 'swal2-cancel'
                         }
                     });
-    
+
                     if (contractResult.isConfirmed) {
                         updateData = contractResult.value;
                     } else {
                         return;
                     }
                 }
-    
+
                 try {
                     const response = await axios.put(
                         `http://localhost:5000/api/auth/admin/user/${userId}`,
                         updateData,
                         { headers: { Authorization: `Bearer ${token}` } }
-                      );
-                  
-                      // Lấy token mới từ response header
-                      const newToken = response.headers['new-token'];
-                      if (newToken) {
+                    );
+
+                    // Lấy token mới từ response header
+                    const newToken = response.headers['new-token'];
+                    if (newToken) {
                         localStorage.setItem('token', newToken);
-                      }
-            
+                    }
+
                     // Cập nhật state
-                    setUsers(prevUsers => prevUsers.map(user => 
-                      user._id === userId ? { ...user, ...response.data.user } : user
+                    setUsers(prevUsers => prevUsers.map(user =>
+                        user._id === userId ? { ...user, ...response.data.user } : user
                     ));
-            
+
                     setSelectedUser(prevUser => ({
-                      ...prevUser,
-                      ...response.data.user
+                        ...prevUser,
+                        ...response.data.user
                     }));
-            
+
                     await MySwal.fire({
-                      icon: 'success',
-                      title: 'Cập nhật thành công!',
-                      showConfirmButton: false,
-                      timer: 1500
+                        icon: 'success',
+                        title: 'Cập nhật thành công!',
+                        showConfirmButton: false,
+                        timer: 1500
                     });
-                  } catch (error) {
+                } catch (error) {
                     console.error(`Lỗi khi cập nhật ${labelMap[field]}:`, error);
                     await MySwal.fire({
-                      icon: 'error',
-                      title: 'Lỗi',
-                      text: error.response?.data?.message || `Lỗi khi cập nhật ${labelMap[field]}`
+                        icon: 'error',
+                        title: 'Lỗi',
+                        text: error.response?.data?.message || `Lỗi khi cập nhật ${labelMap[field]}`
                     });
-                  }
                 }
-              } catch (error) {
-                console.error('Lỗi:', error);
-                await MySwal.fire({
-                  icon: 'error',
-                  title: 'Lỗi',
-                  text: 'Đã xảy ra lỗi không mong muốn'
-                });
-              }
-            };
+            }
+        } catch (error) {
+            console.error('Lỗi:', error);
+            await MySwal.fire({
+                icon: 'error',
+                title: 'Lỗi',
+                text: 'Đã xảy ra lỗi không mong muốn'
+            });
+        }
+    };
 
     const formatDate = (dateString) => {
         return moment(dateString).format('DD/MM/YYYY');
@@ -349,9 +349,9 @@ const AdminProfileManagement = () => {
             return formatDate(value);
         }
         if (key === 'contractType') {
-            return value === 'fullTime' ? 'Toàn thời gian' : 
-                   value === 'partTime' ? 'Bán thời gian' : 
-                   value === 'temporary' ? 'Tạm thời' : value;
+            return value === 'fullTime' ? 'Toàn thời gian' :
+                value === 'partTime' ? 'Bán thời gian' :
+                    value === 'temporary' ? 'Tạm thời' : value;
         }
         if (key === 'contractStatus') {
             return value === 'active' ? 'Kích hoạt' : value;
@@ -381,46 +381,43 @@ const AdminProfileManagement = () => {
 
                 {selectedUser && (
                     <UserDetails>
-                    <h3>Chi tiết thông tin nhân viên:</h3>
-                    <DetailsTable>
-                      <thead>
-                        <tr>
-                          <th>Thông tin</th>
-                          <th>Giá trị</th>
-                          <th>Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(selectedUser).map(([key, value]) => {
-                          if (['password', '_id', '__v', 'createdAt', 'updatedAt'].includes(key)) return null;
-                          const label = labelMap[key] || key;
-              
-                          // Kiểm tra nếu là các trường hợp đồng và đang thử việc thì ẩn đi
-                          if (['contractType', 'contractStart', 'contractEnd', 'contractStatus'].includes(key) && 
-                              selectedUser.employeeType === 'Thử việc') {
-                            return null;
-                          }
-              
-                          // Hiển thị trường employeeType cho tất cả trường hợp
-                          // Hiển thị các trường hợp đồng chỉ khi là nhân viên chính thức
-                          return (
-                            <tr key={key}>
-                              <td>{label}</td>
-                              <td>{renderFieldValue(key, value)}</td>
-                              <td>
-                                {/* Nút chỉnh sửa chỉ hiển thị cho employeeType và các trường không liên quan đến hợp đồng khi đang thử việc */}
-                                {(key === 'employeeType' || 
-                                  (!['contractType', 'contractStart', 'contractEnd', 'contractStatus'].includes(key) && 
-                                   selectedUser.employeeType === 'Thử việc') ||
-                                  selectedUser.employeeType === 'Chính thức') && (
-                                  <Button onClick={() => handleUpdate(key)}>Chỉnh sửa</Button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </DetailsTable>
+                        <h3>Chi tiết thông tin nhân viên:</h3>
+                        <DetailsTable>
+                            <thead>
+                                <tr>
+                                    <th>Thông tin</th>
+                                    <th>Giá trị</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Object.entries(selectedUser).map(([key, value]) => {
+                                    // Bỏ qua các trường không cần hiển thị
+                                    if (['password', '_id', '__v', 'createdAt', 'updatedAt'].includes(key)) return null;
+                                    const label = labelMap[key] || key;
+
+                                    // Kiểm tra điều kiện hiển thị các trường hợp đồng
+                                    const isContractField = ['contractType', 'contractStart', 'contractEnd', 'contractStatus'].includes(key);
+                                    const isTrialEmployee = selectedUser.employeeType === 'Thử việc';
+
+                                    // Ẩn các trường hợp đồng nếu là nhân viên thử việc
+                                    if (isContractField && isTrialEmployee) {
+                                        return null;
+                                    }
+
+                                    return (
+                                        <tr key={key}>
+                                            <td>{label}</td>
+                                            <td>{renderFieldValue(key, value)}</td>
+                                            <td>
+                                                {/* Hiển thị nút chỉnh sửa trong mọi trường hợp vì người dùng hiện tại là admin */}
+                                                <Button onClick={() => handleUpdate(key)}>Chỉnh sửa</Button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </DetailsTable>
                         <h4>Mật khẩu:</h4>
                         <InputContainer>
                             <Input
