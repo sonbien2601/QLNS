@@ -469,17 +469,13 @@ const TIME_CONSTANTS = {
     MORNING: {
       START: 8 * 60,      // 8:00
       END: 12 * 60,       // 12:00
-      BUFFER: 15          // 15 minutes buffer
+      BUFFER: 15          // 15 phút buffer
     },
     AFTERNOON: {
       START: 13 * 60 + 30, // 13:30
       END: 17 * 60 + 30,   // 17:30
-      BUFFER: 15           // 15 minutes buffer
+      BUFFER: 15           // 15 phút buffer
     }
-  },
-  AUTO_CHECKOUT: {
-    MORNING: '0 12 * * 1-5',    // 12:00 on weekdays
-    AFTERNOON: '30 17 * * 1-5'  // 17:30 on weekdays
   }
 };
 
@@ -510,26 +506,49 @@ const calculateWorkingTime = (checkIn, checkOut) => {
   return Math.max(0, end.diff(start, 'minutes'));
 };
 
-// Calculate total daily working time including both periods
-const calculateDailyWorkingTime = (attendance) => {
-  const morningMinutes = calculateWorkingTime(
-    attendance.morningCheckIn,
-    attendance.morningCheckOut
-  );
-  const afternoonMinutes = calculateWorkingTime(
-    attendance.afternoonCheckIn,
-    attendance.afternoonCheckOut
-  );
+// Cập nhật hàm calculateDailyWorkingTime để thêm xử lý bonus/penalty từ tasks
+const calculateDailyWorkingTime = async (attendance, userId) => {
+  // Tính toán thời gian làm việc như cũ
+  const morningMinutes = attendance.morningCheckIn && attendance.morningCheckOut ? 
+    calculateWorkingTime(attendance.morningCheckIn, attendance.morningCheckOut) : 0;
+
+  const afternoonMinutes = attendance.afternoonCheckIn && attendance.afternoonCheckOut ?
+    calculateWorkingTime(attendance.afternoonCheckIn, attendance.afternoonCheckOut) : 0;
 
   const totalMinutes = morningMinutes + afternoonMinutes;
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
+  // Lấy thông tin tasks đã hoàn thành của user
+  const completedTasks = await Task.find({
+    assignedTo: userId,
+    status: 'completed'
+  });
+
+  // Tính toán tổng bonus và penalty từ tasks
+  let totalBonus = 0;
+  let totalPenalty = 0;
+
+  completedTasks.forEach(task => {
+    const completedDate = new Date(task.completedAt);
+    const dueDate = new Date(task.dueDate);
+
+    if (completedDate <= dueDate) {
+      // Nếu hoàn thành đúng hoặc trước hạn, cộng bonus
+      totalBonus += task.bonus || 0;
+    } else {
+      // Nếu trễ deadline, trừ penalty
+      totalPenalty += task.penalty || 0;
+    }
+  });
+
   return {
     morningHours: morningMinutes ? `${Math.floor(morningMinutes / 60)} giờ ${morningMinutes % 60} phút` : null,
     afternoonHours: afternoonMinutes ? `${Math.floor(afternoonMinutes / 60)} giờ ${afternoonMinutes % 60} phút` : null,
-    totalTime: `${hours} giờ ${minutes} phút`,
+    totalTime: totalMinutes > 0 ? `${hours} giờ ${minutes} phút` : '0 giờ 0 phút',
     totalMinutes: totalMinutes,
+    taskBonus: totalBonus,
+    taskPenalty: totalPenalty,
     details: {
       morning: {
         minutes: morningMinutes,
@@ -541,138 +560,6 @@ const calculateDailyWorkingTime = (attendance) => {
       }
     }
   };
-};
-
-// Backup checkout mechanism
-const performBackupCheckout = async (period) => {
-  try {
-    console.log(`Running backup ${period} checkout check`);
-    const now = moment().tz('Asia/Ho_Chi_Minh');
-    const today = now.clone().startOf('day');
-
-    const query = {
-      date: {
-        $gte: today.toDate(),
-        $lt: today.clone().add(1, 'day').toDate()
-      }
-    };
-
-    // Only checkout if there's a corresponding check-in
-    if (period === 'morning') {
-      query.morningCheckIn = { $exists: true };
-      query.morningCheckOut = { $exists: false };
-    } else {
-      query.afternoonCheckIn = { $exists: true };
-      query.afternoonCheckOut = { $exists: false };
-    }
-
-    const attendances = await Attendance.find(query);
-    console.log(`Backup found ${attendances.length} pending ${period} checkouts`);
-
-    for (const attendance of attendances) {
-      try {
-        if (period === 'morning') {
-          attendance.morningCheckOut = now.toDate();
-        } else {
-          attendance.afternoonCheckOut = now.toDate();
-        }
-
-        const workingTime = calculateDailyWorkingTime(attendance);
-        attendance.totalHours = workingTime.totalTime;
-        await attendance.save();
-        console.log(`Backup successfully checked out ${period} session for user ${attendance.userId}`);
-      } catch (error) {
-        console.error(`Error in backup ${period} checkout for user ${attendance.userId}:`, error);
-      }
-    }
-  } catch (error) {
-    console.error(`Error in backup ${period} checkout job:`, error);
-  }
-};
-
-// Schedule automatic checkouts with enhanced reliability
-const setupAutomaticCheckouts = () => {
-  // Morning auto-checkout at 12:00
-  schedule.scheduleJob(TIME_CONSTANTS.AUTO_CHECKOUT.MORNING, async () => {
-    try {
-      console.log('Running morning auto-checkout at 12:00');
-      const now = moment().tz('Asia/Ho_Chi_Minh');
-      const today = now.clone().startOf('day');
-
-      // Only auto-checkout records with morning check-in
-      const attendances = await Attendance.find({
-        date: {
-          $gte: today.toDate(),
-          $lt: today.clone().add(1, 'day').toDate()
-        },
-        morningCheckIn: { $exists: true },
-        morningCheckOut: { $exists: false }
-      });
-
-      console.log(`Found ${attendances.length} records for morning auto-checkout`);
-
-      for (const attendance of attendances) {
-        attendance.morningCheckOut = now.toDate();
-        const workingTime = calculateDailyWorkingTime(attendance);
-        attendance.totalHours = workingTime.totalTime;
-        await attendance.save();
-        console.log(`Auto checked out morning session for user ${attendance.userId}`);
-      }
-    } catch (error) {
-      console.error('Error in morning auto-checkout job:', error);
-      setTimeout(() => performBackupCheckout('morning'), 60000);
-    }
-  });
-
-  // Afternoon auto-checkout at 17:30
-  schedule.scheduleJob(TIME_CONSTANTS.AUTO_CHECKOUT.AFTERNOON, async () => {
-    try {
-      console.log('Running afternoon auto-checkout at 17:30');
-      const now = moment().tz('Asia/Ho_Chi_Minh');
-      const today = now.clone().startOf('day');
-
-      // Only auto-checkout records with afternoon check-in
-      const attendances = await Attendance.find({
-        date: {
-          $gte: today.toDate(),
-          $lt: today.clone().add(1, 'day').toDate()
-        },
-        afternoonCheckIn: { $exists: true },
-        afternoonCheckOut: { $exists: false }
-      });
-
-      console.log(`Found ${attendances.length} records for afternoon auto-checkout`);
-
-      for (const attendance of attendances) {
-        attendance.afternoonCheckOut = now.toDate();
-        const workingTime = calculateDailyWorkingTime(attendance);
-        attendance.totalHours = workingTime.totalTime;
-        await attendance.save();
-        console.log(`Auto checked out afternoon session for user ${attendance.userId}`);
-      }
-    } catch (error) {
-      console.error('Error in afternoon auto-checkout job:', error);
-      setTimeout(() => performBackupCheckout('afternoon'), 60000);
-    }
-  });
-
-  // Add backup checks
-  schedule.scheduleJob('5 12 * * 1-5', () => performBackupCheckout('morning'));
-  schedule.scheduleJob('35 17 * * 1-5', () => performBackupCheckout('afternoon'));
-
-  // Add safety net checks
-  schedule.scheduleJob('*/5 12 * * 1-5', (time) => {
-    if (time.getMinutes() <= 15) {
-      performBackupCheckout('morning');
-    }
-  });
-
-  schedule.scheduleJob('*/5 17 * * 1-5', (time) => {
-    if (time.getMinutes() >= 30 && time.getMinutes() <= 45) {
-      performBackupCheckout('afternoon');
-    }
-  });
-  console.log('Automatic checkout system initialized with enhanced validation');
 };
 
 // Logging middleware
@@ -756,12 +643,13 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
       if (attendance.afternoonCheckIn) {
         return res.status(400).json({ message: 'Bạn đã check-in buổi chiều rồi' });
       }
-
-      if (attendance.morningCheckIn && !attendance.morningCheckOut) {
-        attendance.morningCheckOut = today.clone().hour(12).minute(0).second(0).toDate();
-      }
-
       attendance.afternoonCheckIn = now.toDate();
+      // Update status only if not already late from morning
+      if (attendance.status !== 'late') {
+        attendance.status = now.hour() > 13 || (now.hour() === 13 && now.minute() > 45)
+          ? 'late'
+          : 'present';
+      }
     }
 
     const workingTime = calculateDailyWorkingTime(attendance);
@@ -772,8 +660,16 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
       message: 'Check-in thành công',
       attendance: {
         date: now.format('YYYY-MM-DD'),
-        checkIn: formatTimeResponse(period === 'morning' ? attendance.morningCheckIn : attendance.afternoonCheckIn),
-        checkOut: null,
+        morningSession: {
+          checkIn: formatTimeResponse(attendance.morningCheckIn),
+          checkOut: formatTimeResponse(attendance.morningCheckOut),
+          duration: workingTime.morningHours
+        },
+        afternoonSession: {
+          checkIn: formatTimeResponse(attendance.afternoonCheckIn),
+          checkOut: formatTimeResponse(attendance.afternoonCheckOut),
+          duration: workingTime.afternoonHours
+        },
         workingHours: {
           morning: workingTime.morningHours,
           afternoon: workingTime.afternoonHours,
@@ -783,6 +679,7 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
       }
     });
   } catch (error) {
+
     console.error('Check-in error:', error);
     res.status(500).json({
       message: 'Lỗi server khi check-in',
@@ -795,7 +692,7 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
   }
 });
 
-// Check-out API with enhanced validation
+// Check-out API with manual checkout only
 router.post('/attendance/check-out', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -828,6 +725,7 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy bản ghi chấm công cho hôm nay' });
     }
 
+    // Handle morning checkout
     if (isInMorningWindow) {
       if (!attendance.morningCheckIn) {
         return res.status(400).json({ message: 'Bạn chưa check-in buổi sáng' });
@@ -836,7 +734,9 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
         return res.status(400).json({ message: 'Bạn đã check-out buổi sáng rồi' });
       }
       attendance.morningCheckOut = now.toDate();
-    } else {
+    }
+    // Handle afternoon checkout
+    else {
       if (!attendance.afternoonCheckIn) {
         return res.status(400).json({ message: 'Bạn chưa check-in buổi chiều' });
       }
@@ -854,8 +754,16 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
       message: 'Check-out thành công',
       attendance: {
         date: now.format('YYYY-MM-DD'),
-        checkIn: formatTimeResponse(attendance.morningCheckIn || attendance.afternoonCheckIn),
-        checkOut: formatTimeResponse(attendance.afternoonCheckOut || attendance.morningCheckOut),
+        morningSession: {
+          checkIn: formatTimeResponse(attendance.morningCheckIn),
+          checkOut: formatTimeResponse(attendance.morningCheckOut),
+          duration: workingTime.morningHours
+        },
+        afternoonSession: {
+          checkIn: formatTimeResponse(attendance.afternoonCheckIn),
+          checkOut: formatTimeResponse(attendance.afternoonCheckOut),
+          duration: workingTime.afternoonHours
+        },
         workingHours: {
           morning: workingTime.morningHours,
           afternoon: workingTime.afternoonHours,
@@ -873,7 +781,7 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
   }
 });
 
-// Get attendance history API with enhanced details
+// Get attendance history API
 router.get('/attendance/history', authenticate, async (req, res) => {
   try {
     console.log('Fetching attendance history for user:', req.user.userId);
@@ -917,7 +825,7 @@ router.get('/attendance/history', authenticate, async (req, res) => {
   }
 });
 
-// Enhanced admin attendance records API
+// Admin attendance records API
 router.get('/attendance/all', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
@@ -972,7 +880,9 @@ router.get('/attendance/all', authenticate, async (req, res) => {
             : null
         },
         totalHours: workingTime.totalTime,
-        totalMinutes: workingTime.totalMinutes
+        totalMinutes: workingTime.totalMinutes,
+        user: record.userId,
+        date: moment(record.date).format('YYYY-MM-DD')
       };
     });
 
@@ -982,8 +892,10 @@ router.get('/attendance/all', authenticate, async (req, res) => {
       totalLateRecords: formattedRecords.filter(r =>
         r.morningSession.isLate || r.afternoonSession.isLate
       ).length,
-      averageWorkingHours: formattedRecords.reduce((acc, curr) =>
-        acc + curr.totalMinutes, 0) / (formattedRecords.length * 60),
+      averageWorkingMinutes: formattedRecords.reduce((acc, curr) =>
+        acc + curr.totalMinutes, 0) / formattedRecords.length,
+      averageWorkingHours: (formattedRecords.reduce((acc, curr) =>
+        acc + curr.totalMinutes, 0) / formattedRecords.length / 60).toFixed(2)
     };
 
     res.json({
@@ -998,72 +910,6 @@ router.get('/attendance/all', authenticate, async (req, res) => {
     });
   }
 });
-
-// New API to check auto-checkout status
-router.get('/attendance/auto-checkout-status', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
-  }
-
-  const now = moment().tz('Asia/Ho_Chi_Minh');
-  const today = now.clone().startOf('day');
-
-  try {
-    const pendingMorningCheckouts = await Attendance.countDocuments({
-      date: {
-        $gte: today.toDate(),
-        $lt: today.clone().add(1, 'day').toDate()
-      },
-      morningCheckIn: { $exists: true },
-      morningCheckOut: { $exists: false }
-    });
-
-    const pendingAfternoonCheckouts = await Attendance.countDocuments({
-      date: {
-        $gte: today.toDate(),
-        $lt: today.clone().add(1, 'day').toDate()
-      },
-      afternoonCheckIn: { $exists: true },
-      afternoonCheckOut: { $exists: false }
-    });
-
-    const nextMorningCheckout = moment().hour(12).minute(0).second(0);
-    const nextAfternoonCheckout = moment().hour(17).minute(30).second(0);
-    if (now.isAfter(nextMorningCheckout)) {
-      nextMorningCheckout.add(1, 'day');
-    }
-    if (now.isAfter(nextAfternoonCheckout)) {
-      nextAfternoonCheckout.add(1, 'day');
-    }
-
-    res.json({
-      currentTime: now.format('HH:mm:ss'),
-      pendingCheckouts: {
-        morning: pendingMorningCheckouts,
-        afternoon: pendingAfternoonCheckouts
-      },
-      nextScheduledCheckouts: {
-        morning: nextMorningCheckout.format('YYYY-MM-DD HH:mm:ss'),
-        afternoon: nextAfternoonCheckout.format('YYYY-MM-DD HH:mm:ss')
-      },
-      systemStatus: {
-        autoCheckoutEnabled: true,
-        backupChecksEnabled: true,
-        safetyNetEnabled: true,
-        timezone: 'Asia/Ho_Chi_Minh'
-      }
-    });
-  } catch (error) {
-    console.error('Error checking auto-checkout status:', error);
-    res.status(500).json({
-      message: 'Lỗi khi kiểm tra trạng thái auto-checkout',
-      error: error.message
-    });
-  }
-});
-
-// Initialize automatic checkouts
-setupAutomaticCheckouts();
 
 // ================== API HỢP ĐỒNG ==================
 
@@ -1421,7 +1267,7 @@ router.get('/salary', authenticate, async (req, res) => {
             ...salary.toObject(),
             error: 'Không tìm thấy thông tin người dùng'
           };
-        }
+        } 
 
         const attendanceRecords = await Attendance.find({ userId: salary.userId._id });
         const actualWorkHours = calculateTotalWorkHours(attendanceRecords);
@@ -1501,21 +1347,18 @@ router.delete('/salary/:id', authenticate, async (req, res) => {
   }
 });
 
-//API lấy lương cho người dùng
+// Cập nhật API endpoint để tính lương có tính đến bonus/penalty từ tasks
 router.get('/salary/:userId', authenticate, async (req, res) => {
   try {
     const userId = req.params.userId;
 
-    // Kiểm tra quyền truy cập
     if (req.user.role !== 'admin' && req.user.userId !== userId) {
       return res.status(403).json({ message: 'Bạn không có quyền truy cập thông tin này' });
     }
 
-    // Tìm thông tin lương
     let salary = await Salary.findOne({ userId }).populate('userId', 'fullName position');
 
     if (!salary) {
-      // Nếu không tìm thấy thông tin lương, tạo một bản ghi mới với thông tin cơ bản
       const user = await User2.findById(userId);
       if (!user) {
         return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
@@ -1529,20 +1372,26 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
       await salary.save();
     }
 
-    // Tính toán số giờ làm việc thực tế
     const attendanceRecords = await Attendance.find({ userId });
-    const actualWorkHours = calculateTotalWorkHours(attendanceRecords);
-
-    const standardWorkHours = 176; // 8 giờ * 22 ngày
+    const workingTimeData = await calculateDailyWorkingTime(attendanceRecords[0] || {}, userId);
+    
+    const standardWorkHours = 176;
     const hourlyRate = salary.basicSalary / standardWorkHours;
-    const actualSalary = hourlyRate * actualWorkHours + (salary.bonus || 0);
+    
+    // Tính lương thực tế bao gồm cả bonus/penalty từ tasks
+    const actualSalary = (hourlyRate * workingTimeData.totalMinutes / 60) + 
+                        (salary.bonus || 0) + 
+                        workingTimeData.taskBonus - 
+                        workingTimeData.taskPenalty;
 
     const salaryInfo = {
       ...salary.toObject(),
-      actualWorkHours: parseFloat(actualWorkHours.toFixed(2)),
+      actualWorkHours: parseFloat((workingTimeData.totalMinutes / 60).toFixed(2)),
       hourlyRate: parseFloat(hourlyRate.toFixed(2)),
       actualSalary: Math.round(actualSalary),
-      standardWorkHours
+      standardWorkHours,
+      taskBonus: workingTimeData.taskBonus,
+      taskPenalty: workingTimeData.taskPenalty
     };
 
     res.json({ salary: salaryInfo });
@@ -1702,10 +1551,10 @@ router.get('/tasks/:userId', authenticate, async (req, res) => {
   }
 });
 
-// Update task status
+// Cập nhật task completion API để cập nhật bonus/penalty
 router.put('/tasks/:taskId/status', authenticate, async (req, res) => {
   try {
-    const { status, feedback, completedDate, completedTime } = req.body;
+    const { status } = req.body;
     const task = await Task.findById(req.params.taskId);
 
     if (!task) {
@@ -1718,17 +1567,29 @@ router.put('/tasks/:taskId/status', authenticate, async (req, res) => {
 
     task.status = status;
     if (status === 'completed') {
-      task.completedAt = completedDate && completedTime
-        ? `${completedDate}T${completedTime}:00`
-        : new Date().toISOString();
-    }
-    if (feedback) {
-      task.feedback = feedback;
+      task.completedAt = new Date();
+      
+      // Kiểm tra và áp dụng bonus/penalty
+      const completedDate = new Date(task.completedAt);
+      const dueDate = new Date(task.dueDate);
+
+      if (completedDate <= dueDate) {
+        // Hoàn thành đúng hoặc sớm hơn deadline
+        task.actualPenalty = 0;
+      } else {
+        // Hoàn thành trễ deadline
+        task.actualPenalty = task.penalty || 0;
+      }
     }
 
     await task.save();
 
-    res.json({ message: 'Cập nhật trạng thái công việc thành công', task });
+    res.json({ 
+      message: 'Cập nhật trạng thái công việc thành công', 
+      task,
+      bonusApplied: completedDate <= dueDate ? task.bonus : 0,
+      penaltyApplied: task.actualPenalty
+    });
   } catch (error) {
     console.error('Error updating task status:', error);
     res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái công việc', error: error.message });
