@@ -601,10 +601,19 @@ const TrialEmployees = ({ employees }) => (
       {employees.length > 0 ? employees.map((employee) => (
         <ListItem key={employee._id}>
           <ItemTitle>{employee.fullName}</ItemTitle>
-          <Badge style={{ backgroundColor: '#f39c12' }}>Thử việc</Badge>
+          <ItemDetail>Chức vụ: {employee.position || 'Chưa có'}</ItemDetail>
+          <ItemDetail>Trạng thái: {employee.employeeType || 'Thử việc'}</ItemDetail>
+          <ItemDetail>Email: {employee.email}</ItemDetail>
+          <Badge 
+            style={{ 
+              backgroundColor: '#f39c12'
+            }}
+          >
+            Chưa ký hợp đồng
+          </Badge>
         </ListItem>
       )) : (
-        <p>Không có nhân viên thử việc nào.</p>
+        <p>Không có nhân viên chưa ký hợp đồng.</p>
       )}
     </ScrollableList>
   </TrialEmployeesCard>
@@ -744,6 +753,9 @@ const AssignedTasksModal = ({ isOpen, onClose, tasks, users, setSelectedTask, se
     </ModalOverlay>
   );
 };
+
+
+
 
 const OverviewAdmin = () => {
   const navigate = useNavigate();
@@ -1014,7 +1026,7 @@ const parseCurrencyToNumber = (currencyString) => {
       try {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
-
+  
         const endpoints = [
           'http://localhost:5000/api/auth/users',
           'http://localhost:5000/api/auth/contracts',
@@ -1023,13 +1035,14 @@ const parseCurrencyToNumber = (currencyString) => {
           'http://localhost:5000/api/auth/resignation-requests',
           'http://localhost:5000/api/auth/tasks'
         ];
-
+  
         const results = await Promise.allSettled(
           endpoints.map(endpoint => axios.get(endpoint, { headers }))
         );
-
-        const processData = (response, defaultValue) => response.status === 'fulfilled' ? response.value.data : defaultValue;
-
+  
+        const processData = (response, defaultValue) => 
+          response.status === 'fulfilled' ? response.value.data : defaultValue;
+  
         const usersData = processData(results[0], { users: [] }).users;
         setUsers(usersData);
 
@@ -1037,7 +1050,14 @@ const parseCurrencyToNumber = (currencyString) => {
         const expiredContracts = contracts.filter(contract => contract.status === 'Hết hiệu lực');
         setExpiredContracts(expiredContracts);
 
-        const trialEmployeesList = usersData.filter(user => user.employeeType === 'thử việc');
+        const trialEmployeesList = usersData.filter(user => 
+          user.status === 'active' && 
+          (
+            (!user.contractType || 
+            user.contractType === 'Chưa ký hợp đồng' || 
+            user.contractType === undefined)
+          )
+        );
         setTrialEmployeesList(trialEmployeesList);
 
         const attendanceRecords = processData(results[2], { attendanceRecords: [] }).attendanceRecords;
@@ -1078,8 +1098,14 @@ const parseCurrencyToNumber = (currencyString) => {
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
         const newEmployees = usersData.filter(user => new Date(user.createdAt) > threeDaysAgo).length;
         const activeEmployees = usersData.filter(user => user.status === 'active').length;
-        const permanentEmployees = usersData.filter(user => user.employeeType === 'chính thức').length;
-        const trialEmployees = usersData.filter(user => user.employeeType === 'thử việc').length;
+        const permanentEmployees = usersData.filter(user => 
+          user.employeeType === 'Chính thức' && 
+          user.status === 'active'
+        ).length;
+        const trialEmployees = usersData.filter(user => 
+          user.employeeType === 'Thử việc' && 
+          user.status === 'active'
+        ).length;
 
         const contractTypes = contracts.reduce((acc, contract) => {
           acc[contract.contractType] = (acc[contract.contractType] || 0) + 1;
@@ -1140,7 +1166,12 @@ const parseCurrencyToNumber = (currencyString) => {
     return <LoadingContainer>Loading...</LoadingContainer>;
   }
 
-  const contractData = Object.entries(overviewData.contractTypes).map(([name, value]) => ({ name, value }));
+  const contractData = Object.entries(overviewData.contractTypes).map(([name, value]) => ({
+    name: name === 'undefined' ? 'Chưa ký hợp đồng' : name,
+    value
+  }));
+
+  
 
   return (
     <PageContainer
@@ -1246,25 +1277,25 @@ const parseCurrencyToNumber = (currencyString) => {
           </StatsGrid>
 
           <ChartsGrid>
-            <ChartCard
-              as={motion.div}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2, duration: 0.2 }}
-            >
-              <h3>Thống kê hợp đồng theo loại</h3>
-              <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={contractData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="value" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
+          <ChartCard
+  as={motion.div}
+  initial={{ opacity: 0, scale: 0.95 }}
+  animate={{ opacity: 1, scale: 1 }}
+  transition={{ delay: 0.2, duration: 0.2 }}
+>
+  <h3>Thống kê hợp đồng theo loại</h3>
+  <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
+  <ResponsiveContainer width="100%" height={300}>  {/* Tăng height từ 250px lên 300px */}
+    <BarChart data={contractData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}> {/* Thêm margin để căn chỉnh không gian */}
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="name" height={60} angle={-15} textAnchor="end"/> {/* Điều chỉnh chiều cao và góc của nhãn */}
+      <YAxis />
+      <Tooltip />
+      <Legend wrapperStyle={{ paddingTop: 20 }}/> {/* Thêm padding cho legend */}
+      <Bar dataKey="value" fill="#8884d8" />
+    </BarChart>
+  </ResponsiveContainer>
+</ChartCard>
             <ChartCard
               as={motion.div}
               initial={{ opacity: 0, scale: 0.9 }}

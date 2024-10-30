@@ -3,6 +3,7 @@ import axios from 'axios';
 import NavigationUser from '../components/NavigationUser';
 import '../css/style.css';
 import Swal from 'sweetalert2';
+import moment from 'moment';
 
 const SalaryUser = () => {
   const [salary, setSalary] = useState(null);
@@ -10,66 +11,12 @@ const SalaryUser = () => {
   const [newFeedbackMessage, setNewFeedbackMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentMonth, setCurrentMonth] = useState(moment().month() + 1);
+  const [currentYear, setCurrentYear] = useState(moment().year());
 
   useEffect(() => {
     fetchSalaryAndFeedbacks();
-  }, []);
-
-  const fetchSalaryAndFeedbacks = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-
-      const [salaryResponse, feedbackResponse] = await Promise.all([
-        axios.get(`http://localhost:5000/api/auth/salary/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        axios.get(`http://localhost:5000/api/auth/feedback-salary/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      ]);
-
-      setSalary(salaryResponse.data.salary);
-      setFeedbacks(feedbackResponse.data.feedbacks);
-    } catch (error) {
-      console.error('Error fetching salary and feedbacks:', error);
-      setError('Không thể lấy thông tin. Vui lòng thử lại sau.');
-      Swal.fire({
-        icon: 'error',
-        title: 'Lỗi!',
-        text: 'Không thể lấy thông tin. Vui lòng thử lại sau.',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFeedbackSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/auth/feedback-salary', 
-        { message: newFeedbackMessage },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setNewFeedbackMessage('');
-      fetchSalaryAndFeedbacks();
-      Swal.fire({
-        icon: 'success',
-        title: 'Gửi feedback thành công!',
-        showConfirmButton: false,
-        timer: 1500
-      });
-    } catch (error) {
-      console.error('Error sending feedback:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Lỗi!',
-        text: 'Không thể gửi feedback. Vui lòng thử lại sau.',
-      });
-    }
-  };
+  }, [currentMonth, currentYear]);
 
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '0 ₫';
@@ -80,14 +27,14 @@ const SalaryUser = () => {
       maximumFractionDigits: 0
     }).format(value);
   };
-
+  
   const formatWorkHours = (hours) => {
     if (hours === undefined || hours === null) return 'N/A';
     const wholeHours = Math.floor(hours);
     const minutes = Math.round((hours - wholeHours) * 60);
     return `${wholeHours} giờ ${minutes} phút`;
   };
-
+  
   const formatDate = (dateString) => {
     const options = { 
       year: 'numeric', 
@@ -98,10 +45,38 @@ const SalaryUser = () => {
     };
     return new Date(dateString).toLocaleDateString('vi-VN', options);
   };
-
+  
+  const renderWorkingTimeInfo = () => {
+    if (!salary) return null;
+  
+    return (
+      <div style={styles.workingTimeSection}>
+        <h3 style={styles.subtitle}>Thông tin giờ làm việc</h3>
+        <div style={styles.workingTimeInfo}>
+          <div style={styles.infoItem}>
+            <span>Số giờ làm việc thực tế:</span>
+            <span>{formatWorkHours(salary.actualWorkHours)}</span>
+          </div>
+          <div style={styles.infoItem}>
+            <span>Số giờ làm việc chuẩn:</span>
+            <span>{formatWorkHours(salary.standardWorkHours)}</span>
+          </div>
+          <div style={styles.infoItem}>
+            <span>Tỷ lệ làm việc:</span>
+            <span>{salary.workRatio}%</span>
+          </div>
+          <div style={styles.infoItem}>
+            <span>Số ngày làm việc:</span>
+            <span>{salary.workingDays} ngày</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
   const renderTaskRewards = () => {
     if (!salary) return null;
-
+  
     return (
       <div style={styles.taskRewardsSection}>
         <h3 style={styles.subtitle}>Thông tin thưởng/phạt từ công việc</h3>
@@ -126,18 +101,24 @@ const SalaryUser = () => {
       </div>
     );
   };
-
+  
   const renderSalaryBreakdown = () => {
     if (!salary) return null;
-
-    const baseHourlySalary = (salary.hourlyRate || 0) * (salary.actualWorkHours || 0);
+  
+    // Tính toán lương theo giờ
+    const hourlyPay = salary.basicSalary / salary.standardWorkHours; // Lương giờ = Lương cơ bản / Số giờ chuẩn
+    const baseHourlySalary = hourlyPay * (salary.actualWorkHours || 0); // Lương thực tế = Lương giờ * Số giờ làm việc
     const totalBonus = (salary.bonus || 0) + (salary.taskBonus || 0);
     const totalPenalty = salary.taskPenalty || 0;
-
+  
     return (
       <div style={styles.breakdownSection}>
-        <h3 style={styles.subtitle}>Chi tiết lương</h3>
+        <h3 style={styles.subtitle}>Chi tiết lương tháng {currentMonth}/{currentYear}</h3>
         <div style={styles.breakdownList}>
+          <div style={styles.breakdownItem}>
+            <span>Lương theo giờ:</span>
+            <span>{formatCurrency(hourlyPay)}/giờ</span>
+          </div>
           <div style={styles.breakdownItem}>
             <span>Lương theo giờ làm việc:</span>
             <span>{formatCurrency(baseHourlySalary)}</span>
@@ -156,50 +137,144 @@ const SalaryUser = () => {
           </div>
           <div style={styles.breakdownTotal}>
             <span>Tổng lương thực tế:</span>
-            <span>{formatCurrency(salary.actualSalary)}</span>
+            <span>{formatCurrency(salary.totalSalary)}</span>
           </div>
         </div>
       </div>
     );
   };
 
-  if (loading) {
-    return <div style={styles.loading}>Đang tải thông tin...</div>;
-  }
 
-  if (error) {
-    return <div style={styles.error}>Lỗi: {error}</div>;
-  }
+  const fetchSalaryAndFeedbacks = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSalary(null);
+      
+      const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+  
+      const [salaryResponse, feedbackResponse] = await Promise.all([
+        axios.get(`http://localhost:5000/api/auth/salary/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { month: currentMonth, year: currentYear }
+        }),
+        axios.get(`http://localhost:5000/api/auth/feedback-salary/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ]);
+  
+      // Kiểm tra response status
+      if (salaryResponse.status === 404) {
+        setError(`Không có dữ liệu lương cho tháng ${currentMonth}/${currentYear}`);
+        setSalary(null);
+      } else if (salaryResponse.data && salaryResponse.data.salary) {
+        setSalary(salaryResponse.data.salary);
+        setError(null);
+      } else {
+        setError('Không thể lấy thông tin lương');
+        setSalary(null);
+      }
+      
+      setFeedbacks(feedbackResponse.data.feedbacks || []);
+    } catch (error) {
+      console.error('Error fetching salary and feedbacks:', error);
+      if (error.response && error.response.status === 404) {
+        setError(`Không có dữ liệu lương cho tháng ${currentMonth}/${currentYear}`);
+      } else {
+        setError('Không thể lấy thông tin. Vui lòng thử lại sau.');
+      }
+      setSalary(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (!salary) {
-    return <div style={styles.error}>Không có thông tin lương.</div>;
-  }
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('http://localhost:5000/api/auth/feedback-salary', 
+        { 
+          message: newFeedbackMessage,
+          month: currentMonth,
+          year: currentYear
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNewFeedbackMessage('');
+      fetchSalaryAndFeedbacks();
+      Swal.fire({
+        icon: 'success',
+        title: 'Gửi feedback thành công!',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    } catch (error) {
+      console.error('Error sending feedback:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Lỗi!',
+        text: 'Không thể gửi feedback. Vui lòng thử lại sau.',
+      });
+    }
+  };
 
-  return (
-    <div style={styles.page}>
-      <NavigationUser />
+  const renderContent = () => {
+    if (loading) {
+      return <div style={styles.loading}>Đang tải thông tin...</div>;
+    }
+  
+    return (
       <div style={styles.container}>
         <h2 style={styles.title}>Thông Tin Lương Của Bạn</h2>
-        <div style={styles.salaryInfo}>
-          <div style={styles.mainInfo}>
-            <div style={styles.infoItem}>
-              <strong>Lương cơ bản:</strong>
-              <span>{formatCurrency(salary.basicSalary)}</span>
-            </div>
-            <div style={styles.infoItem}>
-              <strong>Lương theo giờ:</strong>
-              <span>{formatCurrency(salary.hourlyRate)}</span>
-            </div>
-            <div style={styles.infoItem}>
-              <strong>Số giờ làm việc:</strong>
-              <span>{formatWorkHours(salary.actualWorkHours)}</span>
-            </div>
-          </div>
-
-          {renderTaskRewards()}
-          {renderSalaryBreakdown()}
+  
+        <div style={styles.monthSelector}>
+          <select 
+            value={currentMonth}
+            onChange={(e) => setCurrentMonth(parseInt(e.target.value))}
+            style={styles.select}
+          >
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+            ))}
+          </select>
+          <select
+            value={currentYear}
+            onChange={(e) => setCurrentYear(parseInt(e.target.value))}
+            style={styles.select}
+          >
+            {Array.from({ length: 5 }, (_, i) => (
+              <option key={currentYear - 2 + i} value={currentYear - 2 + i}>
+                Năm {currentYear - 2 + i}
+              </option>
+            ))}
+          </select>
         </div>
-
+  
+        {error ? (
+          <div style={styles.error}>{error}</div>
+        ) : salary ? (
+          <>
+            <div style={styles.salaryInfo}>
+              <div style={styles.mainInfo}>
+                <div style={styles.infoItem}>
+                  <strong>Lương cơ bản:</strong>
+                  <span>{formatCurrency(salary.basicSalary)}</span>
+                </div>
+                <div style={styles.infoItem}>
+                  <strong>Lương theo giờ:</strong>
+                  {formatCurrency(salary.basicSalary / salary.standardWorkHours)}/giờ
+                </div>
+              </div>
+  
+              {renderWorkingTimeInfo()}
+              {renderTaskRewards()}
+              {renderSalaryBreakdown()}
+            </div>
+          </>
+        ) : null}
+  
         <h3 style={styles.subtitle}>Feedback Lương</h3>
         <div style={styles.feedbackList}>
           {feedbacks.map((feedback) => (
@@ -228,11 +303,48 @@ const SalaryUser = () => {
           </button>
         </form>
       </div>
+    );
+  };
+
+  return (
+    <div style={styles.page}>
+      <NavigationUser />
+      {renderContent()}
     </div>
   );
 };
 
 const styles = {
+
+
+  monthSelector: {
+    display: 'flex',
+    gap: '1rem',
+    marginBottom: '2rem',
+    justifyContent: 'center'
+  },
+  select: {
+    padding: '0.75rem',
+    borderRadius: '8px',
+    border: '1px solid #ddd',
+    backgroundColor: 'white',
+    fontSize: '14px',
+    cursor: 'pointer',
+    outline: 'none',
+    minWidth: '120px'
+  },
+  workingTimeSection: {
+    backgroundColor: '#f8f9fa',
+    padding: '1.5rem',
+    borderRadius: '8px',
+    marginBottom: '2rem',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+  },
+  workingTimeInfo: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '1rem'
+  },
   page: {
     backgroundColor: '#f4f7f9',
     minHeight: '100vh',

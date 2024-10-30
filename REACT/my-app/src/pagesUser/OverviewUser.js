@@ -347,26 +347,41 @@ const OverviewUser = () => {
         <div className="chart-card fade-in">
           <h3>Nhắc việc</h3>
           {tasks.length > 0 ? (
-            <ul className="task-list">
-              {tasks.map((task) => (
-                <li key={task._id} className={`task-item slide-in-bottom ${new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>
-                  <h4>{task.title}</h4>
-                  <p>{task.description}</p>
-                  <p>Hạn chót: {formatDateTime(task.dueDate)}</p>
-                  <p>Thời gian hoàn thành dự kiến: {task.expectedCompletionTime}</p>
-                  <p>Trạng thái: {task.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}</p>
-                  {task.status !== 'completed' && (
-                    <button onClick={() => handleCompleteTask(task._id)}>Đánh dấu hoàn thành</button>
-                  )}
-                  {new Date(task.dueDate) < new Date() && task.status !== 'completed' && (
-                    <p className="overdue-warning">Công việc đã quá hạn! Bạn có thể bị phạt.</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>Không có nhắc việc nào.</p>
-          )}
+  <ul className="task-list">
+    {tasks.map((task) => (
+      <li key={task._id} className={`task-item slide-in-bottom ${new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>
+        <h4>{task.title}</h4>
+        <p>{task.description}</p>
+        <p>Hạn chót: {formatDateTime(task.dueDate)}</p>
+        <p>Thời gian hoàn thành dự kiến: {task.expectedCompletionTime}</p>
+        <p>Trạng thái: {task.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}</p>
+        
+        {/* Thêm phần hiển thị thưởng/phạt */}
+        <div className="task-rewards">
+          <div className="reward-item">
+            <span>Thưởng hoàn thành đúng hạn:</span>
+            <span className="bonus">+{(task.bonus || 0).toLocaleString()} ₫</span>
+          </div>
+          <div className="reward-item">
+            <span>Phạt trễ hạn:</span>
+            <span className="penalty">-{(task.penalty || 0).toLocaleString()} ₫</span>
+          </div>
+        </div>
+
+        {task.status !== 'completed' && (
+          <button onClick={() => handleCompleteTask(task._id)}>
+            Đánh dấu hoàn thành
+          </button>
+        )}
+        {new Date(task.dueDate) < new Date() && task.status !== 'completed' && (
+          <p className="overdue-warning">Công việc đã quá hạn! Bạn có thể bị phạt.</p>
+        )}
+      </li>
+    ))}
+  </ul>
+) : (
+  <p>Không có nhắc việc nào.</p>
+)}
         </div>
       </div>
 

@@ -1,474 +1,372 @@
 import React, { useEffect, useState } from 'react';
 import NavigationAdmin from '../components/NavigationAdmin';
+import moment from 'moment';
+import 'moment/locale/vi';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+import styled from 'styled-components';
+import { motion } from 'framer-motion';
 
-// Utils
-const formatTime = (date) => {
-  return date ? new Date(date).toLocaleTimeString('vi-VN') : 'N/A';
-};
-
-const formatDate = (date) => {
-  return date ? new Date(date).toLocaleDateString('vi-VN') : 'N/A';
-};
-
-const isLateCheckIn = (time, period) => {
-  if (!time) return false;
-  const checkInTime = new Date(time);
-  const hours = checkInTime.getHours();
-  const minutes = checkInTime.getMinutes();
-  const timeInMinutes = hours * 60 + minutes;
-
-  if (period === 'morning') {
-    // Sáng: sau 8:15 là muộn
-    return timeInMinutes > 8 * 60 + 15;
-  } else if (period === 'afternoon') {
-    // Chiều: sau 13:45 là muộn (13:30 + 15 phút)
-    return timeInMinutes > 13 * 60 + 45;
-  }
-  return false;
-};
-
-const getAttendanceStatus = (record) => {
-  const morningLate = isLateCheckIn(record.morningCheckIn, 'morning');
-  const afternoonLate = isLateCheckIn(record.afternoonCheckIn, 'afternoon');
-  
-  if (!record.morningCheckIn && !record.afternoonCheckIn) {
-    return 'absent';
-  } else if (morningLate || afternoonLate) {
-    return 'late';
-  }
-  return 'present';
-};
-
-// Components
-const TimeBadge = ({ time, period }) => {
-  if (!time) return null;
-  const isLate = isLateCheckIn(time, period);
-  const threshold = period === 'morning' ? '8:15' : '13:45';
-  
-  return isLate ? (
-    <div className="late-flag">
-      <span className="late-time">Sau {threshold}</span>
-    </div>
-  ) : null;
-};
-
-const StatusBadge = ({ status }) => {
-  const statusConfig = {
-    late: { text: 'Đi muộn', className: 'status-late' },
-    absent: { text: 'Vắng mặt', className: 'status-absent' },
-    present: { text: 'Đúng giờ', className: 'status-ontime' }
-  };
-
-  const { text, className } = statusConfig[status] || statusConfig.absent;
-
-  return (
-    <div className={`status-badge ${className}`}>
-      {text}
-    </div>
-  );
-};
-
-const AttendanceRow = ({ record }) => {
-  const status = getAttendanceStatus(record);
-
-  return (
-    <tr className="table-row">
-      <td>
-        <div className="employee-cell">
-          <span className="employee-name">{record.userId?.fullName || 'N/A'}</span>
-        </div>
-      </td>
-      <td>
-        <div className="position-cell">
-          <span className="position-text">{record.userId?.position || 'N/A'}</span>
-        </div>
-      </td>
-      <td>
-        <div className="date-cell">
-          {formatDate(record.date)}
-        </div>
-      </td>
-      <td>
-        <div className="time-cell">
-          <span className={isLateCheckIn(record.morningCheckIn, 'morning') ? 'late-time' : ''}>
-            {formatTime(record.morningCheckIn)}
-          </span>
-          <TimeBadge time={record.morningCheckIn} period="morning" />
-        </div>
-      </td>
-      <td>
-        <div className="time-cell">
-          {formatTime(record.morningCheckOut)}
-        </div>
-      </td>
-      <td>
-        <div className="time-cell">
-          <span className={isLateCheckIn(record.afternoonCheckIn, 'afternoon') ? 'late-time' : ''}>
-            {formatTime(record.afternoonCheckIn)}
-          </span>
-          <TimeBadge time={record.afternoonCheckIn} period="afternoon" />
-        </div>
-      </td>
-      <td>
-        <div className="time-cell">
-          {formatTime(record.afternoonCheckOut)}
-        </div>
-      </td>
-      <td>
-        <div className="total-cell">
-          {record.totalHours || '0 giờ 0 phút'}
-        </div>
-      </td>
-      <td>
-        <div className="status-cell">
-          <StatusBadge status={status} />
-        </div>
-      </td>
-    </tr>
-  );
-};
-
-const LoadingSpinner = () => (
-  <div className="loading-overlay">
-    <div className="spinner"></div>
-    <span className="loading-text">Đang tải dữ liệu...</span>
-  </div>
-);
-
-const ErrorMessage = ({ message }) => (
-  <div className="error-container">
-    <div className="error-icon">⚠️</div>
-    <div className="error-message">{message}</div>
-  </div>
-);
-
-const EmptyState = () => (
-  <div className="empty-state">
-    <div className="empty-icon">📊</div>
-    <div className="empty-text">Chưa có dữ liệu chấm công</div>
-  </div>
-);
-
-const AttendanceAdmin = () => {
-  const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAttendance = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/auth/attendance/all', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-        });
-
-        if (!response.ok) throw new Error('Lỗi kết nối máy chủ');
-
-        const data = await response.json();
-        if (Array.isArray(data.attendanceRecords)) {
-          setAttendanceRecords(data.attendanceRecords.filter(record => record && record.userId));
-        } else {
-          throw new Error('Dữ liệu không hợp lệ');
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAttendance();
-  }, []);
-
-  if (loading) return <LoadingSpinner />;
-  if (error) return <ErrorMessage message={error} />;
-
-  return (
-    <div className="admin-container">
-      <NavigationAdmin />
-      <div className="content-wrapper">
-        <div className="attendance-card">
-          <div className="card-header">
-            <h1 className="header-title">Tổng Hợp Chấm Công</h1>
-          </div>
-          
-          <div className="card-body">
-            {attendanceRecords.length === 0 ? (
-              <EmptyState />
-            ) : (
-              <div className="table-responsive">
-                <table className="attendance-table">
-                  <thead>
-                    <tr>
-                      <th>Tên Nhân Viên</th>
-                      <th>Chức Vụ</th>
-                      <th>Ngày</th>
-                      <th>Check In Sáng</th>
-                      <th>Check Out Sáng</th>
-                      <th>Check In Chiều</th>
-                      <th>Check Out Chiều</th>
-                      <th>Tổng Thời Gian</th>
-                      <th>Trạng Thái</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attendanceRecords.map((record) => (
-                      <AttendanceRow key={record._id} record={record} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Styles
-const styles = `
-.admin-container {
+const PageContainer = styled.div`
   min-height: 100vh;
   background: #f3f4f6;
-}
+`;
 
-.content-wrapper {
+const ContentContainer = styled.div`
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
-}
+`;
 
-.attendance-card {
+const Card = styled.div`
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
   overflow: hidden;
-}
+`;
 
-.card-header {
+const CardHeader = styled.div`
   background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
   padding: 1.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
 
-.header-title {
+const Title = styled.h1`
   color: white;
   font-size: 1.5rem;
   font-weight: 600;
   text-align: center;
   margin: 0;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
+`;
 
-.card-body {
+const MonthYearSelector = styled.div`
+  display: flex;
+  gap: 1rem;
+  color: white;
+
+  select {
+    padding: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid white;
+    background: transparent;
+    color: white;
+    font-size: 0.875rem;
+    cursor: pointer;
+    outline: none;
+
+    option {
+      background: #0ea5e9;
+      color: white;
+    }
+  }
+`;
+
+const StatsContainer = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
   padding: 1.5rem;
-}
+  background: #f8fafc;
+  margin-bottom: 1rem;
+`;
 
-.table-responsive {
-  overflow-x: auto;
+const StatCard = styled.div`
+  background: white;
+  padding: 1rem;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 
-.attendance-table {
+  .label {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .value {
+    color: #0f172a;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+`;
+
+const TableContainer = styled.div`
+  padding: 1.5rem;
+  overflow-x: auto;
+`;
+
+const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   background: white;
-}
+  min-width: 1000px;
 
-.attendance-table th {
-  background: #f8fafc;
-  padding: 1rem;
-  font-weight: 600;
-  color: #1e293b;
-  text-align: left;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  border-bottom: 2px solid #e2e8f0;
-}
-
-.attendance-table td {
-  padding: 1rem;
-  border-bottom: 1px solid #f1f5f9;
-  font-size: 0.875rem;
-}
-
-.table-row {
-  transition: background-color 0.2s;
-}
-
-.table-row:hover {
-  background-color: #f8fafc;
-}
-
-.employee-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.employee-name {
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.position-text {
-  color: #64748b;
-  font-size: 0.875rem;
-}
-
-.date-cell {
-  color: #475569;
-  font-weight: 500;
-}
-
-.time-cell {
-  position: relative;
-  color: #475569;
-}
-
-.late-time {
-  color: #ef4444;
-  font-weight: 500;
-}
-
-.late-flag {
-  position: absolute;
-  top: -0.5rem;
-  right: -0.5rem;
-  background: #fef2f2;
-  color: #ef4444;
-  font-size: 0.75rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.total-cell {
-  font-weight: 500;
-  color: #0f172a;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.375rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.status-late {
-  background: #fef2f2;
-  color: #ef4444;
-  border: 1px solid #fecaca;
-}
-
-.status-ontime {
-  background: #f0fdf4;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
-}
-
-.status-absent {
-  background: #fefce8;
-  color: #ca8a04;
-  border: 1px solid #fef08a;
-}
-
-/* Loading State */
-.loading-overlay {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  gap: 1rem;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #0ea5e9;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.loading-text {
-  color: #64748b;
-  font-size: 0.875rem;
-}
-
-/* Error State */
-.error-container {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: #fef2f2;
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid #fecaca;
-  margin: 1rem 0;
-}
-
-.error-message {
-  color: #ef4444;
-  font-size: 0.875rem;
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem;
-  text-align: center;
-  background: #f8fafc;
-  border-radius: 8px;
-  gap: 1rem;
-}
-
-.empty-icon {
-  font-size: 2rem;
-}
-
-.empty-text {
-  color: #64748b;
-  font-size: 0.875rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (max-width: 1024px) {
-  .content-wrapper {
+  th {
+    background: #f8fafc;
     padding: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    text-align: left;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    border-bottom: 2px solid #e2e8f0;
   }
-  
-  .card-header {
+
+  td {
     padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.875rem;
   }
-  
-  .header-title {
-    font-size: 1.25rem;
-  }
-}
 `;
 
-const styleSheet = document.createElement("style");
-styleSheet.type = "text/css";
-styleSheet.innerText = styles;
-document.head.appendChild(styleSheet);
+const StatusBadge = styled.span`
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+
+  ${({ status }) => {
+    switch (status) {
+      case 'present':
+        return `
+          background: #f0fdf4;
+          color: #15803d;
+          border: 1px solid #bbf7d0;
+        `;
+      case 'late':
+        return `
+          background: #fef2f2;
+          color: #ef4444;
+          border: 1px solid #fecaca;
+        `;
+      default:
+        return `
+          background: #fefce8;
+          color: #ca8a04;
+          border: 1px solid #fef08a;
+        `;
+    }
+  }}
+`;
+
+// Utils
+const formatTime = (timeString) => {
+  if (!timeString) return 'N/A';
+  try {
+    // Kiểm tra nếu timeString đã ở định dạng HH:mm:ss
+    if (timeString.length <= 8 && timeString.includes(':')) {
+      return timeString;
+    }
+    
+    // Nếu là datetime đầy đủ thì parse và format
+    const parsedTime = moment(timeString).format('HH:mm:ss');
+    return parsedTime === 'Invalid date' ? 'N/A' : parsedTime;
+  } catch (error) {
+    console.error('Error formatting time:', error, timeString);
+    return 'N/A';
+  }
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  try {
+    const formattedDate = moment(dateString).format('DD/MM/YYYY');
+    return formattedDate === 'Invalid date' ? 'N/A' : formattedDate;
+  } catch (error) {
+    console.error('Error formatting date:', error, dateString);
+    return 'N/A';
+  }
+};
+
+
+const formatWorkHours = (hours) => {
+  if (hours === undefined || hours === null) return 'N/A';
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+  return `${wholeHours} giờ ${minutes} phút`;
+};
+
+const getStatusText = (status) => {
+  switch (status) {
+    case 'present': return 'Đúng giờ';
+    case 'late': return 'Đi muộn';
+    case 'absent': return 'Vắng mặt';
+    default: return 'N/A';
+  }
+};
+
+const AttendanceAdmin = () => {
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [monthlyStats, setMonthlyStats] = useState(null);
+  const [currentMonth, setCurrentMonth] = useState(moment().month() + 1);
+  const [currentYear, setCurrentYear] = useState(moment().year());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchAttendance = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/auth/attendance/all', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { month: currentMonth, year: currentYear }
+      });
+
+      setAttendanceRecords(response.data.attendanceRecords || []);
+      setMonthlyStats(response.data.summary || null);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+      setError(error.response?.data?.message || 'Không thể tải dữ liệu chấm công');
+      Swal.fire({
+        icon: 'error',
+        title: 'Lỗi!',
+        text: 'Không thể tải dữ liệu chấm công'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAttendance();
+  }, [currentMonth, currentYear]);
+
+  const renderStats = () => (
+    <StatsContainer>
+      <StatCard>
+        <div className="label">Tổng số ngày làm việc</div>
+        <div className="value">{monthlyStats?.workingDays || 0} ngày</div>
+      </StatCard>
+      <StatCard>
+        <div className="label">Số lần đi muộn</div>
+        <div className="value">{monthlyStats?.totalLateRecords || 0}</div>
+      </StatCard>
+      <StatCard>
+        <div className="label">Tổng giờ làm việc</div>
+        <div className="value">{formatWorkHours(monthlyStats?.totalWorkHours || 0)}</div>
+      </StatCard>
+      <StatCard>
+        <div className="label">Trung bình giờ làm/người</div>
+        <div className="value">{formatWorkHours(monthlyStats?.averageWorkHours || 0)}</div>
+      </StatCard>
+    </StatsContainer>
+  );
+
+  if (error) {
+    return (
+      <PageContainer>
+        <ContentContainer>
+          <Card>
+            <CardHeader>
+              <Title>Lỗi</Title>
+            </CardHeader>
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>
+              {error}
+            </div>
+          </Card>
+        </ContentContainer>
+      </PageContainer>
+    );
+  }
+
+  return (
+    <PageContainer>
+      <NavigationAdmin />
+      <ContentContainer>
+        <Card>
+          <CardHeader>
+            <Title>Tổng Hợp Chấm Công</Title>
+            <MonthYearSelector>
+              <select 
+                value={currentMonth}
+                onChange={(e) => setCurrentMonth(parseInt(e.target.value))}
+              >
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+                ))}
+              </select>
+              <select
+                value={currentYear}
+                onChange={(e) => setCurrentYear(parseInt(e.target.value))}
+              >
+                {Array.from({ length: 5 }, (_, i) => (
+                  <option key={currentYear - 2 + i} value={currentYear - 2 + i}>
+                    Năm {currentYear - 2 + i}
+                  </option>
+                ))}
+              </select>
+            </MonthYearSelector>
+          </CardHeader>
+
+          {monthlyStats && renderStats()}
+
+          <TableContainer>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>Đang tải dữ liệu...</div>
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Tên Nhân Viên</th>
+                    <th>Chức Vụ</th>
+                    <th>Ngày</th>
+                    <th>Check In Sáng</th>
+                    <th>Check Out Sáng</th>
+                    <th>Check In Chiều</th>
+                    <th>Check Out Chiều</th>
+                    <th>Tổng Thời Gian</th>
+                    <th>Trạng Thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+  {attendanceRecords.map((record) => (
+    <tr key={record._id}>
+      <td>{record.userId?.fullName || 'N/A'}</td>
+      <td>{record.userId?.position || 'N/A'}</td>
+      <td>{formatDate(record.date)}</td>
+      <td>
+        <div>
+          {formatTime(record.morningSession?.checkIn)}
+          {record.morningSession?.isLate && (
+            <div style={{ color: '#ef4444', fontSize: '0.75rem' }}>Đi muộn</div>
+          )}
+        </div>
+      </td>
+      <td>{formatTime(record.morningSession?.checkOut)}</td>
+      <td>
+        <div>
+          {formatTime(record.afternoonSession?.checkIn)}
+          {record.afternoonSession?.isLate && (
+            <div style={{ color: '#ef4444', fontSize: '0.75rem' }}>Đi muộn</div>
+          )}
+        </div>
+      </td>
+      <td>{formatTime(record.afternoonSession?.checkOut)}</td>
+      <td>
+        <div>
+          <div>Ngày: {record.workingHours?.daily || '0 giờ 0 phút'}</div>
+          <div>Tháng: {record.workingHours?.monthly || '0 giờ 0 phút'}</div>
+        </div>
+      </td>
+      <td>
+        <StatusBadge status={record.status}>
+          {getStatusText(record.status)}
+        </StatusBadge>
+      </td>
+    </tr>
+  ))}
+</tbody>
+              </Table>
+            )}
+          </TableContainer>
+        </Card>
+      </ContentContainer>
+    </PageContainer>
+  );
+};
 
 export default AttendanceAdmin;
