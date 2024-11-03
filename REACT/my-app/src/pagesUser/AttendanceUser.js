@@ -64,28 +64,26 @@ const formatWorkTime = (duration) => {
 
 // Components
 const SessionInfo = ({ session, period }) => {
-  const isLate = checkIsLate(session.checkIn, period);
+  const { isLate, minutes } = checkIsLate(session.checkIn, period);
   
   const calculateDuration = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return '0 giờ 0 phút';
     
     // Parse times
-    const [inHours, inMinutes, inSeconds] = checkIn.split(':').map(Number);
-    const [outHours, outMinutes, outSeconds] = checkOut.split(':').map(Number);
+    const [inHours, inMinutes] = checkIn.split(':').map(Number);
+    const [outHours, outMinutes] = checkOut.split(':').map(Number);
     
     // Convert to total minutes
-    const checkInMinutes = inHours * 60 + inMinutes + (inSeconds / 60);
-    const checkOutMinutes = outHours * 60 + outMinutes + (outSeconds / 60);
+    const checkInMinutes = inHours * 60 + inMinutes;
+    const checkOutMinutes = outHours * 60 + outMinutes;
     
-    // Calculate duration in minutes
+    // Calculate duration in minutes and round down to nearest 15 minutes
     let durationMinutes = checkOutMinutes - checkInMinutes;
-    
-    // Handle negative duration (should not happen in normal cases)
-    if (durationMinutes < 0) return '0 giờ 0 phút';
+    durationMinutes = Math.floor(Math.max(0, durationMinutes) / 15) * 15;
     
     // Convert to hours and minutes
     const hours = Math.floor(durationMinutes / 60);
-    const minutes = Math.round(durationMinutes % 60);
+    const minutes = durationMinutes % 60;
     
     return `${hours} giờ ${minutes} phút`;
   };
@@ -94,39 +92,67 @@ const SessionInfo = ({ session, period }) => {
     calculateDuration(session.checkIn, session.checkOut) : 
     '0 giờ 0 phút';
 
-  return (
-    <div style={styles.sessionInfo}>
-      <div style={styles.timeInfo}>
-        <div>Vào: {formatTime(session.checkIn) || 'Chưa có dữ liệu'}</div>
-        <div>Ra: {formatTime(session.checkOut) || 'Chưa có dữ liệu'}</div>
-        <div>Thời gian: {duration}</div>
+    return (
+      <div style={styles.sessionInfo}>
+        <div style={styles.timeInfo}>
+          <div>Vào: {formatTime(session.checkIn) || 'Chưa có dữ liệu'}</div>
+          <div>Ra: {formatTime(session.checkOut) || 'Chưa có dữ liệu'}</div>
+          <div>Thời gian: {duration}</div>
+          {isLate && minutes > 0 && session.latePenalty && (
+            <div style={styles.latePenaltyInfo}>
+              <span>Phạt đi muộn {minutes} phút:</span>
+              <span style={styles.penaltyAmount}>
+                -{formatCurrency(session.latePenalty)}
+              </span>
+            </div>
+          )}
+        </div>
+        {session.checkIn && <StatusBadge isLate={isLate} minutes={minutes} />}
       </div>
-      {session.checkIn && <StatusBadge isLate={isLate} />}
-    </div>
-  );
-};
+    );
+  };
 
-const checkIsLate = (checkInTime, period) => {
-  if (!checkInTime) return false;
+  const checkIsLate = (checkInTime, period) => {
+    if (!checkInTime) return { isLate: false, minutes: 0 };
+    
+    const [hours, minutes] = checkInTime.split(':').map(Number);
+    const timeInMinutes = hours * 60 + minutes;
   
-  const [hours, minutes] = checkInTime.split(':').map(Number);
-  const timeInMinutes = hours * 60 + minutes;
+    if (period === 'morning') {
+      const expectedTime = TIME_CONSTANTS.WORKING_HOURS.MORNING.START;
+      const lateMinutes = Math.max(0, timeInMinutes - (expectedTime + TIME_CONSTANTS.WORKING_HOURS.MORNING.BUFFER));
+      return {
+        isLate: lateMinutes > 0,
+        minutes: lateMinutes
+      };
+    } else {
+      const expectedTime = TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.START;
+      const lateMinutes = Math.max(0, timeInMinutes - (expectedTime + TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.BUFFER));
+      return {
+        isLate: lateMinutes > 0,
+        minutes: lateMinutes
+      };
+    }
+  };
 
-  if (period === 'morning') {
-    return timeInMinutes > TIME_CONSTANTS.WORKING_HOURS.MORNING.START + TIME_CONSTANTS.WORKING_HOURS.MORNING.BUFFER;
-  } else {
-    return timeInMinutes > TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.START + TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.BUFFER;
-  }
-};
-
-const StatusBadge = ({ isLate }) => (
+const StatusBadge = ({ isLate, minutes }) => (
   <div style={{
     ...styles.badge,
     ...(isLate ? styles.lateBadge : styles.onTimeBadge)
   }}>
-    {isLate ? 'Đi muộn' : 'Đúng giờ'}
+    {isLate ? `Đi muộn ${minutes} phút` : 'Đúng giờ'}
   </div>
 );
+
+const formatCurrency = (value) => {
+  if (value === undefined || value === null) return '0 ₫';
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value);
+};
 
 const MonthlyStats = ({ stats }) => (
   <div style={styles.monthlyStats}>
@@ -142,11 +168,19 @@ const MonthlyStats = ({ stats }) => (
       </div>
       <div style={styles.statItem}>
         <span>Số ngày đi muộn:</span>
-        <span>{stats.lateDays || 0} ngày</span>
+        <span style={styles.lateCount}>
+          {`${stats.lateDays || 0} ngày`}
+        </span>
+      </div>
+      <div style={styles.statItem}>
+        <span>Tổng phạt đi muộn:</span>
+        <span style={styles.latePenalty}>
+          -{formatCurrency(stats.latePenalty || 0)}
+        </span>
       </div>
       <div style={styles.statItem}>
         <span>Tỷ lệ làm việc:</span>
-        <span>{stats.workRatio || '0'}%</span>
+        <span>{`${stats.workRatio || 0}%`}</span>
       </div>
     </div>
   </div>

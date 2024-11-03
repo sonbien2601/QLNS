@@ -76,14 +76,42 @@ attendanceSchema.pre('save', async function(next) {
     // Tính toán số giờ làm việc trong ngày
     let dailyMinutes = 0;
 
+    // Xử lý ca sáng
     if (this.morningCheckIn && this.morningCheckOut) {
-      const morningDiff = moment(this.morningCheckOut).diff(moment(this.morningCheckIn), 'minutes');
-      dailyMinutes += Math.max(0, morningDiff);
+      const startTime = moment(this.morningCheckIn);
+      const endTime = moment(this.morningCheckOut);
+
+      // Giới hạn thời gian làm việc buổi sáng từ 8h đến 12h
+      const morningStart = moment(this.morningCheckIn).startOf('day').add(8, 'hours');
+      const morningEnd = moment(this.morningCheckIn).startOf('day').add(12, 'hours');
+
+      // Điều chỉnh thời gian check-in/out nếu nằm ngoài khung giờ
+      const effectiveStart = startTime.isAfter(morningStart) ? startTime : morningStart;
+      const effectiveEnd = endTime.isBefore(morningEnd) ? endTime : morningEnd;
+
+      if (effectiveEnd.isAfter(effectiveStart)) {
+        const morningMinutes = effectiveEnd.diff(effectiveStart, 'minutes');
+        dailyMinutes += Math.floor(morningMinutes / 15) * 15;
+      }
     }
 
+    // Xử lý ca chiều
     if (this.afternoonCheckIn && this.afternoonCheckOut) {
-      const afternoonDiff = moment(this.afternoonCheckOut).diff(moment(this.afternoonCheckIn), 'minutes');
-      dailyMinutes += Math.max(0, afternoonDiff);
+      const startTime = moment(this.afternoonCheckIn);
+      const endTime = moment(this.afternoonCheckOut);
+
+      // Giới hạn thời gian làm việc buổi chiều từ 13:30 đến 17:30
+      const afternoonStart = moment(this.afternoonCheckIn).startOf('day').add(13, 'hours').add(30, 'minutes');
+      const afternoonEnd = moment(this.afternoonCheckIn).startOf('day').add(17, 'hours').add(30, 'minutes');
+
+      // Điều chỉnh thời gian check-in/out nếu nằm ngoài khung giờ
+      const effectiveStart = startTime.isAfter(afternoonStart) ? startTime : afternoonStart;
+      const effectiveEnd = endTime.isBefore(afternoonEnd) ? endTime : afternoonEnd;
+
+      if (effectiveEnd.isAfter(effectiveStart)) {
+        const afternoonMinutes = effectiveEnd.diff(effectiveStart, 'minutes');
+        dailyMinutes += Math.floor(afternoonMinutes / 15) * 15;
+      }
     }
 
     // Cập nhật số giờ làm việc trong ngày

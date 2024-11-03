@@ -18,6 +18,13 @@ const Register = () => {
     companyName: '',
     city: '',
     gender: '',
+    // Thêm các trường câu hỏi bảo mật
+    securityQuestion1: '',
+    securityAnswer1: '',
+    securityQuestion2: '',
+    securityAnswer2: '',
+    securityQuestion3: '',
+    securityAnswer3: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -34,6 +41,16 @@ const Register = () => {
       });
     }
   };
+
+    // Danh sách câu hỏi bảo mật
+    const securityQuestions = [
+      "Tên trường tiểu học đầu tiên của bạn là gì?",
+      "Con vật đầu tiên bạn nuôi là gì?",
+      "Họ và tên đệm của mẹ bạn là gì?",
+      "Biệt danh thời thơ ấu của bạn là gì?",
+      "Người bạn thân nhất thời phổ thông của bạn là ai?",
+      "Món ăn yêu thích thời thơ ấu của bạn là gì?"
+    ];
 
   const validateForm = () => {
     const newErrors = {};
@@ -64,6 +81,21 @@ const Register = () => {
     if (!formData.companyName.trim()) newErrors.companyName = 'Tên công ty là bắt buộc';
     if (!formData.city) newErrors.city = 'Vui lòng chọn thành phố';
     if (!formData.gender) newErrors.gender = 'Vui lòng chọn giới tính';
+     // Thêm validation cho câu hỏi bảo mật
+     if (!formData.securityQuestion1) newErrors.securityQuestion1 = 'Vui lòng chọn câu hỏi bảo mật 1';
+     if (!formData.securityAnswer1.trim()) newErrors.securityAnswer1 = 'Vui lòng nhập câu trả lời 1';
+     if (!formData.securityQuestion2) newErrors.securityQuestion2 = 'Vui lòng chọn câu hỏi bảo mật 2';
+     if (!formData.securityAnswer2.trim()) newErrors.securityAnswer2 = 'Vui lòng nhập câu trả lời 2';
+     if (!formData.securityQuestion3) newErrors.securityQuestion3 = 'Vui lòng chọn câu hỏi bảo mật 3';
+     if (!formData.securityAnswer3.trim()) newErrors.securityAnswer3 = 'Vui lòng nhập câu trả lời 3';
+ 
+     // Kiểm tra câu hỏi không được trùng nhau
+     const questions = [formData.securityQuestion1, formData.securityQuestion2, formData.securityQuestion3];
+     const uniqueQuestions = new Set(questions.filter(q => q !== ''));
+     if (uniqueQuestions.size !== questions.filter(q => q !== '').length) {
+       newErrors.securityQuestion2 = 'Các câu hỏi bảo mật không được trùng nhau';
+     }
+ 
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -235,12 +267,112 @@ const Register = () => {
                 {errors.gender && <ErrorMessage>{errors.gender}</ErrorMessage>}
               </FormGroup>
             </FormGrid>
+
+            {/* Thêm phần câu hỏi bảo mật */}
+            <SecuritySection>
+              <SecurityTitle>Câu hỏi bảo mật</SecurityTitle>
+              <SecurityDescription>
+                Vui lòng chọn 3 câu hỏi bảo mật và cung cấp câu trả lời. 
+                Những thông tin này sẽ được sử dụng khi bạn cần khôi phục mật khẩu.
+              </SecurityDescription>
+              
+              <FormGroup>
+                <Label>Câu hỏi bảo mật 1:</Label>
+                <Select
+                  name="securityQuestion1"
+                  value={formData.securityQuestion1}
+                  onChange={handleChange}
+                  $hasError={!!errors.securityQuestion1}
+                >
+                  <option value="">Chọn câu hỏi bảo mật</option>
+                  {securityQuestions.map((question, index) => (
+                    <option key={index} value={question}>
+                      {question}
+                    </option>
+                  ))}
+                </Select>
+                {errors.securityQuestion1 && <ErrorMessage>{errors.securityQuestion1}</ErrorMessage>}
+              </FormGroup>
+              <FormGroup>
+                <Label>Câu trả lời 1:</Label>
+                <Input
+                  type="text"
+                  name="securityAnswer1"
+                  value={formData.securityAnswer1}
+                  onChange={handleChange}
+                  placeholder="Nhập câu trả lời của bạn"
+                  $hasError={!!errors.securityAnswer1}
+                />
+                {errors.securityAnswer1 && <ErrorMessage>{errors.securityAnswer1}</ErrorMessage>}
+              </FormGroup>
+
+              <FormGroup>
+                <Label>Câu hỏi bảo mật 2:</Label>
+                <Select
+                  name="securityQuestion2"
+                  value={formData.securityQuestion2}
+                  onChange={handleChange}
+                  $hasError={!!errors.securityQuestion2}
+                >
+                  <option value="">Chọn câu hỏi bảo mật</option>
+                  {securityQuestions.map((question, index) => (
+                    <option key={index} value={question}>
+                      {question}
+                    </option>
+                  ))}
+                </Select>
+                {errors.securityQuestion2 && <ErrorMessage>{errors.securityQuestion2}</ErrorMessage>}
+              </FormGroup>
+              <FormGroup>
+                <Label>Câu trả lời 2:</Label>
+                <Input
+                  type="text"
+                  name="securityAnswer2"
+                  value={formData.securityAnswer2}
+                  onChange={handleChange}
+                  placeholder="Nhập câu trả lời của bạn"
+                  $hasError={!!errors.securityAnswer2}
+                />
+                {errors.securityAnswer2 && <ErrorMessage>{errors.securityAnswer2}</ErrorMessage>}
+              </FormGroup>
+
+              <FormGroup>
+                <Label>Câu hỏi bảo mật 3:</Label>
+                <Select
+                  name="securityQuestion3"
+                  value={formData.securityQuestion3}
+                  onChange={handleChange}
+                  $hasError={!!errors.securityQuestion3}
+                >
+                  <option value="">Chọn câu hỏi bảo mật</option>
+                  {securityQuestions.map((question, index) => (
+                    <option key={index} value={question}>
+                      {question}
+                    </option>
+                  ))}
+                </Select>
+                {errors.securityQuestion3 && <ErrorMessage>{errors.securityQuestion3}</ErrorMessage>}
+              </FormGroup>
+              <FormGroup>
+                <Label>Câu trả lời 3:</Label>
+                <Input
+                  type="text"
+                  name="securityAnswer3"
+                  value={formData.securityAnswer3}
+                  onChange={handleChange}
+                  placeholder="Nhập câu trả lời của bạn"
+                  $hasError={!!errors.securityAnswer3}
+                />
+                {errors.securityAnswer3 && <ErrorMessage>{errors.securityAnswer3}</ErrorMessage>}
+              </FormGroup>
+            </SecuritySection>
+
             <SubmitButton type="submit">Đăng ký</SubmitButton>
           </StyledForm>
         </RightSection>
       </ContentWrapper>
     </PageContainer>
-  );
+);
 };
 
 const PageContainer = styled.div`
@@ -404,6 +536,28 @@ const SubmitButton = styled.button`
   &:hover {
     background-color: #0099cc;
   }
+`;
+const SecuritySection = styled.div`
+  grid-column: 1 / -1;
+  background-color: #f8fafc;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+  border: 1px solid #e2e8f0;
+`;
+
+const SecurityTitle = styled.h3`
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+`;
+
+const SecurityDescription = styled.p`
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 20px;
+  line-height: 1.5;
 `;
 
 export default Register;

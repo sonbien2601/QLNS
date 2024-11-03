@@ -67,7 +67,32 @@ const user2Schema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['active', 'inactive'],
-    default: 'active'  // Thêm trường status để đồng bộ với frontend
+    default: 'active'
+  },
+  // Thêm các trường cho câu hỏi bảo mật
+  securityQuestion1: {
+    type: String,
+    required: true
+  },
+  securityAnswer1: {
+    type: String,
+    required: true
+  },
+  securityQuestion2: {
+    type: String,
+    required: true
+  },
+  securityAnswer2: {
+    type: String,
+    required: true
+  },
+  securityQuestion3: {
+    type: String,
+    required: true
+  },
+  securityAnswer3: {
+    type: String,
+    required: true
   }
 }, { 
   timestamps: true 

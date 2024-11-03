@@ -5,6 +5,22 @@ import '../css/style.css';
 import Swal from 'sweetalert2';
 import moment from 'moment';
 
+// Constants có thể giữ bên ngoài vì không phụ thuộc vào state
+const TIME_CONSTANTS = {
+  WORKING_HOURS: {
+    MORNING: {
+      START: 8 * 60,      // 8:00
+      END: 12 * 60,       // 12:00
+      BUFFER: 15          // 15 phút buffer
+    },
+    AFTERNOON: {
+      START: 13 * 60 + 30, // 13:30
+      END: 17 * 60 + 30,   // 17:30
+      BUFFER: 15           // 15 phút buffer
+    }
+  }
+};
+
 const SalaryUser = () => {
   const [salary, setSalary] = useState(null);
   const [feedbacks, setFeedbacks] = useState([]);
@@ -17,6 +33,43 @@ const SalaryUser = () => {
   useEffect(() => {
     fetchSalaryAndFeedbacks();
   }, [currentMonth, currentYear]);
+
+  const calculateDuration = (checkIn, checkOut) => {
+    if (!checkIn || !checkOut) return '0 giờ 0 phút';
+    
+    // Parse times
+    const [inHours, inMinutes] = checkIn.split(':').map(Number);
+    const [outHours, outMinutes] = checkOut.split(':').map(Number);
+    
+    // Convert to total minutes
+    const checkInMinutes = inHours * 60 + inMinutes;
+    const checkOutMinutes = outHours * 60 + outMinutes;
+    
+    // Calculate duration in minutes and round down to nearest 15 minutes
+    let durationMinutes = checkOutMinutes - checkInMinutes;
+    durationMinutes = Math.floor(Math.max(0, durationMinutes) / 15) * 15;
+    
+    // Convert to hours and minutes
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    
+    return `${hours} giờ ${minutes} phút`;
+  };
+
+  const calculateLateMinutes = (checkInTime, period) => {
+    if (!checkInTime) return 0;
+    
+    const [hours, minutes] = checkInTime.split(':').map(Number);
+    const timeInMinutes = hours * 60 + minutes;
+  
+    if (period === 'morning') {
+      const expectedTime = TIME_CONSTANTS.WORKING_HOURS.MORNING.START; // 8:00
+      return Math.max(0, timeInMinutes - expectedTime); // Bỏ buffer 15 phút
+    } else {
+      const expectedTime = TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.START; // 13:30
+      return Math.max(0, timeInMinutes - expectedTime); // Bỏ buffer 15 phút 
+    }
+  };
 
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '0 ₫';
@@ -45,7 +98,53 @@ const SalaryUser = () => {
     };
     return new Date(dateString).toLocaleDateString('vi-VN', options);
   };
+
+  const renderLateInfo = () => {
+    if (!salary) return null;
   
+    // Lấy thông tin đi muộn từ monthlyLateData
+    const monthlyLateData = salary.monthlyLateData || {
+      lateCount: 0,
+      latePenalty: 0,
+      lateDetails: []
+    };
+  
+    return (
+      <div style={styles.lateSection}>
+        <h3 style={styles.subtitle}>Thông tin đi muộn</h3>
+        <div style={styles.lateInfo}>
+          <div style={styles.rewardItem}>
+            <span>Số lần đi muộn:</span>
+            <span style={styles.penaltyText}>{monthlyLateData.lateCount || 0} lần</span>
+          </div>
+          <div style={styles.rewardItem}>
+            <span>Tổng tiền phạt đi muộn:</span>
+            <span style={styles.penaltyText}>-{formatCurrency(monthlyLateData.latePenalty || 0)}</span>
+          </div>
+          
+          {monthlyLateData.lateDetails && monthlyLateData.lateDetails.length > 0 && (
+            <div style={styles.lateDetailsList}>
+              <h4 style={styles.lateDetailsTitle}>Chi tiết các lần đi muộn:</h4>
+              {monthlyLateData.lateDetails.map((detail, index) => {
+                const checkInTime = moment(detail.date).format('HH:mm');
+                const lateMinutes = detail.minutes || calculateLateMinutes(checkInTime, detail.session);
+                
+                return (
+                  <div key={index} style={styles.lateDetailItem}>
+                    <span>{moment(detail.date).format('DD/MM/YYYY')}</span>
+                    <span>{detail.session === 'morning' ? 'Sáng' : 'Chiều'}</span>
+                    <span>Muộn {lateMinutes} phút</span>
+                    <span style={styles.penaltyText}>-{formatCurrency(detail.penalty)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderWorkingTimeInfo = () => {
     if (!salary) return null;
   
@@ -73,7 +172,7 @@ const SalaryUser = () => {
       </div>
     );
   };
-  
+
   const renderTaskRewards = () => {
     if (!salary) return null;
   
@@ -101,15 +200,15 @@ const SalaryUser = () => {
       </div>
     );
   };
-  
+
   const renderSalaryBreakdown = () => {
     if (!salary) return null;
   
-    // Tính toán lương theo giờ
-    const hourlyPay = salary.basicSalary / salary.standardWorkHours; // Lương giờ = Lương cơ bản / Số giờ chuẩn
-    const baseHourlySalary = hourlyPay * (salary.actualWorkHours || 0); // Lương thực tế = Lương giờ * Số giờ làm việc
+    const hourlyPay = salary.basicSalary / salary.standardWorkHours;
+    const baseHourlySalary = hourlyPay * (salary.actualWorkHours || 0);
     const totalBonus = (salary.bonus || 0) + (salary.taskBonus || 0);
-    const totalPenalty = salary.taskPenalty || 0;
+    const totalPenalty = (salary.taskPenalty || 0) + 
+      (salary.monthlyLateData?.latePenalty || 0);
   
     return (
       <div style={styles.breakdownSection}>
@@ -133,7 +232,11 @@ const SalaryUser = () => {
           </div>
           <div style={styles.breakdownItem}>
             <span>Phạt từ công việc:</span>
-            <span style={styles.penaltyText}>-{formatCurrency(totalPenalty)}</span>
+            <span style={styles.penaltyText}>-{formatCurrency(salary.taskPenalty || 0)}</span>
+          </div>
+          <div style={styles.breakdownItem}>
+            <span>Phạt đi muộn:</span>
+            <span style={styles.penaltyText}>-{formatCurrency(salary.monthlyLateData?.latePenalty || 0)}</span>
           </div>
           <div style={styles.breakdownTotal}>
             <span>Tổng lương thực tế:</span>
@@ -143,7 +246,6 @@ const SalaryUser = () => {
       </div>
     );
   };
-
 
   const fetchSalaryAndFeedbacks = async () => {
     try {
@@ -164,7 +266,6 @@ const SalaryUser = () => {
         })
       ]);
   
-      // Kiểm tra response status
       if (salaryResponse.status === 404) {
         setError(`Không có dữ liệu lương cho tháng ${currentMonth}/${currentYear}`);
         setSalary(null);
@@ -189,6 +290,8 @@ const SalaryUser = () => {
       setLoading(false);
     }
   };
+
+  
 
   const handleFeedbackSubmit = async (e) => {
     e.preventDefault();
@@ -267,14 +370,14 @@ const SalaryUser = () => {
                   {formatCurrency(salary.basicSalary / salary.standardWorkHours)}/giờ
                 </div>
               </div>
-  
               {renderWorkingTimeInfo()}
+              {renderLateInfo()}
               {renderTaskRewards()}
               {renderSalaryBreakdown()}
             </div>
           </>
         ) : null}
-  
+
         <h3 style={styles.subtitle}>Feedback Lương</h3>
         <div style={styles.feedbackList}>
           {feedbacks.map((feedback) => (
@@ -315,8 +418,6 @@ const SalaryUser = () => {
 };
 
 const styles = {
-
-
   monthSelector: {
     display: 'flex',
     gap: '1rem',
@@ -492,9 +593,6 @@ const styles = {
     resize: 'vertical',
     outline: 'none',
     transition: 'border-color 0.3s ease',
-    '&:focus': {
-      borderColor: '#3498db',
-    },
   },
   submitBtn: {
     padding: '12px 24px',
@@ -507,14 +605,6 @@ const styles = {
     transition: 'all 0.3s ease',
     alignSelf: 'flex-start',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    '&:hover': {
-      backgroundColor: '#2980b9',
-      transform: 'translateY(-1px)',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-    },
-    '&:active': {
-      transform: 'translateY(1px)',
-    },
   },
   loading: {
     textAlign: 'center',
@@ -538,6 +628,39 @@ const styles = {
     borderRadius: '8px',
     marginBottom: '30px',
   },
+  lateSection: {
+    backgroundColor: '#f8f9fa',
+    padding: '1.5rem',
+    borderRadius: '8px',
+    marginBottom: '2rem',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+  },
+  lateInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  lateDetailsList: {
+    marginTop: '1rem',
+    padding: '1rem',
+    backgroundColor: '#ffffff',
+    borderRadius: '6px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+  },
+  lateDetailsTitle: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    marginBottom: '0.75rem',
+    color: '#2c3e50',
+  },
+  lateDetailItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '0.5rem',
+    borderBottom: '1px solid #edf2f7',
+    fontSize: '0.875rem',
+  }
 };
 
 export default SalaryUser;

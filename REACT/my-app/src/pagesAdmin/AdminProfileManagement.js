@@ -8,6 +8,56 @@ import moment from 'moment';
 
 const MySwal = withReactContent(Swal);
 
+// Định nghĩa các styled-components cơ bản trước
+const FormGroup = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+`;
+
+const Label = styled.label`
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 14px;
+`;
+
+const Select = styled.select`
+    padding: 12px;
+    border: 2px solid ${props => props.$hasError ? '#e74c3c' : '#ced4da'};
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: white;
+    transition: all 0.3s ease;
+
+    &:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+`;
+
+const Input = styled.input`
+    padding: 14px;
+    border: 2px solid ${props => props.$hasError ? '#e74c3c' : '#ced4da'};
+    border-radius: 8px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+
+    &:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+`;
+
+const ErrorText = styled.span`
+    color: #e74c3c;
+    font-size: 12px;
+    margin-top: 5px;
+    display: block;
+`;
+
 const AdminProfileManagement = () => {
     const navigate = useNavigate();
     const [users, setUsers] = useState([]);
@@ -17,6 +67,7 @@ const AdminProfileManagement = () => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [passwordError, setPasswordError] = useState('');
+    const [errors, setErrors] = useState({});
 
     const labelMap = {
         username: 'Tên đăng nhập',
@@ -32,9 +83,29 @@ const AdminProfileManagement = () => {
         contractStart: 'Ngày bắt đầu hợp đồng',
         contractEnd: 'Ngày kết thúc hợp đồng',
         contractType: 'Loại hợp đồng',
-        contractStatus: 'Trạng thái hợp đồng',
-        employeeType: 'Loại nhân viên'
+        contractDisplayStatus: 'Trạng thái hợp đồng',
+        employeeType: 'Loại nhân viên',
+        status: 'Trạng thái',
+        // Thêm labels cho câu hỏi bảo mật
+        securityQuestion1: 'Câu hỏi bảo mật 1',
+        securityAnswer1: 'Câu trả lời 1',
+        securityQuestion2: 'Câu hỏi bảo mật 2',
+        securityAnswer2: 'Câu trả lời 2',
+        securityQuestion3: 'Câu hỏi bảo mật 3',
+        securityAnswer3: 'Câu trả lời 3'
     };
+
+
+    // Thêm danh sách câu hỏi bảo mật
+    const securityQuestions = [
+        "Tên trường tiểu học đầu tiên của bạn là gì?",
+        "Con vật đầu tiên bạn nuôi là gì?",
+        "Họ và tên đệm của mẹ bạn là gì?",
+        "Biệt danh thời thơ ấu của bạn là gì?",
+        "Người bạn thân nhất thời phổ thông của bạn là ai?",
+        "Món ăn yêu thích thời thơ ấu của bạn là gì?"
+    ];
+
 
     const genderOptions = ['Nam', 'Nữ', 'Khác'];
     const roleOptions = ['admin', 'user', 'manager'];
@@ -76,6 +147,87 @@ const AdminProfileManagement = () => {
         setSelectedUser(prevUser => ({ ...prevUser, [name]: value }));
     };
 
+
+    // Thêm hàm xử lý cập nhật câu hỏi bảo mật
+const handleSaveSecurityQuestions = async () => {
+    try {
+        // Validate câu hỏi và câu trả lời
+        const securityData = {
+            securityQuestion1: selectedUser.securityQuestion1,
+            securityAnswer1: selectedUser.securityAnswer1,
+            securityQuestion2: selectedUser.securityQuestion2,
+            securityAnswer2: selectedUser.securityAnswer2,
+            securityQuestion3: selectedUser.securityQuestion3,
+            securityAnswer3: selectedUser.securityAnswer3,
+        };
+
+        const newErrors = {};
+        // Kiểm tra trống
+        Object.keys(securityData).forEach(key => {
+            if (!securityData[key]) {
+                newErrors[key] = `${labelMap[key]} không được để trống`;
+            }
+        });
+
+        // Kiểm tra câu hỏi trùng nhau
+        const questions = [
+            securityData.securityQuestion1,
+            securityData.securityQuestion2,
+            securityData.securityQuestion3
+        ];
+        const uniqueQuestions = new Set(questions);
+        if (uniqueQuestions.size !== questions.length) {
+            newErrors.general = 'Các câu hỏi bảo mật không được trùng nhau';
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            MySwal.fire({
+                icon: 'error',
+                title: 'Lỗi',
+                text: 'Vui lòng kiểm tra lại thông tin'
+            });
+            return;
+        }
+
+        const token = localStorage.getItem('token');
+        const response = await axios.put(
+            `http://localhost:5000/api/auth/admin/user/${selectedUser._id}`,
+            securityData,
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (response.headers['new-token']) {
+            localStorage.setItem('token', response.headers['new-token']);
+        }
+
+        setUsers(prevUsers => prevUsers.map(user =>
+            user._id === selectedUser._id ? { ...user, ...response.data.user } : user
+        ));
+
+        setSelectedUser(prevUser => ({
+            ...prevUser,
+            ...response.data.user
+        }));
+
+        await MySwal.fire({
+            icon: 'success',
+            title: 'Thành công!',
+            text: 'Câu hỏi bảo mật đã được cập nhật',
+            showConfirmButton: false,
+            timer: 1500
+        });
+
+        setErrors({});
+    } catch (error) {
+        console.error('Lỗi khi cập nhật câu hỏi bảo mật:', error);
+        MySwal.fire({
+            icon: 'error',
+            title: 'Lỗi',
+            text: error.response?.data?.message || 'Đã xảy ra lỗi khi cập nhật câu hỏi bảo mật'
+        });
+    }
+};
 
     const handlePasswordUpdate = async () => {
         setPasswordError('');
@@ -143,7 +295,6 @@ const AdminProfileManagement = () => {
                         options = roleOptions;
                         break;
                     case 'employeeType':
-                        // Nếu là nhân viên chính thức, chỉ cho phép option "Chính thức"
                         options = selectedUser.employeeType === 'Chính thức'
                             ? ['Chính thức']
                             : employeeTypeOptions;
@@ -158,9 +309,7 @@ const AdminProfileManagement = () => {
                         options = [];
                 }
 
-                // Kiểm tra nếu đang cố chuyển từ chính thức về thử việc
-                if (field === 'employeeType' &&
-                    selectedUser.employeeType === 'Chính thức') {
+                if (field === 'employeeType' && selectedUser.employeeType === 'Chính thức') {
                     await MySwal.fire({
                         icon: 'error',
                         title: 'Không thể thay đổi',
@@ -182,7 +331,43 @@ const AdminProfileManagement = () => {
                         cancelButton: 'swal2-cancel'
                     }
                 });
-
+            } else if (field.startsWith('securityQuestion')) {
+                // Xử lý cho câu hỏi bảo mật
+                result = await MySwal.fire({
+                    title: `Chỉnh sửa ${labelMap[field]}`,
+                    input: 'select',
+                    inputOptions: securityQuestions.reduce((acc, question) => ({
+                        ...acc,
+                        [question]: question
+                    }), {}),
+                    inputValue: currentValue || "",
+                    showCancelButton: true,
+                    confirmButtonText: 'Lưu',
+                    cancelButtonText: 'Hủy',
+                    customClass: {
+                        confirmButton: 'swal2-confirm',
+                        cancelButton: 'swal2-cancel'
+                    }
+                });
+            } else if (field.startsWith('securityAnswer')) {
+                // Xử lý cho câu trả lời bảo mật
+                result = await MySwal.fire({
+                    title: `Chỉnh sửa ${labelMap[field]}`,
+                    input: 'text',
+                    inputValue: currentValue || "",
+                    inputValidator: (value) => {
+                        if (!value) {
+                            return 'Vui lòng nhập câu trả lời';
+                        }
+                    },
+                    showCancelButton: true,
+                    confirmButtonText: 'Lưu',
+                    cancelButtonText: 'Hủy',
+                    customClass: {
+                        confirmButton: 'swal2-confirm',
+                        cancelButton: 'swal2-cancel'
+                    }
+                });
             } else if (['contractStart', 'contractEnd'].includes(field)) {
                 result = await MySwal.fire({
                     title: `Chỉnh sửa ${labelMap[field]}`,
@@ -220,7 +405,24 @@ const AdminProfileManagement = () => {
                 const userId = selectedUser._id;
                 let updateData = { [field]: newValue };
 
-                // Xử lý đặc biệt khi chuyển từ thử việc sang chính thức
+                // Kiểm tra câu hỏi trùng lặp khi cập nhật câu hỏi bảo mật
+                if (field.startsWith('securityQuestion')) {
+                    const otherQuestions = [
+                        selectedUser.securityQuestion1,
+                        selectedUser.securityQuestion2,
+                        selectedUser.securityQuestion3
+                    ].filter((q, i) => `securityQuestion${i + 1}` !== field);
+
+                    if (otherQuestions.includes(newValue)) {
+                        await MySwal.fire({
+                            icon: 'error',
+                            title: 'Lỗi',
+                            text: 'Câu hỏi bảo mật không được trùng nhau'
+                        });
+                        return;
+                    }
+                }
+
                 if (field === 'employeeType' && newValue === 'Chính thức' && selectedUser.employeeType === 'Thử việc') {
                     const contractResult = await MySwal.fire({
                         title: 'Nhập thông tin hợp đồng chính thức',
@@ -299,13 +501,11 @@ const AdminProfileManagement = () => {
                         { headers: { Authorization: `Bearer ${token}` } }
                     );
 
-                    // Lấy token mới từ response header
                     const newToken = response.headers['new-token'];
                     if (newToken) {
                         localStorage.setItem('token', newToken);
                     }
 
-                    // Cập nhật state
                     setUsers(prevUsers => prevUsers.map(user =>
                         user._id === userId ? { ...user, ...response.data.user } : user
                     ));
@@ -393,7 +593,7 @@ const AdminProfileManagement = () => {
                             <tbody>
                                 {Object.entries(selectedUser).map(([key, value]) => {
                                     // Bỏ qua các trường không cần hiển thị
-                                    if (['password', '_id', '__v', 'createdAt', 'updatedAt'].includes(key)) return null;
+                                    if (['password', '_id', 'id', '__v', 'createdAt', 'updatedAt'].includes(key)) return null;
                                     const label = labelMap[key] || key;
 
                                     // Kiểm tra điều kiện hiển thị các trường hợp đồng
@@ -410,7 +610,6 @@ const AdminProfileManagement = () => {
                                             <td>{label}</td>
                                             <td>{renderFieldValue(key, value)}</td>
                                             <td>
-                                                {/* Hiển thị nút chỉnh sửa trong mọi trường hợp vì người dùng hiện tại là admin */}
                                                 <Button onClick={() => handleUpdate(key)}>Chỉnh sửa</Button>
                                             </td>
                                         </tr>
@@ -418,6 +617,57 @@ const AdminProfileManagement = () => {
                                 })}
                             </tbody>
                         </DetailsTable>
+
+                        <SecuritySection>
+    <h4>Câu hỏi bảo mật</h4>
+    <SecurityDescription>
+        Những câu hỏi này được sử dụng để xác thực khi khôi phục mật khẩu
+    </SecurityDescription>
+    <SecurityQuestionsContainer>
+        {[1, 2, 3].map((num) => (
+            <SecurityQuestionGroup key={num}>
+                <FormGroup>
+                    <Label>{labelMap[`securityQuestion${num}`]}:</Label>
+                    <Select
+                        name={`securityQuestion${num}`}
+                        value={selectedUser[`securityQuestion${num}`] || ""}
+                        onChange={handleInputChange}
+                        $hasError={!!errors[`securityQuestion${num}`]}
+                    >
+                        <option value="">Chọn câu hỏi bảo mật</option>
+                        {securityQuestions.map((question, index) => (
+                            <option key={index} value={question}>
+                                {question}
+                            </option>
+                        ))}
+                    </Select>
+                    {errors[`securityQuestion${num}`] &&
+                        <ErrorText>{errors[`securityQuestion${num}`]}</ErrorText>
+                    }
+                </FormGroup>
+                <FormGroup>
+                    <Label>{labelMap[`securityAnswer${num}`]}:</Label>
+                    <Input
+                        type="text"
+                        name={`securityAnswer${num}`}
+                        value={selectedUser[`securityAnswer${num}`] || ""}
+                        onChange={handleInputChange}
+                        placeholder="Nhập câu trả lời của bạn"
+                        $hasError={!!errors[`securityAnswer${num}`]}
+                    />
+                    {errors[`securityAnswer${num}`] &&
+                        <ErrorText>{errors[`securityAnswer${num}`]}</ErrorText>
+                    }
+                </FormGroup>
+            </SecurityQuestionGroup>
+        ))}
+    </SecurityQuestionsContainer>
+    {errors.general && <ErrorText style={{ textAlign: 'center' }}>{errors.general}</ErrorText>}
+    <SecuritySaveButton onClick={handleSaveSecurityQuestions}>
+        Lưu câu hỏi bảo mật
+    </SecuritySaveButton>
+</SecuritySection>
+
                         <h4>Mật khẩu:</h4>
                         <InputContainer>
                             <Input
@@ -598,19 +848,6 @@ const InputContainer = styled.div`
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 `;
 
-const Input = styled.input`
-    padding: 14px;
-    border: 2px solid #ced4da;
-    border-radius: 8px;
-    font-size: 16px;
-    transition: all 0.3s ease;
-
-    &:focus {
-        outline: none;
-        border-color: #3498db;
-        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
-    }
-`;
 
 const LoadingMessage = styled.div`
     text-align: center;
@@ -628,6 +865,56 @@ const ErrorMessage = styled.div`
     margin-top: 25px;
     font-weight: 600;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+`;
+
+
+const SecurityDescription = styled.p`
+    color: #718096;
+    font-size: 14px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+`;
+
+const SecurityQuestionsContainer = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+`;
+
+const SecurityQuestionGroup = styled.div`
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+    ${FormGroup} + ${FormGroup} {
+        margin-top: 15px;
+    }
+`;
+
+const SecuritySection = styled.div`
+    background-color: #f8fafc;
+    padding: 25px;
+    border-radius: 12px;
+    margin: 20px 0;
+    border: 1px solid #e2e8f0;
+
+    h4 {
+        color: #2d3748;
+        margin-bottom: 10px;
+        font-size: 18px;
+        font-weight: 600;
+    }
+`;
+
+const SecuritySaveButton = styled(Button)`
+    margin-top: 20px;
+    width: 100%;
+    background-color: #2ecc71;
+    
+    &:hover {
+        background-color: #27ae60;
+    }
 `;
 
 // Styles mới cho SweetAlert

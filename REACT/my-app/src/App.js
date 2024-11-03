@@ -5,6 +5,7 @@ import HeaderAdmin from './components/HeaderAdmin';
 import HeaderUser from './components/HeaderUser';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Introduce from './pages/Introduce';
 import PublicRoute from './pages/PublicRoute';
 import ProtectedRoute from './pages/ProtectedRoute';
@@ -38,8 +39,9 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Login route without header */}
+        {/* Login and ForgotPassword routes without header */}
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* All other routes with header */}
         <Route

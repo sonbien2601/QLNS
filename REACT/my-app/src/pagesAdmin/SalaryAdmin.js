@@ -560,22 +560,35 @@ const SalaryAdmin = () => {
   const fetchSalaries = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const token = localStorage.getItem('token');
       const response = await axios.get('http://localhost:5000/api/auth/salary', {
         headers: { Authorization: `Bearer ${token}` },
-        params: { month: currentMonth, year: currentYear }
+        params: { 
+          month: currentMonth, 
+          year: currentYear 
+        }
       });
-
-      setSalaries(response.data.salaries.map(salary => ({
-        ...salary,
-        fullName: salary.userId?.fullName || salary.fullName,
-        position: salary.userId?.position || salary.position
-      })));
-      setMonthlyStats(response.data.summary);
-
+  
+      if (response.data.salaries && Array.isArray(response.data.salaries)) {
+        setSalaries(response.data.salaries.map(salary => ({
+          ...salary,
+          fullName: salary.userId?.fullName || '',
+          position: salary.userId?.position || ''
+        })));
+        setMonthlyStats(response.data.summary);
+      } else {
+        setError('Không có dữ liệu lương cho tháng này');
+        setSalaries([]);
+        setMonthlyStats(null);
+      }
+  
     } catch (error) {
       console.error('Lỗi chi tiết khi lấy dữ liệu lương:', error);
       setError(`Không thể lấy dữ liệu lương: ${error.response?.data?.message || error.message}`);
+      setSalaries([]);
+      setMonthlyStats(null);
     } finally {
       setLoading(false);
     }
@@ -648,35 +661,63 @@ const SalaryAdmin = () => {
     try {
       const token = localStorage.getItem('token');
       const userId = selectedEmployee ? selectedEmployee.userId._id : formData.userId;
+      
+      // Parse currency string to number before sending
+      const basicSalaryValue = formData.basicSalary.replace(/[^\d]/g, '');
+      const bonusValue = formData.bonus.replace(/[^\d]/g, '');
+  
       const submissionData = {
-        ...formData,
-        basicSalary: parseCurrency(formData.basicSalary),
-        bonus: parseCurrency(formData.bonus),
+        basicSalary: parseInt(basicSalaryValue || '0'), 
+        bonus: parseInt(bonusValue || '0'),
         month: currentMonth,
         year: currentYear
       };
-
-      await axios.post(`http://localhost:5000/api/auth/salary/${userId}`, submissionData, {
-        headers: { Authorization: `Bearer ${token}` },
+  
+      console.log('Sending salary data:', {
+        userId,
+        ...submissionData
       });
-
-      fetchSalaries();
-      setSelectedEmployee(null);
-      setFormData({ userId: '', basicSalary: '', bonus: '', month: currentMonth, year: currentYear });
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Thành công!',
-        text: 'Đã cập nhật thông tin lương.',
-        showConfirmButton: false,
-        timer: 1500
-      });
+  
+      const response = await axios.post(
+        `http://localhost:5000/api/auth/salary/${userId}`, 
+        submissionData,
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+  
+      if (response.data) {
+        await fetchSalaries(); // Refresh data
+        setSelectedEmployee(null);
+        setFormData({ 
+          userId: '', 
+          basicSalary: '', 
+          bonus: '', 
+          month: currentMonth, 
+          year: currentYear 
+        });
+  
+        Swal.fire({
+          icon: 'success',
+          title: 'Thành công!',
+          text: response.data.message || 'Đã cập nhật thông tin lương.',
+          showConfirmButton: false,
+          timer: 1500
+        });
+      }
     } catch (error) {
-      setError(`Không thể cập nhật hoặc tạo mới lương: ${error.message}`);
+      console.error('Error submitting salary:', error);
+      console.error('Error response:', error.response?.data);
+      
+      const errorMessage = error.response?.data?.message || 'Không thể cập nhật lương. Vui lòng thử lại.';
+      
       Swal.fire({
         icon: 'error',
         title: 'Lỗi!',
-        text: 'Không thể cập nhật hoặc tạo mới lương. Vui lòng thử lại sau.',
+        text: errorMessage
       });
     }
   };
