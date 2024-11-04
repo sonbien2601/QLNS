@@ -1927,21 +1927,55 @@ router.delete('/salary/:id', authenticate, async (req, res) => {
 });
 
 // Cập nhật API endpoint để tính lương có tính đến bonus/penalty từ tasks
+// API để lấy thông tin lương của user
 router.get('/salary/:userId', authenticate, async (req, res) => {
   try {
     const userId = req.params.userId;
     const requestMonth = req.query.month ? parseInt(req.query.month) : new Date().getMonth() + 1;
     const requestYear = req.query.year ? parseInt(req.query.year) : new Date().getFullYear();
 
+    console.log('Fetching salary for:', { userId, month: requestMonth, year: requestYear });
+
     // Lấy thông tin chấm công của tháng
     const attendanceRecords = await Attendance.find({
       userId,
       month: requestMonth,
       year: requestYear,
-      status: 'late' // Chỉ lấy các bản ghi đi muộn
+      status: 'late'
     }).sort({ date: 1 });
 
-    // Tìm bản ghi lương
+    // Lấy thông tin tasks hoàn thành trong tháng
+    const completedTasks = await Task.find({
+      assignedTo: userId,
+      status: 'completed',
+      completedAt: {
+        $gte: new Date(requestYear, requestMonth - 1, 1),
+        $lt: new Date(requestYear, requestMonth, 0)
+      }
+    });
+
+    console.log('Completed tasks:', completedTasks.length);
+
+    // Tính toán tổng thưởng/phạt từ tasks
+    let totalTaskBonus = 0;
+    let totalTaskPenalty = 0;
+    completedTasks.forEach(task => {
+      const completedDate = new Date(task.completedAt);
+      const dueDate = new Date(task.dueDate);
+      
+      if (completedDate <= dueDate) {
+        totalTaskBonus += task.bonus || 0;
+      } else {
+        totalTaskPenalty += task.penalty || 0;
+      }
+    });
+
+    console.log('Task rewards calculation:', {
+      totalTaskBonus,
+      totalTaskPenalty
+    });
+
+    // Tìm hoặc tạo bảng lương
     let salary = await Salary.findOne({
       userId,
       month: requestMonth,
@@ -1959,18 +1993,30 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
         month: requestMonth,
         year: requestYear,
         basicSalary: user.basicSalary || 0,
-        bonus: 0
+        bonus: 0,
+        taskBonus: totalTaskBonus,
+        taskPenalty: totalTaskPenalty,
+        completedTasks: completedTasks.length
       });
+
+      // Tính số ngày làm việc
+      salary.calculateWorkingDays();
+      await salary.save();
+    } else {
+      // Cập nhật thông tin task bonus/penalty
+      salary.taskBonus = totalTaskBonus;
+      salary.taskPenalty = totalTaskPenalty;
+      salary.completedTasks = completedTasks.length;
+      salary.calculateFinalSalary();
+      await salary.save();
     }
 
     // Cập nhật thông tin đi muộn từ bản ghi chấm công
     const lateDetails = attendanceRecords.map(record => {
       const morningLateMinutes = record.morningCheckIn ? 
         moment(record.morningCheckIn).diff(moment(record.date).set({hour: 8, minute: 0}), 'minutes') : 0;
-      
       const afternoonLateMinutes = record.afternoonCheckIn ?
         moment(record.afternoonCheckIn).diff(moment(record.date).set({hour: 13, minute: 30}), 'minutes') : 0;
-
       const details = [];
       
       if (morningLateMinutes > 15) { // Tính buffer 15 phút
@@ -1990,7 +2036,6 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
           penalty: calculateLatePenalty(afternoonLateMinutes - 15)
         });
       }
-
       return details;
     }).flat();
 
@@ -2005,15 +2050,23 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
     salary.calculateFinalSalary();
     await salary.save();
 
-    // ... phần code xử lý task và response giữ nguyên
+    // Tính số ngày nghỉ
+    const workingDays = salary.workingDays;
+    const absentDays = attendanceRecords.length - lateDetails.length;
+    const vacationDays = workingDays - attendanceRecords.length;
 
-    res.json({ 
+    // Tính số giờ làm việc thực tế
+    const actualWorkHours = salary.actualWorkHours;
+
+    res.json({
       salary: salary,
       attendanceStats: {
         totalDays: attendanceRecords.length,
         presentDays: attendanceRecords.filter(r => r.status === 'present').length,
         lateDays: lateDetails.length,
-        totalWorkHours: salary.actualWorkHours
+        absentDays,
+        vacationDays,
+        totalWorkHours: actualWorkHours
       }
     });
 
@@ -2208,6 +2261,7 @@ router.get('/tasks/:userId', authenticate, async (req, res) => {
 });
 
 // Cập nhật task completion API để cập nhật bonus/penalty
+// Route để cập nhật trạng thái task
 router.put('/tasks/:taskId/status', authenticate, async (req, res) => {
   try {
     const { status } = req.body;
@@ -2217,38 +2271,119 @@ router.put('/tasks/:taskId/status', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy công việc' });
     }
 
+    // Log thông tin task trước khi cập nhật
+    console.log('Task before update:', {
+      taskId: task._id,
+      oldStatus: task.status,
+      newStatus: status,
+      dueDate: task.dueDate,
+      bonus: task.bonus,
+      penalty: task.penalty
+    });
+
     if (task.assignedTo.toString() !== req.user.userId && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Bạn không có quyền cập nhật công việc này' });
     }
 
+    const previousStatus = task.status;
     task.status = status;
-    if (status === 'completed') {
+
+    // Chỉ xử lý bonus/penalty khi task chuyển sang trạng thái completed lần đầu tiên
+    if (status === 'completed' && previousStatus !== 'completed') {
       task.completedAt = new Date();
-      
-      // Kiểm tra và áp dụng bonus/penalty
       const completedDate = new Date(task.completedAt);
       const dueDate = new Date(task.dueDate);
 
+      let bonusApplied = 0;
+      let penaltyApplied = 0;
+
+      // Tính toán bonus/penalty
       if (completedDate <= dueDate) {
-        // Hoàn thành đúng hoặc sớm hơn deadline
+        bonusApplied = task.bonus || 0;
         task.actualPenalty = 0;
+        console.log('Task completed on time! Applying bonus:', bonusApplied);
       } else {
-        // Hoàn thành trễ deadline
-        task.actualPenalty = task.penalty || 0;
+        penaltyApplied = task.penalty || 0;
+        task.actualPenalty = penaltyApplied;
+        console.log('Task completed late! Applying penalty:', penaltyApplied);
       }
+
+      // Cập nhật bảng lương của tháng hiện tại
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth() + 1;
+      const currentYear = currentDate.getFullYear();
+
+      console.log('Updating salary for:', {
+        userId: task.assignedTo,
+        month: currentMonth,
+        year: currentYear
+      });
+
+      let salary = await Salary.findOne({
+        userId: task.assignedTo,
+        month: currentMonth,
+        year: currentYear
+      });
+
+      if (!salary) {
+        // Tạo bảng lương mới nếu chưa tồn tại
+        const user = await User2.findById(task.assignedTo);
+        if (!user) {
+          throw new Error('Không tìm thấy thông tin người dùng');
+        }
+
+        salary = new Salary({
+          userId: task.assignedTo,
+          month: currentMonth,
+          year: currentYear,
+          basicSalary: user.basicSalary || 0,
+          bonus: 0,
+          taskBonus: 0,
+          taskPenalty: 0,
+          completedTasks: 0
+        });
+
+        console.log('Created new salary record for current month');
+      }
+
+      // Cập nhật thông tin task bonus/penalty
+      console.log('Previous salary values:', {
+        taskBonus: salary.taskBonus,
+        taskPenalty: salary.taskPenalty,
+        completedTasks: salary.completedTasks
+      });
+
+      salary.taskBonus = (salary.taskBonus || 0) + bonusApplied;
+      salary.taskPenalty = (salary.taskPenalty || 0) + penaltyApplied;
+      salary.completedTasks = (salary.completedTasks || 0) + 1;
+
+      // Tính lại tổng lương
+      salary.calculateFinalSalary();
+      await salary.save();
+
+      console.log('Updated salary values:', {
+        taskBonus: salary.taskBonus,
+        taskPenalty: salary.taskPenalty,
+        completedTasks: salary.completedTasks,
+        totalSalary: salary.totalSalary
+      });
     }
 
     await task.save();
 
-    res.json({ 
-      message: 'Cập nhật trạng thái công việc thành công', 
+    res.json({
+      message: 'Cập nhật trạng thái công việc thành công',
       task,
-      bonusApplied: completedDate <= dueDate ? task.bonus : 0,
-      penaltyApplied: task.actualPenalty
+      bonusApplied: task.status === 'completed' ? (task.bonus || 0) : 0,
+      penaltyApplied: task.status === 'completed' ? task.actualPenalty : 0
     });
+
   } catch (error) {
     console.error('Error updating task status:', error);
-    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái công việc', error: error.message });
+    res.status(500).json({ 
+      message: 'Lỗi khi cập nhật trạng thái công việc',
+      error: error.message 
+    });
   }
 });
 
