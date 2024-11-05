@@ -645,9 +645,29 @@ const checkWorkingPeriod = (now) => {
 // Calculate working time between check-in and check-out
 const calculateWorkingTime = (checkIn, checkOut) => {
   if (!checkIn || !checkOut) return 0;
-  const start = moment(checkIn);
-  const end = moment(checkOut);
-  return Math.max(0, end.diff(start, 'minutes'));
+  try {
+    const startTime = moment(checkIn);
+    const endTime = moment(checkOut);
+    
+    // Đảm bảo thời gian hợp lệ
+    if (!startTime.isValid() || !endTime.isValid()) {
+      console.error('Invalid time:', { checkIn, checkOut });
+      return 0;
+    }
+
+    const diffMinutes = endTime.diff(startTime, 'minutes');
+    return Math.max(0, diffMinutes); // Đảm bảo không có giá trị âm
+  } catch (error) {
+    console.error('Error calculating working time:', error);
+    return 0;
+  }
+};
+
+const formatDuration = (minutes) => {
+  if (!minutes) return '0 giờ 0 phút';
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.round(minutes % 60);
+  return `${hours} giờ ${remainingMinutes} phút`;
 };
 
 // Cập nhật hàm calculateDailyWorkingTime để thêm xử lý bonus/penalty từ tasks
@@ -733,8 +753,9 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
   try {
     console.log('Starting check-in process...');
     const userId = req.user.userId;
+    
+    // Validate user exists
     const user = await User2.findById(userId);
-
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
     }
@@ -746,21 +767,25 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
 
     console.log('Current time:', now.format('YYYY-MM-DD HH:mm:ss'));
 
-    // Validate workday
+    // Validate workday with clear error message
     if (now.day() === 0 || now.day() === 6) {
-      return res.status(400).json({ message: 'Hôm nay không phải ngày làm việc' });
-    }
-
-    // Validate working period
-    const period = checkWorkingPeriod(now);
-    if (!period) {
-      return res.status(400).json({
-        message: 'Ngoài giờ làm việc, không thể check-in',
-        detail: `Giờ hiện tại: ${now.format('HH:mm')}`
+      return res.status(400).json({ 
+        message: 'Hôm nay không phải ngày làm việc',
+        details: `Ngày ${now.format('dddd')} không phải là ngày làm việc`
       });
     }
 
-    // Find or create attendance record
+    // Validate working period with specific time ranges
+    const period = checkWorkingPeriod(now);
+    if (!period) {
+      const currentTime = now.format('HH:mm');
+      return res.status(400).json({
+        message: 'Ngoài giờ làm việc, không thể check-in',
+        detail: `Giờ hiện tại: ${currentTime}. Giờ làm việc: 8:00-12:00 và 13:30-17:30`
+      });
+    }
+
+    // Find or create attendance record with proper error handling
     let attendance = await Attendance.findOne({
       userId,
       date: {
@@ -769,6 +794,9 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
       },
       month: currentMonth,
       year: currentYear
+    }).catch(err => {
+      console.error('Error finding attendance:', err);
+      throw new Error('Database error while finding attendance record');
     });
 
     if (!attendance) {
@@ -781,10 +809,13 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
       });
     }
 
-    // Handle check-in based on period
+    // Handle check-in based on period with validation
     if (period === 'morning') {
       if (attendance.morningCheckIn) {
-        return res.status(400).json({ message: 'Bạn đã check-in buổi sáng rồi' });
+        return res.status(400).json({ 
+          message: 'Bạn đã check-in buổi sáng rồi',
+          checkInTime: moment(attendance.morningCheckIn).format('HH:mm:ss')
+        });
       }
       attendance.morningCheckIn = now.toDate();
       attendance.status = now.hour() > 8 || (now.hour() === 8 && now.minute() > 15)
@@ -792,7 +823,10 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
         : 'present';
     } else {
       if (attendance.afternoonCheckIn) {
-        return res.status(400).json({ message: 'Bạn đã check-in buổi chiều rồi' });
+        return res.status(400).json({ 
+          message: 'Bạn đã check-in buổi chiều rồi',
+          checkInTime: moment(attendance.afternoonCheckIn).format('HH:mm:ss')
+        });
       }
       attendance.afternoonCheckIn = now.toDate();
       if (attendance.status !== 'late') {
@@ -802,33 +836,44 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
       }
     }
 
-    if (period === 'morning') {
-      const expectedTime = moment().set({ hour: 8, minute: 0, second: 0 });
-      if (now.isAfter(expectedTime)) {
-        attendance.status = 'late';
-        await handleLatePenalty(userId, now, 'morning', currentMonth, currentYear);
+    // Handle late penalties with try-catch
+    try {
+      if (period === 'morning') {
+        const expectedTime = moment().set({ hour: 8, minute: 0, second: 0 });
+        if (now.isAfter(expectedTime)) {
+          attendance.status = 'late';
+          await handleLatePenalty(userId, now, 'morning', currentMonth, currentYear);
+        }
+      } else {
+        const expectedTime = moment().set({ hour: 13, minute: 30, second: 0 });
+        if (now.isAfter(expectedTime)) {
+          attendance.status = 'late';
+          await handleLatePenalty(userId, now, 'afternoon', currentMonth, currentYear);
+        }
       }
-    } else {
-      const expectedTime = moment().set({ hour: 13, minute: 30, second: 0 });
-      if (now.isAfter(expectedTime)) {
-        attendance.status = 'late';
-        await handleLatePenalty(userId, now, 'afternoon', currentMonth, currentYear);
-      }
+    } catch (penaltyError) {
+      console.error('Error handling late penalty:', penaltyError);
+      // Continue with check-in even if penalty calculation fails
     }
 
     await attendance.save();
 
-    // Cập nhật lại bản ghi lương tháng hiện tại
-    let salary = await Salary.findOne({
-      userId,
-      month: currentMonth,
-      year: currentYear
-    });
+    // Update salary record with proper error handling
+    try {
+      let salary = await Salary.findOne({
+        userId,
+        month: currentMonth,
+        year: currentYear
+      });
 
-    if (salary) {
-      salary.actualWorkHours = attendance.monthlyHours;
-      salary.calculateFinalSalary();
-      await salary.save();
+      if (salary) {
+        salary.actualWorkHours = attendance.monthlyHours;
+        salary.calculateFinalSalary();
+        await salary.save();
+      }
+    } catch (salaryError) {
+      console.error('Error updating salary:', salaryError);
+      // Continue with check-in even if salary update fails
     }
 
     res.status(200).json({
@@ -851,7 +896,8 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
     console.error('Check-in error:', error);
     res.status(500).json({
       message: 'Lỗi server khi check-in',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -862,9 +908,8 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
     const userId = req.user.userId;
     const now = moment().tz('Asia/Ho_Chi_Minh');
     const today = now.clone().startOf('day');
-    const currentMonth = now.month() + 1;
-    const currentYear = now.year();
 
+    // Tìm bản ghi chấm công
     const attendance = await Attendance.findOne({
       userId,
       date: {
@@ -877,11 +922,10 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy bản ghi chấm công cho hôm nay' });
     }
 
-    // Xử lý check-out theo ca
+    // Xác định ca làm việc hiện tại
     const currentTime = now.hour() * 60 + now.minute();
     const { MORNING, AFTERNOON } = TIME_CONSTANTS.WORKING_HOURS;
 
-    // Kiểm tra thời gian check-out
     const isInMorningWindow = currentTime >= MORNING.START && currentTime <= MORNING.END + MORNING.BUFFER;
     const isInAfternoonWindow = currentTime >= AFTERNOON.START && currentTime <= AFTERNOON.END + AFTERNOON.BUFFER;
 
@@ -889,7 +933,7 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Ngoài giờ làm việc, không thể check-out' });
     }
 
-    // Cập nhật thời gian check-out
+    // Cập nhật thời gian check-out và tính toán thời gian làm việc
     if (isInMorningWindow) {
       if (!attendance.morningCheckIn) {
         return res.status(400).json({ message: 'Bạn chưa check-in buổi sáng' });
@@ -902,45 +946,107 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
       attendance.afternoonCheckOut = now.toDate();
     }
 
-    // Tính toán giờ làm việc trong ngày
-    let dailyMinutes = 0;
-    
+    // Tính toán thời gian làm việc chi tiết
+    let morningMinutes = 0;
+    let afternoonMinutes = 0;
+
+    // Tính thời gian làm việc buổi sáng
     if (attendance.morningCheckIn && attendance.morningCheckOut) {
-      dailyMinutes += calculateWorkingTime(attendance.morningCheckIn, attendance.morningCheckOut);
+      morningMinutes = calculateWorkingTime(
+        attendance.morningCheckIn,
+        attendance.morningCheckOut
+      );
     }
-    
+
+    // Tính thời gian làm việc buổi chiều
     if (attendance.afternoonCheckIn && attendance.afternoonCheckOut) {
-      dailyMinutes += calculateWorkingTime(attendance.afternoonCheckIn, attendance.afternoonCheckOut);
+      afternoonMinutes = calculateWorkingTime(
+        attendance.afternoonCheckIn,
+        attendance.afternoonCheckOut
+      );
     }
-    
-    attendance.dailyHours = dailyMinutes / 60;
-    
-    // Tính toán và cập nhật tổng giờ làm việc trong tháng
-    const monthlyHours = await calculateMonthlyAttendance(userId, currentMonth, currentYear);
-    attendance.monthlyHours = monthlyHours;
+
+    // Tổng thời gian làm việc trong ngày (tính bằng phút)
+    const totalMinutes = morningMinutes + afternoonMinutes;
+    attendance.dailyHours = totalMinutes / 60;
+
+    // Log để debug
+    console.log('Working time calculation:', {
+      morningMinutes,
+      afternoonMinutes,
+      totalMinutes,
+      dailyHours: attendance.dailyHours
+    });
+
+    // Tính tổng thời gian làm việc trong tháng
+    const monthlyAttendance = await Attendance.find({
+      userId,
+      month: now.month() + 1,
+      year: now.year()
+    });
+
+    let totalMonthlyMinutes = 0;
+    monthlyAttendance.forEach(record => {
+      if (record.morningCheckIn && record.morningCheckOut) {
+        totalMonthlyMinutes += calculateWorkingTime(
+          record.morningCheckIn,
+          record.morningCheckOut
+        );
+      }
+      if (record.afternoonCheckIn && record.afternoonCheckOut) {
+        totalMonthlyMinutes += calculateWorkingTime(
+          record.afternoonCheckIn,
+          record.afternoonCheckOut
+        );
+      }
+    });
+
+    attendance.monthlyHours = totalMonthlyMinutes / 60;
 
     await attendance.save();
 
-    // Trả về response với thông tin chi tiết
+    // Format response
+    const formatDuration = (minutes) => {
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      return `${hours} giờ ${remainingMinutes} phút`;
+    };
+
+    // Cập nhật bản ghi lương
+    const salary = await Salary.findOne({
+      userId,
+      month: now.month() + 1,
+      year: now.year()
+    });
+
+    if (salary) {
+      salary.actualWorkHours = attendance.monthlyHours;
+      salary.calculateFinalSalary();
+      await salary.save();
+    }
+
     res.status(200).json({
       message: 'Check-out thành công',
       attendance: {
         date: now.format('YYYY-MM-DD'),
         morningSession: {
-          checkIn: formatTimeResponse(attendance.morningCheckIn),
-          checkOut: formatTimeResponse(attendance.morningCheckOut)
+          checkIn: attendance.morningCheckIn ? moment(attendance.morningCheckIn).format('HH:mm:ss') : null,
+          checkOut: attendance.morningCheckOut ? moment(attendance.morningCheckOut).format('HH:mm:ss') : null,
+          workingTime: morningMinutes > 0 ? formatDuration(morningMinutes) : null
         },
         afternoonSession: {
-          checkIn: formatTimeResponse(attendance.afternoonCheckIn),
-          checkOut: formatTimeResponse(attendance.afternoonCheckOut)
+          checkIn: attendance.afternoonCheckIn ? moment(attendance.afternoonCheckIn).format('HH:mm:ss') : null,
+          checkOut: attendance.afternoonCheckOut ? moment(attendance.afternoonCheckOut).format('HH:mm:ss') : null,
+          workingTime: afternoonMinutes > 0 ? formatDuration(afternoonMinutes) : null
         },
         workingHours: {
-          daily: `${Math.floor(attendance.dailyHours)} giờ ${Math.round((attendance.dailyHours % 1) * 60)} phút`,
-          monthly: `${Math.floor(monthlyHours)} giờ ${Math.round((monthlyHours % 1) * 60)} phút`
+          daily: formatDuration(totalMinutes),
+          monthly: formatDuration(totalMonthlyMinutes)
         },
         status: attendance.status
       }
     });
+
   } catch (error) {
     console.error('Check-out error:', error);
     res.status(500).json({
@@ -949,6 +1055,45 @@ router.post('/attendance/check-out', authenticate, async (req, res) => {
     });
   }
 });
+
+// Hàm tính tổng thời gian làm việc trong tháng (tính bằng phút)
+const calculateMonthlyWorkingMinutes = async (userId, month, year) => {
+  const attendanceRecords = await Attendance.find({
+    userId,
+    month,
+    year
+  });
+
+  let totalMinutes = 0;
+  attendanceRecords.forEach(record => {
+    // Tính giờ làm việc buổi sáng
+    if (record.morningCheckIn && record.morningCheckOut) {
+      totalMinutes += calculateWorkingTime(record.morningCheckIn, record.morningCheckOut);
+    }
+    
+    // Tính giờ làm việc buổi chiều
+    if (record.afternoonCheckIn && record.afternoonCheckOut) {
+      totalMinutes += calculateWorkingTime(record.afternoonCheckIn, record.afternoonCheckOut);
+    }
+  });
+
+  return totalMinutes;
+};
+
+// Hàm cập nhật bản ghi lương
+const updateSalaryRecord = async (userId, month, year, actualHours) => {
+  let salary = await Salary.findOne({
+    userId,
+    month,
+    year
+  });
+
+  if (salary) {
+    salary.actualWorkHours = actualHours;
+    salary.calculateFinalSalary();
+    await salary.save();
+  }
+};
 
 // Get attendance history API
 router.get('/attendance/history', authenticate, async (req, res) => {

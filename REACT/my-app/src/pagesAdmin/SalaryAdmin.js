@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import NavigationAdmin from '../components/NavigationAdmin';
 import '../css/style.css';
@@ -101,7 +101,7 @@ const SubTitle = styled(motion.h3)`
   font-weight: 600;
 `;
 
-const SalaryForm = styled(motion.div)`
+const SalaryForm = styled(motion.div).attrs({ tabIndex: -1 })`
   background-color: #f8fafc;
   padding: 20px;
   border-radius: 8px;
@@ -284,7 +284,7 @@ const FeedbackButton = styled(ActionButton)`
   }
 `;
 
-const FeedbackSection = styled(motion.div)`
+const FeedbackSection = styled(motion.div).attrs({ tabIndex: -1 })`
   margin-top: 40px;
   background-color: #f8fafc;
   padding: 24px;
@@ -430,6 +430,22 @@ const RewardSection = styled.div`
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 `;
+const styles = {
+  // ... styles hiện tại
+  detailsSection: {
+    padding: '20px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+    margin: '20px 0'
+  },
+  detailGroup: {
+    marginBottom: '20px',
+    '& h4': {
+      color: '#2c3e50',
+      marginBottom: '10px'
+    }
+  }
+};
 
 
 
@@ -448,16 +464,6 @@ const parseCurrency = (value) => {
 };
 
 const TaskRewardInfo = ({ salary }) => {
-  const formatCurrency = (value) => {
-    if (!value && value !== 0) return '0 ₫';
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-  };
-
   return (
     <RewardSection>
       <SalaryInfoRow>
@@ -472,36 +478,36 @@ const TaskRewardInfo = ({ salary }) => {
         <InfoLabel>Phạt trễ deadline:</InfoLabel>
         <InfoValue negative>-{formatCurrency(salary.taskPenalty || 0)}</InfoValue>
       </SalaryInfoRow>
+      {/* Thêm thông tin đi muộn */}
+      <SalaryInfoRow>
+        <InfoLabel>Số lần đi muộn:</InfoLabel>
+        <InfoValue negative>{salary.monthlyLateData?.lateCount || 0} lần</InfoValue>
+      </SalaryInfoRow>
+      <SalaryInfoRow>
+        <InfoLabel>Phạt đi muộn:</InfoLabel>
+        <InfoValue negative>-{formatCurrency(salary.monthlyLateData?.latePenalty || 0)}</InfoValue>
+      </SalaryInfoRow>
     </RewardSection>
   );
 };
 
 const SalaryDetailInfo = ({ salary }) => {
-  const formatCurrency = (value) => {
-    if (!value && value !== 0) return '0 ₫';
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-  };
-
-  // Tính lương theo giờ
-  const hourlyRate = salary.basicSalary / (salary.standardWorkHours || 1); // Lương giờ = Lương cơ bản / Số giờ chuẩn
-  const baseHourlyPay = hourlyRate * (salary.actualWorkHours || 0); // Lương theo giờ làm việc = Lương giờ * Số giờ làm việc thực tế
-  
-  // Tính tổng lương
-  const totalSalary = baseHourlyPay + // Lương theo giờ làm việc
-                     (salary.bonus || 0) + // Thưởng cơ bản
-                     (salary.taskBonus || 0) - // Thưởng task
-                     (salary.taskPenalty || 0); // Trừ phạt task
+  const hourlyRate = salary.basicSalary / (salary.standardWorkHours || 1);
+  const baseHourlyPay = hourlyRate * (salary.actualWorkHours || 0);
 
   return (
     <RewardSection>
       <SalaryInfoRow>
         <InfoLabel>Lương theo giờ:</InfoLabel>
         <InfoValue>{formatCurrency(hourlyRate)}/giờ</InfoValue>
+      </SalaryInfoRow>
+      <SalaryInfoRow>
+        <InfoLabel>Số giờ làm việc:</InfoLabel>
+        <InfoValue>{formatWorkHours(salary.actualWorkHours)}</InfoValue>
+      </SalaryInfoRow>
+      <SalaryInfoRow>
+        <InfoLabel>Số giờ chuẩn:</InfoLabel>
+        <InfoValue>{formatWorkHours(salary.standardWorkHours)}</InfoValue>
       </SalaryInfoRow>
       <SalaryInfoRow>
         <InfoLabel>Lương theo giờ làm việc:</InfoLabel>
@@ -519,12 +525,23 @@ const SalaryDetailInfo = ({ salary }) => {
         <InfoLabel>Phạt task:</InfoLabel>
         <InfoValue negative>-{formatCurrency(salary.taskPenalty || 0)}</InfoValue>
       </SalaryInfoRow>
+      <SalaryInfoRow>
+        <InfoLabel>Phạt đi muộn:</InfoLabel>
+        <InfoValue negative>-{formatCurrency(salary.monthlyLateData?.latePenalty || 0)}</InfoValue>
+      </SalaryInfoRow>
       <SalaryInfoRow style={{ backgroundColor: '#e3f2fd', marginTop: '8px', borderRadius: '6px' }}>
         <InfoLabel style={{ fontWeight: 'bold' }}>Tổng lương:</InfoLabel>
-        <InfoValue>{formatCurrency(totalSalary)}</InfoValue>
+        <InfoValue>{formatCurrency(salary.totalSalary)}</InfoValue>
       </SalaryInfoRow>
     </RewardSection>
   );
+};
+
+const formatWorkTime = (hours) => {
+  if (!hours && hours !== 0) return '0 giờ 0 phút';
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+  return `${wholeHours} giờ ${minutes} phút`;
 };
 
 const formatWorkHours = (hours) => {
@@ -546,6 +563,8 @@ const SalaryAdmin = () => {
   const [currentMonth, setCurrentMonth] = useState(moment().month() + 1);
   const [currentYear, setCurrentYear] = useState(moment().year());
   const [monthlyStats, setMonthlyStats] = useState(null);
+  const formRef = useRef(null);
+  const feedbackRef = useRef(null);
   const [formData, setFormData] = useState({
     userId: '',
     basicSalary: '',
@@ -561,34 +580,114 @@ const SalaryAdmin = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/auth/salary', {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { 
-          month: currentMonth, 
-          year: currentYear 
+
+      try {
+        // Gọi API lương
+        const salaryResponse = await axios.get('http://localhost:5000/api/auth/salary', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: {
+            month: currentMonth,
+            year: currentYear,
+            includeDetails: true
+          }
+        });
+
+        if (salaryResponse.data.salaries && Array.isArray(salaryResponse.data.salaries)) {
+          // Xử lý dữ liệu lương
+          const salariesWithFeedback = await Promise.all(
+            salaryResponse.data.salaries.map(async (salary) => {
+              // Lấy feedback cho từng nhân viên
+              try {
+                const feedbackResponse = await axios.get(
+                  `http://localhost:5000/api/auth/feedback-salary/${salary.userId?._id}`,
+                  {
+                    headers: { Authorization: `Bearer ${token}` }
+                  }
+                );
+
+                return {
+                  ...salary,
+                  fullName: salary.userId?.fullName || '',
+                  position: salary.userId?.position || '',
+                  actualWorkHours: salary.actualWorkHours || 0,
+                  standardWorkHours: salary.standardWorkHours || 0,
+                  workRatio: salary.workRatio || 0,
+                  workingDays: salary.workingDays || 0,
+                  monthlyLateData: {
+                    lateCount: salary.monthlyLateData?.lateCount || 0,
+                    latePenalty: salary.monthlyLateData?.latePenalty || 0,
+                    lateDetails: salary.monthlyLateData?.lateDetails || []
+                  },
+                  completedTasks: salary.completedTasks || 0,
+                  taskBonus: salary.taskBonus || 0,
+                  taskPenalty: salary.taskPenalty || 0,
+                  basicSalary: salary.basicSalary || 0,
+                  bonus: salary.bonus || 0,
+                  totalSalary: salary.totalSalary || 0,
+                  feedbacks: feedbackResponse.data.feedbacks || []
+                };
+              } catch (error) {
+                console.log(`Không thể lấy feedback cho nhân viên ${salary.userId?._id}:`, error);
+                return {
+                  ...salary,
+                  feedbacks: []
+                };
+              }
+            })
+          );
+
+          setSalaries(salariesWithFeedback);
+
+          // Xử lý feedbacks tổng hợp
+          const feedbacksData = {};
+          salariesWithFeedback.forEach(salary => {
+            if (salary.userId?._id && salary.feedbacks) {
+              feedbacksData[salary.userId._id] = salary.feedbacks.map(feedback => ({
+                ...feedback,
+                createdAt: new Date(feedback.createdAt),
+                isFromAdmin: feedback.isFromAdmin || false,
+                message: feedback.message || ''
+              }));
+            }
+          });
+          setFeedbacks(feedbacksData);
+
+          // Xử lý thống kê tháng
+          if (salaryResponse.data.summary) {
+            setMonthlyStats({
+              totalEmployees: salaryResponse.data.summary.totalEmployees || 0,
+              totalWorkHours: salaryResponse.data.summary.totalWorkHours || 0,
+              averageWorkHours: salaryResponse.data.summary.averageWorkHours || 0,
+              totalSalaryPaid: salaryResponse.data.summary.totalSalaryPaid || 0,
+              workingDays: salaryResponse.data.summary.workingDays || 0,
+              totalLateCount: salaryResponse.data.summary.totalLateCount || 0,
+              totalLatePenalty: salaryResponse.data.summary.totalLatePenalty || 0,
+              totalTaskBonus: salaryResponse.data.summary.totalTaskBonus || 0,
+              totalTaskPenalty: salaryResponse.data.summary.totalTaskPenalty || 0,
+              averageSalary: salaryResponse.data.summary.averageSalary || 0
+            });
+          } else {
+            setMonthlyStats(null);
+          }
+
+        } else {
+          setError('Không có dữ liệu lương cho tháng này');
+          setSalaries([]);
+          setMonthlyStats(null);
+          setFeedbacks({});
         }
-      });
-  
-      if (response.data.salaries && Array.isArray(response.data.salaries)) {
-        setSalaries(response.data.salaries.map(salary => ({
-          ...salary,
-          fullName: salary.userId?.fullName || '',
-          position: salary.userId?.position || ''
-        })));
-        setMonthlyStats(response.data.summary);
-      } else {
-        setError('Không có dữ liệu lương cho tháng này');
+
+      } catch (error) {
+        console.error('Lỗi chi tiết khi lấy dữ liệu lương:', error);
+        const errorMessage = error.response?.data?.message || error.message;
+        setError(`Không thể lấy dữ liệu lương: ${errorMessage}`);
         setSalaries([]);
         setMonthlyStats(null);
+        setFeedbacks({});
       }
-  
-    } catch (error) {
-      console.error('Lỗi chi tiết khi lấy dữ liệu lương:', error);
-      setError(`Không thể lấy dữ liệu lương: ${error.response?.data?.message || error.message}`);
-      setSalaries([]);
-      setMonthlyStats(null);
+
     } finally {
       setLoading(false);
     }
@@ -656,50 +755,52 @@ const SalaryAdmin = () => {
       }
     }
   };
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
       const userId = selectedEmployee ? selectedEmployee.userId._id : formData.userId;
-      
+
       // Parse currency string to number before sending
       const basicSalaryValue = formData.basicSalary.replace(/[^\d]/g, '');
       const bonusValue = formData.bonus.replace(/[^\d]/g, '');
-  
+
       const submissionData = {
-        basicSalary: parseInt(basicSalaryValue || '0'), 
+        basicSalary: parseInt(basicSalaryValue || '0'),
         bonus: parseInt(bonusValue || '0'),
         month: currentMonth,
         year: currentYear
       };
-  
+
       console.log('Sending salary data:', {
         userId,
         ...submissionData
       });
-  
+
       const response = await axios.post(
-        `http://localhost:5000/api/auth/salary/${userId}`, 
+        `http://localhost:5000/api/auth/salary/${userId}`,
         submissionData,
         {
-          headers: { 
+          headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         }
       );
-  
+
       if (response.data) {
         await fetchSalaries(); // Refresh data
         setSelectedEmployee(null);
-        setFormData({ 
-          userId: '', 
-          basicSalary: '', 
-          bonus: '', 
-          month: currentMonth, 
-          year: currentYear 
+        setFormData({
+          userId: '',
+          basicSalary: '',
+          bonus: '',
+          month: currentMonth,
+          year: currentYear
         });
-  
+
         Swal.fire({
           icon: 'success',
           title: 'Thành công!',
@@ -711,9 +812,9 @@ const SalaryAdmin = () => {
     } catch (error) {
       console.error('Error submitting salary:', error);
       console.error('Error response:', error.response?.data);
-      
+
       const errorMessage = error.response?.data?.message || 'Không thể cập nhật lương. Vui lòng thử lại.';
-      
+
       Swal.fire({
         icon: 'error',
         title: 'Lỗi!',
@@ -767,6 +868,16 @@ const SalaryAdmin = () => {
       month: currentMonth,
       year: currentYear
     });
+    // Thêm scroll
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleFeedbackClick = (userId) => {
+    setSelectedUserForFeedback(userId);
+    // Chờ một chút để feedback section được render
+    setTimeout(() => {
+      feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleFeedbackSubmit = async (e) => {
@@ -774,8 +885,8 @@ const SalaryAdmin = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post('http://localhost:5000/api/auth/feedback-salary',
-        { 
-          message: newFeedbackMessage, 
+        {
+          message: newFeedbackMessage,
           userId: selectedUserForFeedback,
           month: currentMonth,
           year: currentYear
@@ -801,12 +912,58 @@ const SalaryAdmin = () => {
   };
 
   // Render Components
+
+
+  const renderSalaryDetails = (salary) => {
+    if (!selectedEmployee) return null;
+
+    return (
+      <div style={styles.detailsSection}>
+        <h3>Chi tiết lương - {salary.fullName}</h3>
+
+        {/* Thông tin giờ làm việc */}
+        <div style={styles.detailGroup}>
+          <h4>Giờ làm việc</h4>
+          <div>Thực tế: {formatWorkHours(salary.actualWorkHours)}</div>
+          <div>Chuẩn: {formatWorkHours(salary.standardWorkHours)}</div>
+          <div>Tỷ lệ: {salary.workRatio}%</div>
+        </div>
+
+        {/* Thông tin đi muộn */}
+        <div style={styles.detailGroup}>
+          <h4>Thông tin đi muộn</h4>
+          <div>Số lần: {salary.monthlyLateData?.lateCount || 0}</div>
+          <div>Tổng phạt: {formatCurrency(salary.monthlyLateData?.latePenalty || 0)}</div>
+          {/* Hiển thị chi tiết từng lần đi muộn nếu có */}
+          {salary.monthlyLateData?.lateDetails?.map((detail, index) => (
+            <div key={index}>
+              {moment(detail.date).format('DD/MM/YYYY')} - Muộn {detail.minutes} phút
+            </div>
+          ))}
+        </div>
+
+        {/* Thông tin công việc */}
+        <div style={styles.detailGroup}>
+          <h4>Thông tin công việc</h4>
+          <div>Tasks hoàn thành: {salary.completedTasks}</div>
+          <div>Thưởng: {formatCurrency(salary.taskBonus)}</div>
+          <div>Phạt: {formatCurrency(salary.taskPenalty)}</div>
+        </div>
+
+        {/* Tổng kết lương */}
+        <div style={styles.detailGroup}>
+          <h4>Tổng kết lương</h4>
+          <div>Lương cơ bản: {formatCurrency(salary.basicSalary)}</div>
+          <div>Thưởng cơ bản: {formatCurrency(salary.bonus)}</div>
+          <div>Thưởng/phạt phát sinh: {formatCurrency(salary.taskBonus - salary.taskPenalty - (salary.monthlyLateData?.latePenalty || 0))}</div>
+          <div>Tổng thực nhận: {formatCurrency(salary.totalSalary)}</div>
+        </div>
+      </div>
+    );
+  };
+
   const renderMonthlyStats = () => (
-    <MonthlyStatCard
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
-    >
+    <MonthlyStatCard>
       <SubTitle>Thống kê tháng {currentMonth}/{currentYear}</SubTitle>
       <StatGrid>
         <StatItem>
@@ -825,6 +982,7 @@ const SalaryAdmin = () => {
           <span>Trung bình giờ làm việc</span>
           <span>{formatWorkHours(monthlyStats?.averageWorkHours || 0)}</span>
         </StatItem>
+        {/* Thêm thống kê mới */}
       </StatGrid>
     </MonthlyStatCard>
   );
@@ -878,102 +1036,102 @@ const SalaryAdmin = () => {
 
         {monthlyStats && renderMonthlyStats()}
 
-        <SalaryForm>
+        <SalaryForm ref={formRef}>
           <SubTitle>{selectedEmployee ? 'Cập nhật lương' : 'Tạo mới lương'}</SubTitle>
           <form onSubmit={handleSubmit}>
-          {!selectedEmployee && (
-  <FormGroup>
-    <label>Nhân viên:</label>
-    <Select
-      name="userId"
-      value={formData.userId}
-      onChange={handleInputChange}
-      required
-    >
-      <option value="">Chọn nhân viên</option>
-      {employees.map((employee) => (
-        <option key={employee._id} value={employee._id}>
-          {employee.fullName} - {employee.position}
-        </option>
-      ))}
-    </Select>
-  </FormGroup>
-)}
+            {!selectedEmployee && (
+              <FormGroup>
+                <label>Nhân viên:</label>
+                <Select
+                  name="userId"
+                  value={formData.userId}
+                  onChange={handleInputChange}
+                  required
+                >
+                  <option value="">Chọn nhân viên</option>
+                  {employees.map((employee) => (
+                    <option key={employee._id} value={employee._id}>
+                      {employee.fullName} - {employee.position}
+                    </option>
+                  ))}
+                </Select>
+              </FormGroup>
+            )}
 
-<FormGroup>
-  <label>Lương cơ bản tháng {currentMonth}/{currentYear}:</label>
-  <Input
-    type="text"
-    name="basicSalary"
-    value={formData.basicSalary}
-    onChange={handleInputChange}
-    required
-  />
-  <small style={{ 
-    color: '#64748b',
-    marginTop: '4px',
-    display: 'block',
-    fontSize: '0.875rem' 
-  }}>
-    Lương theo giờ sẽ được tính dựa trên số ngày làm việc trong tháng
-  </small>
-</FormGroup>
+            <FormGroup>
+              <label>Lương cơ bản tháng {currentMonth}/{currentYear}:</label>
+              <Input
+                type="text"
+                name="basicSalary"
+                value={formData.basicSalary}
+                onChange={handleInputChange}
+                required
+              />
+              <small style={{
+                color: '#64748b',
+                marginTop: '4px',
+                display: 'block',
+                fontSize: '0.875rem'
+              }}>
+                Lương theo giờ sẽ được tính dựa trên số ngày làm việc trong tháng
+              </small>
+            </FormGroup>
 
-<FormGroup>
-  <label>Thưởng cơ bản:</label>
-  <Input
-    type="text"
-    name="bonus"
-    value={formData.bonus}
-    onChange={handleInputChange}
-    required
-  />
-</FormGroup>
+            <FormGroup>
+              <label>Thưởng cơ bản:</label>
+              <Input
+                type="text"
+                name="bonus"
+                value={formData.bonus}
+                onChange={handleInputChange}
+                required
+              />
+            </FormGroup>
 
-<FormGroup>
-  <label>Thông tin thêm:</label>
-  <div style={{ 
-    backgroundColor: '#f8fafc', 
-    padding: '1rem',
-    borderRadius: '6px',
-    fontSize: '0.875rem',
-    lineHeight: '1.5'
-  }}>
-    <div>Số ngày làm việc trong tháng: {monthlyStats?.workingDays || 0} ngày</div>
-    <div>Số giờ làm việc chuẩn: {formatWorkHours(monthlyStats?.standardWorkHours || 0)}</div>
-    <div>Tổng lương đã chi: {formatCurrency(monthlyStats?.totalSalaryPaid || 0)}</div>
-  </div>
-</FormGroup>
+            <FormGroup>
+              <label>Thông tin thêm:</label>
+              <div style={{
+                backgroundColor: '#f8fafc',
+                padding: '1rem',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                lineHeight: '1.5'
+              }}>
+                <div>Số ngày làm việc trong tháng: {monthlyStats?.workingDays || 0} ngày</div>
+                <div>Số giờ làm việc chuẩn: {formatWorkHours(monthlyStats?.standardWorkHours || 0)}</div>
+                <div>Tổng lương đã chi: {formatCurrency(monthlyStats?.totalSalaryPaid || 0)}</div>
+              </div>
+            </FormGroup>
 
-<div style={{ display: 'flex', gap: '12px', marginTop: '1.5rem' }}>
-  <Button
-    type="submit"
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
-  >
-    {selectedEmployee ? 'Cập nhật' : 'Tạo mới'}
-  </Button>
-  
-  {selectedEmployee && (
-    <CancelButton
-      type="button"
-      onClick={() => {
-        setSelectedEmployee(null);
-        setFormData({ 
-          userId: '', 
-          basicSalary: '', 
-          bonus: '', 
-          month: currentMonth,
-          year: currentYear 
-        });
-      }}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-    >
-      Hủy
-    </CancelButton>
-  )}
-</div>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '1.5rem' }}>
+              <Button
+                type="submit"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {selectedEmployee ? 'Cập nhật' : 'Tạo mới'}
+              </Button>
+
+              {selectedEmployee && (
+                <CancelButton
+                  type="button"
+                  onClick={() => {
+                    setSelectedEmployee(null);
+                    setFormData({
+                      userId: '',
+                      basicSalary: '',
+                      bonus: '',
+                      month: currentMonth,
+                      year: currentYear
+                    });
+                  }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Hủy
+                </CancelButton>
+              )}
+            </div>
           </form>
         </SalaryForm>
 
@@ -995,8 +1153,8 @@ const SalaryAdmin = () => {
             <tbody>
               {salaries.map((salary) => (
                 <Tr key={salary._id}>
-                <Td>{salary.fullName || salary.userId?.fullName || 'N/A'}</Td>
-                <Td>{salary.position || salary.userId?.position || 'N/A'}</Td>
+                  <Td>{salary.fullName || salary.userId?.fullName || 'N/A'}</Td>
+                  <Td>{salary.position || salary.userId?.position || 'N/A'}</Td>
                   <Td>{formatCurrency(salary.basicSalary)}</Td>
                   <Td>
                     <div>
@@ -1021,7 +1179,7 @@ const SalaryAdmin = () => {
                     <DeleteButton onClick={() => handleDelete(salary.userId?._id)}>
                       Xóa
                     </DeleteButton>
-                    <FeedbackButton onClick={() => setSelectedUserForFeedback(salary.userId?._id)}>
+                    <FeedbackButton onClick={() => handleFeedbackClick(salary.userId?._id)}>
                       Phản hồi
                     </FeedbackButton>
                   </Td>
@@ -1033,106 +1191,106 @@ const SalaryAdmin = () => {
 
         <AnimatePresence>
           {selectedUserForFeedback && (
-            <FeedbackSection>
+            <FeedbackSection ref={feedbackRef}>
               {selectedUserForFeedback && (
-  <FeedbackSection
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -20 }}
-    transition={{ duration: 0.3 }}
-  >
-    <SubTitle>
-      Phản hồi cho {salaries.find(s => s.userId?._id === selectedUserForFeedback)?.fullName || 'Nhân viên'}
-      {' - '}Tháng {currentMonth}/{currentYear}
-    </SubTitle>
+                <FeedbackSection
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <SubTitle>
+                    Phản hồi cho {salaries.find(s => s.userId?._id === selectedUserForFeedback)?.fullName || 'Nhân viên'}
+                    {' - '}Tháng {currentMonth}/{currentYear}
+                  </SubTitle>
 
-    <FeedbackList>
-      {feedbacks[selectedUserForFeedback]?.map((feedback) => (
-        <motion.div
-          key={feedback._id}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 20 }}
-        >
-          {feedback.isFromAdmin ? (
-            <AdminFeedback>
-              <div style={{ marginBottom: '8px' }}>
-                <strong style={{ color: '#2c3e50' }}>Admin</strong>
-                <span style={{ color: '#7f8c8d', marginLeft: '10px', fontSize: '0.9em' }}>
-                  {new Date(feedback.createdAt).toLocaleString('vi-VN', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
-              </div>
-              <p style={{ margin: 0, color: '#34495e' }}>{feedback.message}</p>
-            </AdminFeedback>
-          ) : (
-            <UserFeedback>
-              <div style={{ marginBottom: '8px' }}>
-                <strong style={{ color: '#2c3e50' }}>Nhân viên</strong>
-                <span style={{ color: '#7f8c8d', marginLeft: '10px', fontSize: '0.9em' }}>
-                  {new Date(feedback.createdAt).toLocaleString('vi-VN', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
-              </div>
-              <p style={{ margin: 0, color: '#34495e' }}>{feedback.message}</p>
-            </UserFeedback>
-          )}
-        </motion.div>
-      ))}
+                  <FeedbackList>
+                    {feedbacks[selectedUserForFeedback]?.map((feedback) => (
+                      <motion.div
+                        key={feedback._id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                      >
+                        {feedback.isFromAdmin ? (
+                          <AdminFeedback>
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong style={{ color: '#2c3e50' }}>Admin</strong>
+                              <span style={{ color: '#7f8c8d', marginLeft: '10px', fontSize: '0.9em' }}>
+                                {new Date(feedback.createdAt).toLocaleString('vi-VN', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, color: '#34495e' }}>{feedback.message}</p>
+                          </AdminFeedback>
+                        ) : (
+                          <UserFeedback>
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong style={{ color: '#2c3e50' }}>Nhân viên</strong>
+                              <span style={{ color: '#7f8c8d', marginLeft: '10px', fontSize: '0.9em' }}>
+                                {new Date(feedback.createdAt).toLocaleString('vi-VN', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, color: '#34495e' }}>{feedback.message}</p>
+                          </UserFeedback>
+                        )}
+                      </motion.div>
+                    ))}
 
-      {(!feedbacks[selectedUserForFeedback] || feedbacks[selectedUserForFeedback].length === 0) && (
-        <div style={{
-          textAlign: 'center',
-          padding: '20px',
-          color: '#7f8c8d',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px'
-        }}>
-          Chưa có phản hồi nào
-        </div>
-      )}
-    </FeedbackList>
+                    {(!feedbacks[selectedUserForFeedback] || feedbacks[selectedUserForFeedback].length === 0) && (
+                      <div style={{
+                        textAlign: 'center',
+                        padding: '20px',
+                        color: '#7f8c8d',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '8px'
+                      }}>
+                        Chưa có phản hồi nào
+                      </div>
+                    )}
+                  </FeedbackList>
 
-    <FeedbackForm onSubmit={handleFeedbackSubmit}>
-      <Textarea
-        value={newFeedbackMessage}
-        onChange={(e) => setNewFeedbackMessage(e.target.value)}
-        placeholder="Nhập phản hồi của bạn..."
-        required
-      />
-      <div style={{ display: 'flex', gap: '12px' }}>
-        <Button
-          type="submit"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Gửi phản hồi
-        </Button>
-        <CancelButton
-          type="button"
-          onClick={() => {
-            setSelectedUserForFeedback(null);
-            setNewFeedbackMessage('');
-          }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Đóng
-        </CancelButton>
-      </div>
-    </FeedbackForm>
-  </FeedbackSection>
-)}
+                  <FeedbackForm onSubmit={handleFeedbackSubmit}>
+                    <Textarea
+                      value={newFeedbackMessage}
+                      onChange={(e) => setNewFeedbackMessage(e.target.value)}
+                      placeholder="Nhập phản hồi của bạn..."
+                      required
+                    />
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <Button
+                        type="submit"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Gửi phản hồi
+                      </Button>
+                      <CancelButton
+                        type="button"
+                        onClick={() => {
+                          setSelectedUserForFeedback(null);
+                          setNewFeedbackMessage('');
+                        }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Đóng
+                      </CancelButton>
+                    </div>
+                  </FeedbackForm>
+                </FeedbackSection>
+              )}
             </FeedbackSection>
           )}
         </AnimatePresence>

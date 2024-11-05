@@ -26,23 +26,23 @@ const TIME_CONSTANTS = {
 
 // Helper Functions
 const formatTime = (timeString) => {
-  if (!timeString) return 'Chưa có dữ liệu';
-  
-  // Kiểm tra nếu timeString đã ở định dạng "HH:mm:ss"
-  if (timeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
-    return timeString;
-  }
-  
+  if (!timeString) return null;
   try {
-    const parsedTime = moment(timeString);
-    if (!parsedTime.isValid()) {
-      console.error('Thời gian không hợp lệ:', timeString);
-      return 'Lỗi dữ liệu';
+    // Nếu timeString đã ở định dạng HH:mm:ss
+    if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
+      return timeString;
     }
-    return parsedTime.format('HH:mm:ss');
+    
+    // Nếu là ISO date string
+    const time = moment(timeString);
+    if (time.isValid()) {
+      return time.format('HH:mm:ss');
+    }
+    
+    return null;
   } catch (error) {
-    console.error('Lỗi khi xử lý thời gian:', error);
-    return 'Lỗi dữ liệu';
+    console.error('Error formatting time:', error);
+    return null;
   }
 };
 
@@ -69,48 +69,57 @@ const SessionInfo = ({ session, period }) => {
   const calculateDuration = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return '0 giờ 0 phút';
     
-    // Parse times
-    const [inHours, inMinutes] = checkIn.split(':').map(Number);
-    const [outHours, outMinutes] = checkOut.split(':').map(Number);
-    
-    // Convert to total minutes
-    const checkInMinutes = inHours * 60 + inMinutes;
-    const checkOutMinutes = outHours * 60 + outMinutes;
-    
-    // Calculate duration in minutes and round down to nearest 15 minutes
-    let durationMinutes = checkOutMinutes - checkInMinutes;
-    durationMinutes = Math.floor(Math.max(0, durationMinutes) / 15) * 15;
-    
-    // Convert to hours and minutes
-    const hours = Math.floor(durationMinutes / 60);
-    const minutes = durationMinutes % 60;
-    
-    return `${hours} giờ ${minutes} phút`;
+    try {
+      // Parse thời gian từ format HH:mm:ss
+      const [inHours, inMinutes] = checkIn.split(':').map(Number);
+      const [outHours, outMinutes] = checkOut.split(':').map(Number);
+
+      // Tính toán thời gian làm việc bằng phút
+      const startMinutes = inHours * 60 + inMinutes;
+      const endMinutes = outHours * 60 + outMinutes;
+      const duration = endMinutes - startMinutes;
+
+      // Convert thành giờ và phút
+      const hours = Math.floor(duration / 60);
+      const minutes = duration % 60;
+
+      return `${hours} giờ ${minutes} phút`;
+    } catch (error) {
+      console.error('Error calculating duration:', error);
+      return '0 giờ 0 phút';
+    }
   };
 
-  const duration = session.checkIn && session.checkOut ? 
-    calculateDuration(session.checkIn, session.checkOut) : 
-    '0 giờ 0 phút';
+  // Sử dụng workingTime từ API nếu có, nếu không thì tính toán
+  const duration = session.workingTime || calculateDuration(session.checkIn, session.checkOut);
 
-    return (
-      <div style={styles.sessionInfo}>
-        <div style={styles.timeInfo}>
-          <div>Vào: {formatTime(session.checkIn) || 'Chưa có dữ liệu'}</div>
-          <div>Ra: {formatTime(session.checkOut) || 'Chưa có dữ liệu'}</div>
-          <div>Thời gian: {duration}</div>
-          {isLate && minutes > 0 && session.latePenalty && (
-            <div style={styles.latePenaltyInfo}>
-              <span>Phạt đi muộn {minutes} phút:</span>
-              <span style={styles.penaltyAmount}>
-                -{formatCurrency(session.latePenalty)}
-              </span>
-            </div>
-          )}
-        </div>
-        {session.checkIn && <StatusBadge isLate={isLate} minutes={minutes} />}
+  // Log để debug
+  console.log('Session calculation:', {
+    checkIn: session.checkIn,
+    checkOut: session.checkOut,
+    calculatedDuration: calculateDuration(session.checkIn, session.checkOut),
+    apiWorkingTime: session.workingTime,
+    finalDuration: duration
+  });
+
+  return (
+    <div style={styles.sessionInfo}>
+      <div style={styles.timeInfo}>
+        <div>Vào: {session.checkIn || 'Chưa có dữ liệu'}</div>
+        <div>Ra: {session.checkOut || 'Chưa có dữ liệu'}</div>
+        <div>Thời gian: {duration}</div>
+        {isLate && minutes > 0 && (
+          <div style={styles.latePenaltyInfo}>
+            <span>Đi muộn {minutes} phút</span>
+          </div>
+        )}
       </div>
-    );
-  };
+      {session.checkIn && <StatusBadge isLate={isLate} minutes={minutes} />}
+    </div>
+  );
+};
+
+
 
   const checkIsLate = (checkInTime, period) => {
     if (!checkInTime) return { isLate: false, minutes: 0 };
@@ -186,37 +195,82 @@ const MonthlyStats = ({ stats }) => (
   </div>
 );
 
-const AttendanceRow = ({ record }) => (
-  <tr style={styles.tr}>
-    <td style={styles.td}>{formatDate(record.date)}</td>
-    <td style={styles.td}>
-      <SessionInfo 
-        session={{
-          checkIn: record.morningSession?.checkIn,
-          checkOut: record.morningSession?.checkOut,
-          duration: record.morningSession?.duration
-        }}
-        period="morning"
-      />
-    </td>
-    <td style={styles.td}>
-      <SessionInfo 
-        session={{
-          checkIn: record.afternoonSession?.checkIn,
-          checkOut: record.afternoonSession?.checkOut,
-          duration: record.afternoonSession?.duration
-        }}
-        period="afternoon"
-      />
-    </td>
-    <td style={styles.td}>
-      <div style={styles.totalHours}>
-        <div>Ngày: {record.workingHours.daily}</div>
-        <div>Tháng: {record.workingHours.monthly}</div>
-      </div>
-    </td>
-  </tr>
-);
+const AttendanceRow = ({ record }) => {
+  const calculateTotalDailyTime = () => {
+    const morningMinutes = record.morningSession?.checkIn && record.morningSession?.checkOut ? 
+      calculateMinutes(record.morningSession.checkIn, record.morningSession.checkOut) : 0;
+    
+    const afternoonMinutes = record.afternoonSession?.checkIn && record.afternoonSession?.checkOut ?
+      calculateMinutes(record.afternoonSession.checkIn, record.afternoonSession.checkOut) : 0;
+
+    const totalMinutes = morningMinutes + afternoonMinutes;
+    return formatDuration(totalMinutes);
+  };
+
+  const calculateMinutes = (checkIn, checkOut) => {
+    if (!checkIn || !checkOut) return 0;
+    
+    const [inHours, inMinutes] = checkIn.split(':').map(Number);
+    const [outHours, outMinutes] = checkOut.split(':').map(Number);
+    
+    return (outHours * 60 + outMinutes) - (inHours * 60 + inMinutes);
+  };
+
+  const formatDuration = (totalMinutes) => {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours} giờ ${minutes} phút`;
+  };
+
+  // Log để debug
+  console.log('Row data:', {
+    date: record.date,
+    morning: {
+      checkIn: record.morningSession?.checkIn,
+      checkOut: record.morningSession?.checkOut,
+      duration: record.morningSession?.workingTime
+    },
+    afternoon: {
+      checkIn: record.afternoonSession?.checkIn,
+      checkOut: record.afternoonSession?.checkOut,
+      duration: record.afternoonSession?.workingTime
+    },
+    calculatedTotal: calculateTotalDailyTime(),
+    apiTotal: record.workingHours?.daily
+  });
+
+  return (
+    <tr style={styles.tr}>
+      <td style={styles.td}>{formatDate(record.date)}</td>
+      <td style={styles.td}>
+        <SessionInfo 
+          session={{
+            checkIn: record.morningSession?.checkIn,
+            checkOut: record.morningSession?.checkOut,
+            workingTime: record.morningSession?.workingTime
+          }}
+          period="morning"
+        />
+      </td>
+      <td style={styles.td}>
+        <SessionInfo 
+          session={{
+            checkIn: record.afternoonSession?.checkIn,
+            checkOut: record.afternoonSession?.checkOut,
+            workingTime: record.afternoonSession?.workingTime
+          }}
+          period="afternoon"
+        />
+      </td>
+      <td style={styles.td}>
+        <div style={styles.totalHours}>
+          <div>Ngày: {calculateTotalDailyTime()}</div>
+          <div>Tháng: {record.workingHours?.monthly || '0 giờ 0 phút'}</div>
+        </div>
+      </td>
+    </tr>
+  );
+};
 
 // Main Component
 const AttendanceUser = () => {
