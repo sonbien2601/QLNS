@@ -6,9 +6,20 @@ import Swal from 'sweetalert2';
 import { motion, AnimatePresence } from 'framer-motion';
 import moment from 'moment';
 import styled from 'styled-components';
+import { Download } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import "@fontsource/roboto";
 
 // Styled Components
 
+
+const ExportContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+`;
 
 const MonthYearSelector = styled(motion.div)`
   display: flex;
@@ -169,6 +180,27 @@ const Button = styled(motion.button)`
 
   &:active {
     transform: translateY(1px);
+  }
+`;
+
+const ExportButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  
+  &.excel {
+    background-color: #217346;
+    &:hover {
+      background-color: #1e6339;
+    }
+  }
+  
+  &.pdf {
+    background-color: #e74c3c;
+    &:hover {
+      background-color: #c0392b;
+    }
   }
 `;
 
@@ -380,26 +412,6 @@ const SalaryBreakdownCell = styled.div`
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 `;
 
-const BreakdownItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  margin-bottom: 8px;
-  background-color: #f8f9fa;
-  border-radius: 6px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-`;
-
-const TaskRewardCell = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-`;
 
 const SalaryInfoRow = styled.div`
   padding: 8px;
@@ -735,6 +747,146 @@ const SalaryAdmin = () => {
     fetchAllFeedbacks();
   }, [fetchSalaries, fetchEmployees, fetchAllFeedbacks]);
 
+  // Thêm hàm xử lý xuất Excel
+  const handleExportExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    // Chuẩn bị dữ liệu cho bảng chính
+    const mainData = salaries.map(salary => ({
+      'Tên nhân viên': salary.fullName || salary.userId?.fullName || 'N/A',
+      'Chức vụ': salary.position || salary.userId?.position || 'N/A',
+      'Lương cơ bản': formatCurrency(salary.basicSalary),
+      'Số giờ làm việc': formatWorkHours(salary.actualWorkHours),
+      'Giờ chuẩn': formatWorkHours(salary.standardWorkHours),
+      'Tỷ lệ làm việc': `${salary.workRatio}%`,
+      'Số task hoàn thành': salary.completedTasks || 0,
+      'Thưởng task': formatCurrency(salary.taskBonus),
+      'Phạt task': formatCurrency(salary.taskPenalty),
+      'Số lần đi muộn': salary.monthlyLateData?.lateCount || 0,
+      'Phạt đi muộn': formatCurrency(salary.monthlyLateData?.latePenalty || 0),
+      'Thưởng cơ bản': formatCurrency(salary.bonus),
+      'Tổng lương': formatCurrency(salary.totalSalary)
+    }));
+
+    // Tạo worksheet cho bảng chính
+    const mainWs = XLSX.utils.json_to_sheet(mainData);
+    XLSX.utils.book_append_sheet(workbook, mainWs, "Bảng lương");
+
+    // Tạo worksheet cho thống kê
+    const statsData = [{
+      'Tổng nhân viên': monthlyStats?.totalEmployees || 0,
+      'Tổng giờ làm việc': formatWorkHours(monthlyStats?.totalWorkHours),
+      'Trung bình giờ làm': formatWorkHours(monthlyStats?.averageWorkHours),
+      'Tổng lương chi trả': formatCurrency(monthlyStats?.totalSalaryPaid)
+    }];
+    const statsWs = XLSX.utils.json_to_sheet(statsData);
+    XLSX.utils.book_append_sheet(workbook, statsWs, "Thống kê");
+
+    // Xuất file
+    XLSX.writeFile(workbook, `Bang_luong_thang_${currentMonth}_${currentYear}.xlsx`);
+  };
+
+  // Thêm hàm xử lý xuất PDF
+  const handleExportPDF = async () => {
+    // Khởi tạo tài liệu PDF với font và cấu hình cơ bản
+    const doc = new jsPDF({
+      orientation: 'l',
+      unit: 'mm',
+      format: 'a4',
+      putOnlyUsedFonts: true
+    });
+
+    // Cấu hình chung
+    const pageWidth = doc.internal.pageSize.width;
+    const margin = 10;
+
+    // Tạo heading với font và style phù hợp
+    const heading = `BẢNG LƯƠNG THÁNG ${currentMonth}/${currentYear}`;
+    doc.setFont('Roboto-Regular');
+    doc.setFontSize(16);
+    const headingWidth = doc.getStringUnitWidth(heading) * doc.internal.getFontSize() / doc.internal.scaleFactor;
+    const headingX = (pageWidth - headingWidth) / 2;
+    doc.text(heading, headingX, 20);
+
+    // Thêm thông tin thống kê
+    doc.setFontSize(12);
+    doc.text(`Tổng nhân viên: ${monthlyStats?.totalEmployees || 0}`, margin, 30);
+    doc.text(`Tổng lương chi trả: ${formatCurrency(monthlyStats?.totalSalaryPaid)}`, margin, 38);
+
+    // Tạo bảng với autoTable và cấu hình fonts
+    doc.autoTable({
+      startY: 45,
+      head: [[
+        'Tên nhân viên',
+        'Chức vụ',
+        'Lương cơ bản',
+        'Giờ làm việc',
+        'Tỷ lệ',
+        'Thưởng/Phạt',
+        'Tổng lương'
+      ]],
+      body: salaries.map(salary => [
+        salary.fullName || salary.userId?.fullName || 'N/A',
+        salary.position || salary.userId?.position || 'N/A',
+        formatCurrency(salary.basicSalary),
+        formatWorkHours(salary.actualWorkHours),
+        `${salary.workRatio}%`,
+        formatCurrency(salary.taskBonus - salary.taskPenalty - (salary.monthlyLateData?.latePenalty || 0)),
+        formatCurrency(salary.totalSalary)
+      ]),
+      styles: {
+        font: 'Roboto-Regular',
+        fontStyle: 'normal',
+        fontSize: 10,
+        cellPadding: 3,
+        lineWidth: 0.5,
+        lineColor: [80, 80, 80],
+        textColor: [0, 0, 0],
+        valign: 'middle'
+      },
+      headStyles: {
+        fillColor: [52, 73, 94],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      columnStyles: {
+        0: { cellWidth: 40 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 35, halign: 'right' },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 20, halign: 'center' },
+        5: { cellWidth: 35, halign: 'right' },
+        6: { cellWidth: 35, halign: 'right' }
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
+      },
+      didParseCell: function (data) {
+        // Áp dụng font cho tất cả các cell
+        data.cell.styles.font = 'Roboto-Regular';
+      }
+    });
+
+    // Xuất file
+    doc.save(`Bang_luong_thang_${currentMonth}_${currentYear}.pdf`);
+  };
+
+  // Thêm hàm format số tiền đẹp hơn
+  const formatCurrencyForPDF = (value) => {
+    if (!value && value !== 0) return '0';
+    return new Intl.NumberFormat('vi-VN', {
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+
+  // Hàm chuyển đổi tiếng Việt có dấu thành không dấu
+  const removeAccents = (str) => {
+    return str.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D');
+  };
+
   // Event Handlers
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -1033,6 +1185,30 @@ const SalaryAdmin = () => {
             ))}
           </StyledSelect>
         </MonthYearSelector>
+
+        {/* Thêm nút xuất file ở đây */}
+        {monthlyStats && (
+          <ExportContainer>
+            <ExportButton
+              className="excel"
+              onClick={handleExportExcel}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Download size={20} />
+              Xuất Excel
+            </ExportButton>
+            <ExportButton
+              className="pdf"
+              onClick={handleExportPDF}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Download size={20} />
+              Xuất PDF
+            </ExportButton>
+          </ExportContainer>
+        )}
 
         {monthlyStats && renderMonthlyStats()}
 

@@ -149,85 +149,85 @@ const AdminProfileManagement = () => {
 
 
     // Thêm hàm xử lý cập nhật câu hỏi bảo mật
-const handleSaveSecurityQuestions = async () => {
-    try {
-        // Validate câu hỏi và câu trả lời
-        const securityData = {
-            securityQuestion1: selectedUser.securityQuestion1,
-            securityAnswer1: selectedUser.securityAnswer1,
-            securityQuestion2: selectedUser.securityQuestion2,
-            securityAnswer2: selectedUser.securityAnswer2,
-            securityQuestion3: selectedUser.securityQuestion3,
-            securityAnswer3: selectedUser.securityAnswer3,
-        };
+    const handleSaveSecurityQuestions = async () => {
+        try {
+            // Validate câu hỏi và câu trả lời
+            const securityData = {
+                securityQuestion1: selectedUser.securityQuestion1,
+                securityAnswer1: selectedUser.securityAnswer1,
+                securityQuestion2: selectedUser.securityQuestion2,
+                securityAnswer2: selectedUser.securityAnswer2,
+                securityQuestion3: selectedUser.securityQuestion3,
+                securityAnswer3: selectedUser.securityAnswer3,
+            };
 
-        const newErrors = {};
-        // Kiểm tra trống
-        Object.keys(securityData).forEach(key => {
-            if (!securityData[key]) {
-                newErrors[key] = `${labelMap[key]} không được để trống`;
+            const newErrors = {};
+            // Kiểm tra trống
+            Object.keys(securityData).forEach(key => {
+                if (!securityData[key]) {
+                    newErrors[key] = `${labelMap[key]} không được để trống`;
+                }
+            });
+
+            // Kiểm tra câu hỏi trùng nhau
+            const questions = [
+                securityData.securityQuestion1,
+                securityData.securityQuestion2,
+                securityData.securityQuestion3
+            ];
+            const uniqueQuestions = new Set(questions);
+            if (uniqueQuestions.size !== questions.length) {
+                newErrors.general = 'Các câu hỏi bảo mật không được trùng nhau';
             }
-        });
 
-        // Kiểm tra câu hỏi trùng nhau
-        const questions = [
-            securityData.securityQuestion1,
-            securityData.securityQuestion2,
-            securityData.securityQuestion3
-        ];
-        const uniqueQuestions = new Set(questions);
-        if (uniqueQuestions.size !== questions.length) {
-            newErrors.general = 'Các câu hỏi bảo mật không được trùng nhau';
-        }
+            if (Object.keys(newErrors).length > 0) {
+                setErrors(newErrors);
+                MySwal.fire({
+                    icon: 'error',
+                    title: 'Lỗi',
+                    text: 'Vui lòng kiểm tra lại thông tin'
+                });
+                return;
+            }
 
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(newErrors);
+            const token = localStorage.getItem('token');
+            const response = await axios.put(
+                `http://localhost:5000/api/auth/admin/user/${selectedUser._id}`,
+                securityData,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (response.headers['new-token']) {
+                localStorage.setItem('token', response.headers['new-token']);
+            }
+
+            setUsers(prevUsers => prevUsers.map(user =>
+                user._id === selectedUser._id ? { ...user, ...response.data.user } : user
+            ));
+
+            setSelectedUser(prevUser => ({
+                ...prevUser,
+                ...response.data.user
+            }));
+
+            await MySwal.fire({
+                icon: 'success',
+                title: 'Thành công!',
+                text: 'Câu hỏi bảo mật đã được cập nhật',
+                showConfirmButton: false,
+                timer: 1500
+            });
+
+            setErrors({});
+        } catch (error) {
+            console.error('Lỗi khi cập nhật câu hỏi bảo mật:', error);
             MySwal.fire({
                 icon: 'error',
                 title: 'Lỗi',
-                text: 'Vui lòng kiểm tra lại thông tin'
+                text: error.response?.data?.message || 'Đã xảy ra lỗi khi cập nhật câu hỏi bảo mật'
             });
-            return;
         }
-
-        const token = localStorage.getItem('token');
-        const response = await axios.put(
-            `http://localhost:5000/api/auth/admin/user/${selectedUser._id}`,
-            securityData,
-            { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        if (response.headers['new-token']) {
-            localStorage.setItem('token', response.headers['new-token']);
-        }
-
-        setUsers(prevUsers => prevUsers.map(user =>
-            user._id === selectedUser._id ? { ...user, ...response.data.user } : user
-        ));
-
-        setSelectedUser(prevUser => ({
-            ...prevUser,
-            ...response.data.user
-        }));
-
-        await MySwal.fire({
-            icon: 'success',
-            title: 'Thành công!',
-            text: 'Câu hỏi bảo mật đã được cập nhật',
-            showConfirmButton: false,
-            timer: 1500
-        });
-
-        setErrors({});
-    } catch (error) {
-        console.error('Lỗi khi cập nhật câu hỏi bảo mật:', error);
-        MySwal.fire({
-            icon: 'error',
-            title: 'Lỗi',
-            text: error.response?.data?.message || 'Đã xảy ra lỗi khi cập nhật câu hỏi bảo mật'
-        });
-    }
-};
+    };
 
     const handlePasswordUpdate = async () => {
         setPasswordError('');
@@ -619,54 +619,54 @@ const handleSaveSecurityQuestions = async () => {
                         </DetailsTable>
 
                         <SecuritySection>
-    <h4>Câu hỏi bảo mật</h4>
-    <SecurityDescription>
-        Những câu hỏi này được sử dụng để xác thực khi khôi phục mật khẩu
-    </SecurityDescription>
-    <SecurityQuestionsContainer>
-        {[1, 2, 3].map((num) => (
-            <SecurityQuestionGroup key={num}>
-                <FormGroup>
-                    <Label>{labelMap[`securityQuestion${num}`]}:</Label>
-                    <Select
-                        name={`securityQuestion${num}`}
-                        value={selectedUser[`securityQuestion${num}`] || ""}
-                        onChange={handleInputChange}
-                        $hasError={!!errors[`securityQuestion${num}`]}
-                    >
-                        <option value="">Chọn câu hỏi bảo mật</option>
-                        {securityQuestions.map((question, index) => (
-                            <option key={index} value={question}>
-                                {question}
-                            </option>
-                        ))}
-                    </Select>
-                    {errors[`securityQuestion${num}`] &&
-                        <ErrorText>{errors[`securityQuestion${num}`]}</ErrorText>
-                    }
-                </FormGroup>
-                <FormGroup>
-                    <Label>{labelMap[`securityAnswer${num}`]}:</Label>
-                    <Input
-                        type="text"
-                        name={`securityAnswer${num}`}
-                        value={selectedUser[`securityAnswer${num}`] || ""}
-                        onChange={handleInputChange}
-                        placeholder="Nhập câu trả lời của bạn"
-                        $hasError={!!errors[`securityAnswer${num}`]}
-                    />
-                    {errors[`securityAnswer${num}`] &&
-                        <ErrorText>{errors[`securityAnswer${num}`]}</ErrorText>
-                    }
-                </FormGroup>
-            </SecurityQuestionGroup>
-        ))}
-    </SecurityQuestionsContainer>
-    {errors.general && <ErrorText style={{ textAlign: 'center' }}>{errors.general}</ErrorText>}
-    <SecuritySaveButton onClick={handleSaveSecurityQuestions}>
-        Lưu câu hỏi bảo mật
-    </SecuritySaveButton>
-</SecuritySection>
+                            <h4>Câu hỏi bảo mật</h4>
+                            <SecurityDescription>
+                                Những câu hỏi này được sử dụng để xác thực khi khôi phục mật khẩu
+                            </SecurityDescription>
+                            <SecurityQuestionsContainer>
+                                {[1, 2, 3].map((num) => (
+                                    <SecurityQuestionGroup key={num}>
+                                        <FormGroup>
+                                            <Label>{labelMap[`securityQuestion${num}`]}:</Label>
+                                            <Select
+                                                name={`securityQuestion${num}`}
+                                                value={selectedUser[`securityQuestion${num}`] || ""}
+                                                onChange={handleInputChange}
+                                                $hasError={!!errors[`securityQuestion${num}`]}
+                                            >
+                                                <option value="">Chọn câu hỏi bảo mật</option>
+                                                {securityQuestions.map((question, index) => (
+                                                    <option key={index} value={question}>
+                                                        {question}
+                                                    </option>
+                                                ))}
+                                            </Select>
+                                            {errors[`securityQuestion${num}`] &&
+                                                <ErrorText>{errors[`securityQuestion${num}`]}</ErrorText>
+                                            }
+                                        </FormGroup>
+                                        <FormGroup>
+                                            <Label>{labelMap[`securityAnswer${num}`]}:</Label>
+                                            <Input
+                                                type="text"
+                                                name={`securityAnswer${num}`}
+                                                value={selectedUser[`securityAnswer${num}`] || ""}
+                                                onChange={handleInputChange}
+                                                placeholder="Nhập câu trả lời của bạn"
+                                                $hasError={!!errors[`securityAnswer${num}`]}
+                                            />
+                                            {errors[`securityAnswer${num}`] &&
+                                                <ErrorText>{errors[`securityAnswer${num}`]}</ErrorText>
+                                            }
+                                        </FormGroup>
+                                    </SecurityQuestionGroup>
+                                ))}
+                            </SecurityQuestionsContainer>
+                            {errors.general && <ErrorText style={{ textAlign: 'center' }}>{errors.general}</ErrorText>}
+                            <SecuritySaveButton onClick={handleSaveSecurityQuestions}>
+                                Lưu câu hỏi bảo mật
+                            </SecuritySaveButton>
+                        </SecuritySection>
 
                         <h4>Mật khẩu:</h4>
                         <InputContainer>

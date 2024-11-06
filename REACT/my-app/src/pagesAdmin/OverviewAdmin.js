@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, Cell
+} from 'recharts';
 import axios from 'axios';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -604,8 +608,8 @@ const TrialEmployees = ({ employees }) => (
           <ItemDetail>Chức vụ: {employee.position || 'Chưa có'}</ItemDetail>
           <ItemDetail>Trạng thái: {employee.employeeType || 'Thử việc'}</ItemDetail>
           <ItemDetail>Email: {employee.email}</ItemDetail>
-          <Badge 
-            style={{ 
+          <Badge
+            style={{
               backgroundColor: '#f39c12'
             }}
           >
@@ -778,23 +782,23 @@ const OverviewAdmin = () => {
   const formatCurrency = (value) => {
     // Remove non-digit characters
     const number = value.replace(/[^\d]/g, '');
-    
+
     // Format with thousand separators
     return number.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' VND';
   };
 
   // Hàm parse giá trị tiền tệ thành số
-const parseCurrencyToNumber = (currencyString) => {
-  if (!currencyString) return 0;
-  return parseInt(currencyString.replace(/[^\d]/g, '')) || 0;
-};
+  const parseCurrencyToNumber = (currencyString) => {
+    if (!currencyString) return 0;
+    return parseInt(currencyString.replace(/[^\d]/g, '')) || 0;
+  };
 
   const handleCurrencyChange = (e, field, setNewTask) => {
     let value = e.target.value;
-    
+
     // Xóa tất cả ký tự không phải số và "VND"
     value = value.replace(/[^\d]/g, '');
-    
+
     // Nếu giá trị rỗng, set về rỗng
     if (!value) {
       setNewTask(prev => ({
@@ -804,19 +808,19 @@ const parseCurrencyToNumber = (currencyString) => {
       return;
     }
 
-   // Format số với dấu chấm phân cách hàng nghìn
-   const formattedValue = new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(value);
+    // Format số với dấu chấm phân cách hàng nghìn
+    const formattedValue = new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
 
-  setNewTask(prev => ({
-    ...prev,
-    [field]: formattedValue
-  }));
-};
+    setNewTask(prev => ({
+      ...prev,
+      [field]: formattedValue
+    }));
+  };
 
 
   const [newTask, setNewTask] = useState({
@@ -876,7 +880,7 @@ const parseCurrencyToNumber = (currencyString) => {
 
       if (response.data && response.data.task) {
         setTasks(prevTasks => [...prevTasks, response.data.task]);
-        
+
         // Reset form
         setNewTask({
           title: '',
@@ -1026,7 +1030,7 @@ const parseCurrencyToNumber = (currencyString) => {
       try {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
-  
+
         const endpoints = [
           'http://localhost:5000/api/auth/users',
           'http://localhost:5000/api/auth/contracts',
@@ -1035,14 +1039,14 @@ const parseCurrencyToNumber = (currencyString) => {
           'http://localhost:5000/api/auth/resignation-requests',
           'http://localhost:5000/api/auth/tasks'
         ];
-  
+
         const results = await Promise.allSettled(
           endpoints.map(endpoint => axios.get(endpoint, { headers }))
         );
-  
-        const processData = (response, defaultValue) => 
+
+        const processData = (response, defaultValue) =>
           response.status === 'fulfilled' ? response.value.data : defaultValue;
-  
+
         const usersData = processData(results[0], { users: [] }).users;
         setUsers(usersData);
 
@@ -1050,12 +1054,12 @@ const parseCurrencyToNumber = (currencyString) => {
         const expiredContracts = contracts.filter(contract => contract.status === 'Hết hiệu lực');
         setExpiredContracts(expiredContracts);
 
-        const trialEmployeesList = usersData.filter(user => 
-          user.status === 'active' && 
+        const trialEmployeesList = usersData.filter(user =>
+          user.status === 'active' &&
           (
-            (!user.contractType || 
-            user.contractType === 'Chưa ký hợp đồng' || 
-            user.contractType === undefined)
+            (!user.contractType ||
+              user.contractType === 'Chưa ký hợp đồng' ||
+              user.contractType === undefined)
           )
         );
         setTrialEmployeesList(trialEmployeesList);
@@ -1098,12 +1102,12 @@ const parseCurrencyToNumber = (currencyString) => {
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
         const newEmployees = usersData.filter(user => new Date(user.createdAt) > threeDaysAgo).length;
         const activeEmployees = usersData.filter(user => user.status === 'active').length;
-        const permanentEmployees = usersData.filter(user => 
-          user.employeeType === 'Chính thức' && 
+        const permanentEmployees = usersData.filter(user =>
+          user.employeeType === 'Chính thức' &&
           user.status === 'active'
         ).length;
-        const trialEmployees = usersData.filter(user => 
-          user.employeeType === 'Thử việc' && 
+        const trialEmployees = usersData.filter(user =>
+          user.employeeType === 'Thử việc' &&
           user.status === 'active'
         ).length;
 
@@ -1171,7 +1175,7 @@ const parseCurrencyToNumber = (currencyString) => {
     value
   }));
 
-  
+
 
   return (
     <PageContainer
@@ -1277,44 +1281,81 @@ const parseCurrencyToNumber = (currencyString) => {
           </StatsGrid>
 
           <ChartsGrid>
-          <ChartCard
-  as={motion.div}
-  initial={{ opacity: 0, scale: 0.95 }}
-  animate={{ opacity: 1, scale: 1 }}
-  transition={{ delay: 0.2, duration: 0.2 }}
->
-  <h3>Thống kê hợp đồng theo loại</h3>
-  <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-  <ResponsiveContainer width="100%" height={300}>  {/* Tăng height từ 250px lên 300px */}
-    <BarChart data={contractData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}> {/* Thêm margin để căn chỉnh không gian */}
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey="name" height={60} angle={-15} textAnchor="end"/> {/* Điều chỉnh chiều cao và góc của nhãn */}
-      <YAxis />
-      <Tooltip />
-      <Legend wrapperStyle={{ paddingTop: 20 }}/> {/* Thêm padding cho legend */}
-      <Bar dataKey="value" fill="#8884d8" />
-    </BarChart>
-  </ResponsiveContainer>
-</ChartCard>
-            <ChartCard
-              as={motion.div}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3, duration: 0.2 }}
-            >
-              <h3>Cơ cấu công ty</h3>
-              <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={overviewData.staffCounts}>
+            <ChartCard>
+              <h3>Phân tích nhân sự theo loại hợp đồng</h3>
+              <ChartSubtitle>Tất cả đơn vị - Hiện tại</ChartSubtitle>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={[
+                    { name: 'Toàn thời gian', value: users.filter(u => u.contractType === 'Toàn thời gian').length },
+                    { name: 'Bán thời gian', value: users.filter(u => u.contractType === 'Bán thời gian').length },
+                    { name: 'Tạm thời', value: users.filter(u => u.contractType === 'Tạm thời').length },
+                    { name: 'Chưa ký', value: users.filter(u => !u.contractType).length }
+                  ]}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="số_lượng" fill="#82ca9d" />
+                  <Bar dataKey="value" fill="#a8e6cf" />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
+            <ChartCard>
+  <h3>Thống kê lương và thưởng phạt</h3>
+  <ChartSubtitle>Tất cả nhân viên - Tháng hiện tại</ChartSubtitle>
+  <ResponsiveContainer width="100%" height={300}>
+    <BarChart
+      data={overviewData.salaries
+        .filter(salary => salary.userId) // Lọc bỏ dữ liệu không có userId
+        .map(salary => ({
+          name: salary.userId.fullName,
+          'Lương cơ bản': salary.basicSalary || 0,
+          'Thưởng': salary.taskBonus || 0,
+          'Phạt': salary.taskPenalty || 0,
+          'Tổng nhận': salary.totalSalary || 0
+        }))}
+      margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+    >
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis
+        dataKey="name"
+        angle={-45}
+        textAnchor="end"
+        interval={0}
+        height={80}
+      />
+      <YAxis
+        tickFormatter={(value) =>
+          new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND',
+            minimumFractionDigits: 0,
+            notation: 'compact'
+          }).format(value)
+        }
+      />
+      <Tooltip
+        formatter={(value) =>
+          new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND',
+            minimumFractionDigits: 0
+          }).format(value)
+        }
+      />
+      <Legend />
+      <Bar dataKey="Lương cơ bản" fill="#8884d8" />
+      <Bar dataKey="Thưởng" fill="#82ca9d" />
+      <Bar dataKey="Phạt" fill="#ff7675" />
+      <Bar dataKey="Tổng nhận" fill="#74b9ff" />
+    </BarChart>
+  </ResponsiveContainer>
+</ChartCard>
+
+
             <ChartCard
               as={motion.div}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -1351,45 +1392,144 @@ const parseCurrencyToNumber = (currencyString) => {
           </ChartsGrid>
 
           <ChartsGrid className="two-columns">
-            <ChartCard
-              as={motion.div}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5, duration: 0.2 }}
-            >
-              <h3>Biến động nhân sự</h3>
-              <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={overviewData.staffChanges}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
+            <ChartCard>
+              <h3>Tỷ lệ chấm công</h3>
+              <ChartSubtitle>Thống kê điểm danh tháng hiện tại</ChartSubtitle>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Đúng giờ', value: overviewData.attendanceRecords.filter(r => !r.morningSession.isLate && !r.afternoonSession.isLate).length },
+                      { name: 'Đi muộn', value: overviewData.attendanceRecords.filter(r => r.morningSession.isLate || r.afternoonSession.isLate).length },
+                      { name: 'Vắng mặt', value: overviewData.workingDays - overviewData.attendanceRecords.length }
+                    ]}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label
+                  >
+                    <Cell fill="#82ca9d" />
+                    <Cell fill="#ffc658" />
+                    <Cell fill="#ff7675" />
+                  </Pie>
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="nhận" fill="#8884d8" />
-                  <Bar dataKey="nghỉ" fill="#82ca9d" />
-                </BarChart>
+                </PieChart>
               </ResponsiveContainer>
             </ChartCard>
-            <ChartCard
-              as={motion.div}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.6, duration: 0.2 }}
-            >
-              <h3>Số lượng nhân sự</h3>
-              <ChartSubtitle>Tất cả đơn vị - Năm 2024</ChartSubtitle>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={overviewData.staffCounts}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
+            <ChartCard>
+              <h3>Hiệu suất công việc</h3>
+              <ChartSubtitle>Phân tích hoàn thành nhiệm vụ</ChartSubtitle>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Hoàn thành đúng hạn', value: tasks.filter(t => t.status === 'completed' && new Date(t.completedAt) <= new Date(t.dueDate)).length },
+                      { name: 'Hoàn thành trễ', value: tasks.filter(t => t.status === 'completed' && new Date(t.completedAt) > new Date(t.dueDate)).length },
+                      { name: 'Đang thực hiện', value: tasks.filter(t => t.status === 'pending').length }
+                    ]}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label
+                  >
+                    <Cell fill="#00b894" />
+                    <Cell fill="#ff7675" />
+                    <Cell fill="#74b9ff" />
+                  </Pie>
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="số_lượng" fill="#8884d8" />
-                </BarChart>
+                </PieChart>
               </ResponsiveContainer>
             </ChartCard>
+
+
+            <ChartCard
+  style={{ 
+    width: '100%', // Đảm bảo card sử dụng toàn bộ không gian có sẵn
+    minWidth: '800px' // Đặt chiều rộng tối thiểu
+  }}
+>
+  <h3>Tỷ lệ thực hiện công việc theo người</h3>
+  <ChartSubtitle>Hiệu suất làm việc theo nhân viên</ChartSubtitle>
+  <div style={{ width: '100%', overflowX: 'auto' }}> {/* Wrapper cho phép scroll ngang */}
+    <div style={{ minWidth: '800px', height: '600px' }}> {/* Container cố định kích thước tối thiểu */}
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={users.map(user => ({
+            name: user.fullName,
+            'Tỷ lệ hoàn thành': Math.round(
+              (tasks.filter(t => 
+                t.assignedTo?._id === user._id && 
+                t.status === 'completed' && 
+                new Date(t.completedAt) <= new Date(t.dueDate)
+              ).length / 
+              tasks.filter(t => t.assignedTo?._id === user._id).length || 0) * 100
+            ),
+            'Số công việc được giao': tasks.filter(t => t.assignedTo?._id === user._id).length
+          }))}
+          margin={{ 
+            top: 20, 
+            right: 50,  // Tăng margin phải
+            left: 50,   // Tăng margin trái
+            bottom: 150 
+          }}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis 
+            dataKey="name"
+            height={120}
+            interval={0}
+            tick={props => (
+              <g transform={`translate(${props.x},${props.y})`}>
+                <text
+                  x={0}
+                  y={0}
+                  dy={16}
+                  textAnchor="end"
+                  fill="#666"
+                  transform="rotate(-35)"
+                  style={{ fontSize: '12px' }}
+                >
+                  {props.payload.value}
+                </text>
+              </g>
+            )}
+          />
+          <YAxis 
+            domain={[0, 100]}
+            ticks={[0, 20, 40, 60, 80, 100]}
+          />
+          <Tooltip />
+          <Legend 
+            verticalAlign="top"
+            height={36}
+          />
+          <Line 
+            type="monotone" 
+            dataKey="Tỷ lệ hoàn thành"
+            stroke="#8884d8"
+            strokeWidth={2}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+          <Line 
+            type="monotone" 
+            dataKey="Số công việc được giao"
+            stroke="#82ca9d"
+            strokeWidth={2}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  </div>
+</ChartCard>
           </ChartsGrid>
         </>
       )}
@@ -1447,7 +1587,7 @@ const parseCurrencyToNumber = (currencyString) => {
         </Modal>
       )}
 
-{showTaskModal && (
+      {showTaskModal && (
         <Modal onClick={() => setShowTaskModal(false)}>
           <ModalContent onClick={e => e.stopPropagation()}>
             <h2>Thêm Công Việc Mới</h2>
@@ -1484,44 +1624,44 @@ const parseCurrencyToNumber = (currencyString) => {
               />
             </InputGroup>
             <Input
-            type="text"
-            placeholder="Tiền thưởng (VND)"
-            value={newTask.bonus}
-            onChange={(e) => handleCurrencyChange(e, 'bonus', setNewTask)}
-            onFocus={(e) => {
-              // Khi focus, hiển thị giá trị số thuần
-              const numericValue = parseCurrencyToNumber(e.target.value);
-              setNewTask(prev => ({
-                ...prev,
-                bonus: numericValue ? numericValue.toString() : ''
-              }));
-            }}
-            onBlur={(e) => {
-              // Khi blur, format lại theo định dạng tiền tệ
-              if (e.target.value) {
-                handleCurrencyChange(e, 'bonus', setNewTask);
-              }
-            }}
-          />
-          
-          <Input
-            type="text"
-            placeholder="Tiền phạt (VND)"
-            value={newTask.penalty}
-            onChange={(e) => handleCurrencyChange(e, 'penalty', setNewTask)}
-            onFocus={(e) => {
-              const numericValue = parseCurrencyToNumber(e.target.value);
-              setNewTask(prev => ({
-                ...prev,
-                penalty: numericValue ? numericValue.toString() : ''
-              }));
-            }}
-            onBlur={(e) => {
-              if (e.target.value) {
-                handleCurrencyChange(e, 'penalty', setNewTask);
-              }
-            }}
-          />
+              type="text"
+              placeholder="Tiền thưởng (VND)"
+              value={newTask.bonus}
+              onChange={(e) => handleCurrencyChange(e, 'bonus', setNewTask)}
+              onFocus={(e) => {
+                // Khi focus, hiển thị giá trị số thuần
+                const numericValue = parseCurrencyToNumber(e.target.value);
+                setNewTask(prev => ({
+                  ...prev,
+                  bonus: numericValue ? numericValue.toString() : ''
+                }));
+              }}
+              onBlur={(e) => {
+                // Khi blur, format lại theo định dạng tiền tệ
+                if (e.target.value) {
+                  handleCurrencyChange(e, 'bonus', setNewTask);
+                }
+              }}
+            />
+
+            <Input
+              type="text"
+              placeholder="Tiền phạt (VND)"
+              value={newTask.penalty}
+              onChange={(e) => handleCurrencyChange(e, 'penalty', setNewTask)}
+              onFocus={(e) => {
+                const numericValue = parseCurrencyToNumber(e.target.value);
+                setNewTask(prev => ({
+                  ...prev,
+                  penalty: numericValue ? numericValue.toString() : ''
+                }));
+              }}
+              onBlur={(e) => {
+                if (e.target.value) {
+                  handleCurrencyChange(e, 'penalty', setNewTask);
+                }
+              }}
+            />
             <ModalButtons>
               <Button className="btn-primary" onClick={handleAddTask}>Thêm Công Việc</Button>
               <Button className="btn-third" onClick={() => setShowTaskModal(false)}>Hủy</Button>
