@@ -224,7 +224,7 @@ const formatTime = (timeString) => {
     if (timeString.length <= 8 && timeString.includes(':')) {
       return timeString;
     }
-    
+
     // Nếu là datetime đầy đủ thì parse và format
     const parsedTime = moment(timeString).format('HH:mm:ss');
     return parsedTime === 'Invalid date' ? 'N/A' : parsedTime;
@@ -344,7 +344,7 @@ const AttendanceAdmin = () => {
           <CardHeader>
             <Title>Tổng Hợp Chấm Công</Title>
             <MonthYearSelector>
-              <select 
+              <select
                 value={currentMonth}
                 onChange={(e) => setCurrentMonth(parseInt(e.target.value))}
               >
@@ -368,99 +368,99 @@ const AttendanceAdmin = () => {
           {monthlyStats && renderStats()}
 
           <TableContainer>
-  {loading ? (
-    <div style={{ textAlign: 'center', padding: '2rem' }}>Đang tải dữ liệu...</div>
-  ) : (
-    <Table>
-      <thead>
-        <tr>
-          <th>Tên Nhân Viên</th>
-          <th>Chức Vụ</th>
-          <th>Check In Sáng</th>
-          <th>Check Out Sáng</th>
-          <th>Check In Chiều</th>
-          <th>Check Out Chiều</th>
-          <th>Tổng Thời Gian</th>
-          <th>Trạng Thái</th>
-        </tr>
-      </thead>
-      <tbody>
-        {/* Nhóm records theo ngày */}
-        {Object.entries(
-          attendanceRecords.reduce((acc, record) => {
-            const date = formatDate(record.date);
-            if (!acc[date]) acc[date] = [];
-            acc[date].push(record);
-            return acc;
-          }, {})
-        ).map(([date, records]) => (
-          <React.Fragment key={date}>
-            <DateRow>
-              <td colSpan={8}>
-                {date} - {moment(records[0].date).format('dddd')}
-              </td>
-            </DateRow>
-            {records.map((record) => (
-              <AttendanceRow key={record._id}>
-                <td>{record.userId?.fullName || 'N/A'}</td>
-                <td>{record.userId?.position || 'N/A'}</td>
-                <td>
-                  <SessionInfo>
-                    <span className="time">
-                      {formatTime(record.morningSession?.checkIn)}
-                    </span>
-                    {record.morningSession?.isLate && (
-                      <span className="late-badge">Đi muộn</span>
-                    )}
-                  </SessionInfo>
-                </td>
-                <td>
-                  <SessionInfo>
-                    <span className="time">
-                      {formatTime(record.morningSession?.checkOut)}
-                    </span>
-                  </SessionInfo>
-                </td>
-                <td>
-                  <SessionInfo>
-                    <span className="time">
-                      {formatTime(record.afternoonSession?.checkIn)}
-                    </span>
-                    {record.afternoonSession?.isLate && (
-                      <span className="late-badge">Đi muộn</span>
-                    )}
-                  </SessionInfo>
-                </td>
-                <td>
-                  <SessionInfo>
-                    <span className="time">
-                      {formatTime(record.afternoonSession?.checkOut)}
-                    </span>
-                  </SessionInfo>
-                </td>
-                <td>
-                  <WorkingHours>
-                    <span className="daily">
-                      {record.workingHours?.daily || '0 giờ 0 phút'}
-                    </span>
-                    <span className="monthly">
-                      Tháng: {record.workingHours?.monthly || '0 giờ 0 phút'}
-                    </span>
-                  </WorkingHours>
-                </td>
-                <td>
-                  <StatusBadge status={record.status}>
-                    {getStatusText(record.status)}
-                  </StatusBadge>
-                </td>
-              </AttendanceRow>
-            ))}
-          </React.Fragment>
-        ))}
-      </tbody>
-    </Table>
-  )}
-</TableContainer>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>Đang tải dữ liệu...</div>
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Tên Nhân Viên</th>
+                    <th>Chức Vụ</th>
+                    <th>Check In Sáng</th>
+                    <th>Check Out Sáng</th>
+                    <th>Check In Chiều</th>
+                    <th>Check Out Chiều</th>
+                    <th>Tổng Thời Gian</th>
+                    <th>Trạng Thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Nhóm records theo ngày */}
+                  {Object.entries(
+                    attendanceRecords.reduce((acc, record) => {
+                      const date = formatDate(record.date);
+                      if (!acc[date]) acc[date] = [];
+                      acc[date].push(record);
+                      return acc;
+                    }, {})
+                  ).map(([date, records]) => (
+                    <React.Fragment key={date}>
+                      <DateRow>
+                        <td colSpan={8}>
+                          {date} - {moment(records[0].date).format('dddd')}
+                        </td>
+                      </DateRow>
+                      {records.map((record) => (
+                        <AttendanceRow key={record._id}>
+                          <td>{record.userId?.fullName || 'N/A'}</td>
+                          <td>{record.userId?.position || 'N/A'}</td>
+                          <td>
+                            <SessionInfo>
+                              <span className="time">
+                                {formatTime(record.morningSession?.checkIn)}
+                              </span>
+                              {record.morningSession?.isLate && (
+                                <span className="late-badge">Đi muộn</span>
+                              )}
+                            </SessionInfo>
+                          </td>
+                          <td>
+                            <SessionInfo>
+                              <span className="time">
+                                {formatTime(record.morningSession?.checkOut)}
+                              </span>
+                            </SessionInfo>
+                          </td>
+                          <td>
+                            <SessionInfo>
+                              <span className="time">
+                                {formatTime(record.afternoonSession?.checkIn)}
+                              </span>
+                              {record.afternoonSession?.isLate && (
+                                <span className="late-badge">Đi muộn</span>
+                              )}
+                            </SessionInfo>
+                          </td>
+                          <td>
+                            <SessionInfo>
+                              <span className="time">
+                                {formatTime(record.afternoonSession?.checkOut)}
+                              </span>
+                            </SessionInfo>
+                          </td>
+                          <td>
+                            <WorkingHours>
+                              <span className="daily">
+                                {record.workingHours?.daily || '0 giờ 0 phút'}
+                              </span>
+                              <span className="monthly">
+                                Tháng: {record.workingHours?.monthly || '0 giờ 0 phút'}
+                              </span>
+                            </WorkingHours>
+                          </td>
+                          <td>
+                            <StatusBadge status={record.status}>
+                              {getStatusText(record.status)}
+                            </StatusBadge>
+                          </td>
+                        </AttendanceRow>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </TableContainer>
         </Card>
       </ContentContainer>
     </PageContainer>

@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { motion, AnimatePresence } from 'framer-motion';
+import { jwtDecode } from 'jwt-decode';
 
 const MySwal = withReactContent(Swal);
 
@@ -19,6 +20,7 @@ const AddEmployee = () => {
     confirmPassword: '',
     phoneNumber: '',
     position: '',
+    role: '',
     basicSalary: '',
     employeeType: 'Thử việc',
     contractType: '',
@@ -34,17 +36,17 @@ const AddEmployee = () => {
     securityQuestion3: '',
     securityAnswer3: ''
   });
-  
+
 
   // Thêm danh sách câu hỏi bảo mật
-const securityQuestions = [
-  "Tên trường tiểu học đầu tiên của bạn là gì?",
-  "Con vật đầu tiên bạn nuôi là gì?",
-  "Họ và tên đệm của mẹ bạn là gì?",
-  "Biệt danh thời thơ ấu của bạn là gì?",
-  "Người bạn thân nhất thời phổ thông của bạn là ai?",
-  "Món ăn yêu thích thời thơ ấu của bạn là gì?"
-];
+  const securityQuestions = [
+    "Tên trường tiểu học đầu tiên của bạn là gì?",
+    "Con vật đầu tiên bạn nuôi là gì?",
+    "Họ và tên đệm của mẹ bạn là gì?",
+    "Biệt danh thời thơ ấu của bạn là gì?",
+    "Người bạn thân nhất thời phổ thông của bạn là ai?",
+    "Món ăn yêu thích thời thơ ấu của bạn là gì?"
+  ];
 
   const [errors, setErrors] = useState({});
 
@@ -52,20 +54,54 @@ const securityQuestions = [
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/login');
+      return;
+    }
+
+    try {
+      // Thêm kiểm tra role
+      const decodedToken = jwtDecode(token);
+      const userRole = decodedToken.role;
+
+      // Hiển thị thông báo cho HR
+      if (userRole === 'hr') {
+        MySwal.fire({
+          icon: 'info',
+          title: 'Lưu ý!',
+          text: 'Tài khoản được tạo sẽ cần được Admin phê duyệt trước khi có hiệu lực.',
+          confirmButtonColor: '#3085d6',
+        });
+      }
+
+      // Kiểm tra quyền truy cập
+      if (!['admin', 'hr'].includes(userRole)) {
+        MySwal.fire({
+          icon: 'error',
+          title: 'Không có quyền truy cập!',
+          text: 'Bạn không có quyền thêm nhân viên mới.',
+          confirmButtonColor: '#d33',
+        });
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Lỗi khi kiểm tra quyền truy cập:', error);
+      navigate('/login');
     }
   }, [navigate]);
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     // Validate thông tin cơ bản
-    if (!formData.fullName.trim()) newErrors.fullName = 'Vui lòng nhập tên nhân viên';
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'Vui lòng nhập tên nhân viên';
+    }
+
     if (!formData.username.trim()) {
       newErrors.username = 'Vui lòng nhập tên đăng nhập';
     } else if (formData.username.length <= 6 || !/\d/.test(formData.username)) {
       newErrors.username = 'Tên đăng nhập phải trên 6 ký tự và chứa ít nhất một số';
     }
-  
+
     if (!formData.email.trim()) {
       newErrors.email = 'Vui lòng nhập email';
     } else {
@@ -74,26 +110,53 @@ const securityQuestions = [
         newErrors.email = 'Email không hợp lệ';
       }
     }
-  
+
+    if (!formData.position.trim()) {
+      newErrors.position = 'Vui lòng chọn chức vụ';
+    }
+
+    if (!formData.role && formData.position) {
+      newErrors.role = 'Chức vụ không hợp lệ';
+    }
+
+    // Validate password
     if (!formData.password) {
       newErrors.password = 'Vui lòng nhập mật khẩu';
     } else if (formData.password.length <= 6 || !/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
       newErrors.password = 'Mật khẩu phải trên 6 ký tự và chứa ít nhất một ký tự đặc biệt';
     }
-  
+
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
     }
-  
-    if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
-    if (!formData.position.trim()) newErrors.position = 'Vui lòng nhập chức vụ';
-    if (!formData.basicSalary) newErrors.basicSalary = 'Vui lòng nhập lương cơ bản';
-    if (!formData.employeeType) newErrors.employeeType = 'Vui lòng chọn loại nhân viên';
-    if (!formData.gender) newErrors.gender = 'Vui lòng chọn giới tính';
-  
-    // Validate thông tin hợp đồng cho nhân viên chính thức
+
+    // Validate các thông tin khác
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
+    } else {
+      const phoneRegex = /^[0-9]{10,11}$/;
+      if (!phoneRegex.test(formData.phoneNumber)) {
+        newErrors.phoneNumber = 'Số điện thoại không hợp lệ (10-11 số)';
+      }
+    }
+
+    if (!formData.basicSalary) {
+      newErrors.basicSalary = 'Vui lòng nhập lương cơ bản';
+    } else if (formData.basicSalary <= 0) {
+      newErrors.basicSalary = 'Lương cơ bản phải lớn hơn 0';
+    }
+
+    if (!formData.employeeType) {
+      newErrors.employeeType = 'Vui lòng chọn loại nhân viên';
+    }
+
+    if (!formData.gender) {
+      newErrors.gender = 'Vui lòng chọn giới tính';
+    }
+
+    // Validate hợp đồng cho nhân viên chính thức
     if (formData.employeeType === 'Chính thức') {
       if (!formData.contractType) {
         newErrors.contractType = 'Vui lòng chọn loại hợp đồng';
@@ -112,7 +175,7 @@ const securityQuestions = [
         }
       }
     }
-  
+
     // Validate câu hỏi bảo mật
     for (let i = 1; i <= 3; i++) {
       if (!formData[`securityQuestion${i}`]) {
@@ -122,275 +185,342 @@ const securityQuestions = [
         newErrors[`securityAnswer${i}`] = `Vui lòng nhập câu trả lời cho câu hỏi ${i}`;
       }
     }
-  
+
     // Kiểm tra câu hỏi trùng nhau
     const questions = [
       formData.securityQuestion1,
       formData.securityQuestion2,
       formData.securityQuestion3
     ].filter(q => q);
-  
+
     if (questions.length > 0 && new Set(questions).size !== questions.length) {
       newErrors.securityQuestions = 'Các câu hỏi bảo mật không được trùng nhau';
     }
-  
-    // Validate định dạng số điện thoại
-    const phoneRegex = /^[0-9]{10,11}$/;
-    if (formData.phoneNumber && !phoneRegex.test(formData.phoneNumber)) {
-      newErrors.phoneNumber = 'Số điện thoại không hợp lệ (10-11 số)';
-    }
-  
-    // Validate lương cơ bản
-    if (formData.basicSalary && formData.basicSalary <= 0) {
-      newErrors.basicSalary = 'Lương cơ bản phải lớn hơn 0';
-    }
-  
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-// Sửa lại hàm handleChange để xử lý thay đổi employeeType
-const handleChange = (e) => {
-  const { name, value } = e.target;
-  setFormData(prevState => ({
-    ...prevState,
-    [name]: value,
-    ...(name === 'employeeType' && value === 'Thử việc' ? {
-      contractType: '',
-      contractStart: '',
-      contractEnd: '',
-      contractStatus: 'active'
-    } : {})
-  }));
-};
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
 
-  if (!validateForm()) {
-    return;
-  }
 
-  try {
-    const { confirmPassword, ...submitData } = formData;
+  // Sửa lại hàm handleChange để xử lý thay đổi employeeType
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prevState => ({
+      ...prevState,
+      [name]: value,
+      // Giữ nguyên logic xử lý employeeType
+      ...(name === 'employeeType' && value === 'Thử việc' ? {
+        contractType: '',
+        contractStart: '',
+        contractEnd: '',
+        contractStatus: 'active'
+      } : {}),
+      // Cập nhật logic xử lý role dựa trên position
+      ...(name === 'position' && {
+        role: value === 'Nhân viên nhân sự' ? 'hr' :
+          value === 'Nhân viên tài vụ' ? 'finance' :
+            value === 'Khác' ? 'user' : ''
+      })
+    }));
+  };
 
-    // Nếu là nhân viên thử việc, loại bỏ thông tin hợp đồng
-    if (submitData.employeeType === 'Thử việc') {
-      delete submitData.contractType;
-      delete submitData.contractStart;
-      delete submitData.contractEnd;
-      delete submitData.contractStatus;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
     }
 
-    const token = localStorage.getItem('token');
-    const response = await axios.post('http://localhost:5000/api/auth/create-user', 
-      submitData,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`
+    try {
+      const token = localStorage.getItem('token');
+      const decodedToken = jwtDecode(token);
+      const userRole = decodedToken.role;
+
+      const { confirmPassword, ...submitData } = formData;
+
+      // Nếu là nhân viên thử việc, loại bỏ thông tin hợp đồng
+      if (submitData.employeeType === 'Thử việc') {
+        delete submitData.contractType;
+        delete submitData.contractStart;
+        delete submitData.contractEnd;
+        delete submitData.contractStatus;
+      }
+
+      // Luôn gọi endpoint create-user
+      const response = await axios.post(
+        'http://localhost:5000/api/auth/create-user',
+        {
+          ...submitData,
+          requestedBy: {
+            id: decodedToken.userId,
+            role: userRole
+          }
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      // Xử lý response dựa trên role
+      if (userRole === 'hr') {
+        MySwal.fire({
+          icon: 'success',
+          title: 'Đã gửi yêu cầu!',
+          text: 'Yêu cầu tạo tài khoản đã được gửi đến Admin phê duyệt.',
+          confirmButtonColor: '#3085d6',
+        });
+      } else {
+        if (response.data.newToken) {
+          localStorage.setItem('token', response.data.newToken);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.newToken}`;
+        }
+
+        MySwal.fire({
+          icon: 'success',
+          title: 'Thành công!',
+          text: 'Tạo tài khoản nhân viên mới thành công.',
+          confirmButtonColor: '#3085d6',
+        });
+      }
+
+      // Reset form
+      setFormData({
+        fullName: '',
+        username: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        phoneNumber: '',
+        position: '',
+        basicSalary: '',
+        employeeType: 'Thử việc',
+        contractType: '',
+        contractStart: '',
+        contractEnd: '',
+        contractStatus: 'active',
+        gender: '',
+        securityQuestion1: '',
+        securityAnswer1: '',
+        securityQuestion2: '',
+        securityAnswer2: '',
+        securityQuestion3: '',
+        securityAnswer3: '',
+        role: ''
+      });
+      setErrors({});
+
+    } catch (error) {
+      console.error('Lỗi khi tạo tài khoản:', error);
+
+      let errorMessage = 'Tạo tài khoản thất bại, vui lòng thử lại.';
+
+      if (error.response) {
+        switch (error.response.status) {
+          case 401:
+            errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+            localStorage.removeItem('token');
+            navigate('/login');
+            break;
+          case 403:
+            errorMessage = 'Bạn không có quyền thực hiện thao tác này';
+            break;
+          case 400:
+            // Xử lý lỗi validation từ server
+            errorMessage = error.response.data.message || errorMessage;
+            break;
+          case 409:
+            // Xử lý lỗi trùng lặp dữ liệu
+            errorMessage = error.response.data.message || 'Tài khoản đã tồn tại';
+            break;
+          default:
+            errorMessage = error.response.data.message || errorMessage;
         }
       }
-    );
 
-    // Xử lý phản hồi thành công
-    console.log('Tạo tài khoản thành công:', response.data);
+      MySwal.fire({
+        icon: 'error',
+        title: 'Lỗi!',
+        text: errorMessage,
+        confirmButtonColor: '#d33',
+      });
 
-    if (response.data.newToken) {
-      localStorage.setItem('token', response.data.newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.newToken}`;
-    }
-
-    MySwal.fire({
-      icon: 'success',
-      title: 'Thành công!',
-      text: 'Tạo tài khoản nhân viên mới thành công.',
-      confirmButtonColor: '#3085d6',
-    });
-
-    // Reset form
-    setFormData({
-      fullName: '',
-      username: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      phoneNumber: '',
-      position: '',
-      basicSalary: '',
-      employeeType: 'Thử việc',
-      contractType: '',
-      contractStart: '',
-      contractEnd: '',
-      contractStatus: 'active',
-      gender: '',
-    });
-    setErrors({});
-  } catch (error) {
-    console.error('Lỗi khi tạo tài khoản:', error);
-    let errorMessage = 'Tạo tài khoản thất bại, vui lòng thử lại.';
-    if (error.response) {
-      errorMessage = error.response.data.message || errorMessage;
-      if (error.response.status === 401) {
-        errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
-        localStorage.removeItem('token');
-        navigate('/login');
+      // Nếu có lỗi validation cụ thể từ server
+      if (error.response?.data?.errors) {
+        setErrors(error.response.data.errors);
       }
     }
-    MySwal.fire({
-      icon: 'error',
-      title: 'Lỗi!',
-      text: errorMessage,
-      confirmButtonColor: '#d33',
-    });
-  }
-};
+  };
 
   return (
-  <PageContainer>
-    <NavigationAdmin />
-    <ContentContainer
-      as={motion.div}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <FormContainer>
-        <FormTitle
-          as={motion.h2}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-        >
-          Thêm Nhân Viên Mới
-        </FormTitle>
-        <StyledForm onSubmit={handleSubmit}>
-          <FormGrid>
-            <AnimatePresence>
-              {Object.entries(formData).map(([key, value], index) => {
-                // Bỏ qua render cho câu hỏi bảo mật và các trường hợp đồng khi là nhân viên thử việc
-                if (
-                  key.startsWith('security') || 
-                  (['contractType', 'contractStart', 'contractEnd', 'contractStatus'].includes(key) && 
-                   formData.employeeType === 'Thử việc')
-                ) {
-                  return null;
-                }
-
-                return (
-                  <FormGroup
-                    key={key}
-                    as={motion.div}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ delay: index * 0.1, duration: 0.5 }}
-                  >
-                    <Label htmlFor={key}>{getLabelText(key)}:</Label>
-                    {key === 'contractType' || 
-                     key === 'contractStatus' || 
-                     key === 'employeeType' || 
-                     key === 'gender' ? (
-                      <Select
-                        id={key}
-                        name={key}
-                        value={value}
-                        onChange={handleChange}
-                        $isInvalid={!!errors[key]}
-                      >
-                        {getOptions(key)}
-                      </Select>
-                    ) : (
-                      <Input
-                        type={getInputType(key)}
-                        id={key}
-                        name={key}
-                        value={value}
-                        onChange={handleChange}
-                        $isInvalid={!!errors[key]}
-                        placeholder={getPlaceholder(key)}
-                      />
-                    )}
-                    {errors[key] && <ErrorMessage>{errors[key]}</ErrorMessage>}
-                  </FormGroup>
-                );
-              })}
-            </AnimatePresence>
-
-            {/* Phần câu hỏi bảo mật */}
-            <SecuritySection
-              as={motion.div}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.5 }}
-            >
-              <SecurityTitle>Thiết lập câu hỏi bảo mật</SecurityTitle>
-              <SecurityDescription>
-                Câu hỏi bảo mật được sử dụng để xác thực khi khôi phục mật khẩu. 
-                Vui lòng chọn 3 câu hỏi khác nhau và nhập câu trả lời tương ứng.
-              </SecurityDescription>
-              {errors.securityQuestions && (
-                <ErrorMessage style={{ textAlign: 'center', marginBottom: '15px' }}>
-                  {errors.securityQuestions}
-                </ErrorMessage>
-              )}
-              <SecurityQuestionsContainer>
-      {[1, 2, 3].map((num) => (
-        <React.Fragment key={num}>
-          <FormGroup>
-            <Label>{getLabelText(`securityQuestion${num}`)}:</Label>
-            <Select
-              name={`securityQuestion${num}`}
-              value={formData[`securityQuestion${num}`]}
-              onChange={handleChange}
-              $isInvalid={!!errors[`securityQuestion${num}`]}
-            >
-              <option value="">Chọn câu hỏi bảo mật</option>
-              {SECURITY_QUESTIONS.map((question, index) => (
-                <option key={index} value={question}>
-                  {question}
-                </option>
-              ))}
-            </Select>
-            {errors[`securityQuestion${num}`] && (
-              <ErrorMessage>{errors[`securityQuestion${num}`]}</ErrorMessage>
-            )}
-          </FormGroup>
-                    <FormGroup>
-                      <Label>{getLabelText(`securityAnswer${num}`)}:</Label>
-                      <Input
-                        type="text"
-                        name={`securityAnswer${num}`}
-                        value={formData[`securityAnswer${num}`]}
-                        onChange={handleChange}
-                        placeholder={`Nhập câu trả lời ${num}`}
-                        $isInvalid={!!errors[`securityAnswer${num}`]}
-                      />
-                      {errors[`securityAnswer${num}`] && (
-                        <ErrorMessage>{errors[`securityAnswer${num}`]}</ErrorMessage>
-                      )}
-                    </FormGroup>
-                  </React.Fragment>
-                ))}
-              </SecurityQuestionsContainer>
-            </SecuritySection>
-          </FormGrid>
-
-          <SubmitButton
-            as={motion.button}
-            type="submit"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.7, duration: 0.3 }}
+    <PageContainer>
+      <NavigationAdmin />
+      <ContentContainer
+        as={motion.div}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <FormContainer>
+          <FormTitle
+            as={motion.h2}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
-            Thêm Nhân Viên
-          </SubmitButton>
-        </StyledForm>
-      </FormContainer>
-    </ContentContainer>
-  </PageContainer>
-);
+            Thêm Nhân Viên Mới
+          </FormTitle>
+          <StyledForm onSubmit={handleSubmit}>
+            <FormGrid>
+              <AnimatePresence>
+                {Object.entries(formData).map(([key, value], index) => {
+                  // Bỏ qua render cho role vì sẽ tự động hiển thị
+                  if (
+                    key.startsWith('security') ||
+                    (['contractStart', 'contractEnd', 'contractStatus'].includes(key) &&
+                      formData.employeeType === 'Thử việc') ||
+                    key === 'role'
+                  ) {
+                    return null;
+                  }
+
+                  return (
+                    <FormGroup
+                      key={key}
+                      as={motion.div}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ delay: index * 0.1, duration: 0.5 }}
+                    >
+                      <Label htmlFor={key}>{getLabelText(key)}:</Label>
+                      {key === 'position' ? (
+                        <div>
+                          <Select
+                            id={key}
+                            name={key}
+                            value={value}
+                            onChange={handleChange}
+                            $isInvalid={!!errors[key]}
+                          >
+                            {getOptions(key)}
+                          </Select>
+                          {formData.position && (
+                            <RoleDisplay>
+                              Role: {formData.position === 'Nhân viên nhân sự' ? 'HR' :
+                                formData.position === 'Nhân viên tài vụ' ? 'Finance' :
+                                  formData.position === 'Khác' ? 'User' : ''}
+                            </RoleDisplay>
+                          )}
+                        </div>
+                      ) : (key === 'contractType' ||
+                        key === 'contractStatus' ||
+                        key === 'employeeType' ||
+                        key === 'gender') ? (
+                        <Select
+                          id={key}
+                          name={key}
+                          value={value}
+                          onChange={handleChange}
+                          $isInvalid={!!errors[key]}
+                        >
+                          {getOptions(key)}
+                        </Select>
+                      ) : (
+                        <Input
+                          type={getInputType(key)}
+                          id={key}
+                          name={key}
+                          value={value}
+                          onChange={handleChange}
+                          $isInvalid={!!errors[key]}
+                          placeholder={getPlaceholder(key)}
+                        />
+                      )}
+                      {errors[key] && <ErrorMessage>{errors[key]}</ErrorMessage>}
+                    </FormGroup>
+                  );
+                })}
+              </AnimatePresence>
+
+              {/* Phần câu hỏi bảo mật */}
+              <SecuritySection
+                as={motion.div}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.5 }}
+              >
+                <SecurityTitle>Thiết lập câu hỏi bảo mật</SecurityTitle>
+                <SecurityDescription>
+                  Câu hỏi bảo mật được sử dụng để xác thực khi khôi phục mật khẩu.
+                  Vui lòng chọn 3 câu hỏi khác nhau và nhập câu trả lời tương ứng.
+                </SecurityDescription>
+                {errors.securityQuestions && (
+                  <ErrorMessage style={{ textAlign: 'center', marginBottom: '15px' }}>
+                    {errors.securityQuestions}
+                  </ErrorMessage>
+                )}
+                <SecurityQuestionsContainer>
+                  {[1, 2, 3].map((num) => (
+                    <React.Fragment key={num}>
+                      <FormGroup>
+                        <Label>{getLabelText(`securityQuestion${num}`)}:</Label>
+                        <Select
+                          name={`securityQuestion${num}`}
+                          value={formData[`securityQuestion${num}`]}
+                          onChange={handleChange}
+                          $isInvalid={!!errors[`securityQuestion${num}`]}
+                        >
+                          <option value="">Chọn câu hỏi bảo mật</option>
+                          {SECURITY_QUESTIONS.map((question, index) => (
+                            <option key={index} value={question}>
+                              {question}
+                            </option>
+                          ))}
+                        </Select>
+                        {errors[`securityQuestion${num}`] && (
+                          <ErrorMessage>{errors[`securityQuestion${num}`]}</ErrorMessage>
+                        )}
+                      </FormGroup>
+                      <FormGroup>
+                        <Label>{getLabelText(`securityAnswer${num}`)}:</Label>
+                        <Input
+                          type="text"
+                          name={`securityAnswer${num}`}
+                          value={formData[`securityAnswer${num}`]}
+                          onChange={handleChange}
+                          placeholder={`Nhập câu trả lời ${num}`}
+                          $isInvalid={!!errors[`securityAnswer${num}`]}
+                        />
+                        {errors[`securityAnswer${num}`] && (
+                          <ErrorMessage>{errors[`securityAnswer${num}`]}</ErrorMessage>
+                        )}
+                      </FormGroup>
+                    </React.Fragment>
+                  ))}
+                </SecurityQuestionsContainer>
+              </SecuritySection>
+            </FormGrid>
+
+            <SubmitButton
+              as={motion.button}
+              type="submit"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7, duration: 0.3 }}
+            >
+              Thêm Nhân Viên
+            </SubmitButton>
+          </StyledForm>
+        </FormContainer>
+      </ContentContainer>
+    </PageContainer>
+  );
 };
 
 // Styled components
@@ -533,6 +663,15 @@ const SecurityQuestionsContainer = styled.div`
     grid-template-columns: 1fr;
   }
 `;
+const RoleDisplay = styled.div`
+  margin-top: 5px;
+  padding: 5px 10px;
+  background-color: #e2e8f0;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #4a5568;
+  display: inline-block;
+`;
 
 // Helper functions
 const getLabelText = (key) => {
@@ -612,43 +751,59 @@ const getOptions = (key) => {
       </>
     );
   }
-  // Giữ nguyên các options cũ...
-  if (key === 'contractType') {
-    return (
-      <>
-        <option value="">Chọn loại hợp đồng</option>
-        <option value="Toàn thời gian">Toàn thời gian</option>
-        <option value="Bán thời gian">Bán thời gian</option>
-        <option value="Tạm thời">Tạm thời</option>
-      </>
-    );
-  } else if (key === 'contractStatus') {
-    return (
-      <>
-        <option value="active">Đang hoạt động</option>
-        <option value="inactive">Không hoạt động</option>
-        <option value="expired">Đã hết hạn</option>
-      </>
-    );
-  } else if (key === 'employeeType') {
-    return (
-      <>
-        <option value="">Chọn loại nhân viên</option>
-        <option value="Thử việc">Thử việc</option>
-        <option value="Chính thức">Chính thức</option>
-      </>
-    );
-  } else if (key === 'gender') {
-    return (
-      <>
-        <option value="">Chọn giới tính</option>
-        <option value="Nam">Nam</option>
-        <option value="Nữ">Nữ</option>
-        <option value="Khác">Khác</option>
-      </>
-    );
+
+  switch (key) {
+    case 'position':
+      return (
+        <>
+          <option value="">Chọn chức vụ</option>
+          <option value="Nhân viên nhân sự">Nhân viên nhân sự</option>
+          <option value="Nhân viên tài vụ">Nhân viên tài vụ</option>
+          <option value="Khác">Khác</option>
+        </>
+      );
+    
+    case 'contractType':
+      return (
+        <>
+          <option value="">Chọn loại hợp đồng</option>
+          <option value="Toàn thời gian">Toàn thời gian</option>
+          <option value="Bán thời gian">Bán thời gian</option> 
+          <option value="Tạm thời">Tạm thời</option>
+        </>
+      );
+    
+    case 'contractStatus':
+      return (
+        <>
+          <option value="active">Đang hoạt động</option>
+          <option value="inactive">Không hoạt động</option>
+          <option value="expired">Đã hết hạn</option>
+        </>
+      );
+    
+    case 'employeeType':
+      return (
+        <>
+          <option value="">Chọn loại nhân viên</option>
+          <option value="Thử việc">Thử việc</option>
+          <option value="Chính thức">Chính thức</option>
+        </>
+      );
+    
+    case 'gender':
+      return (
+        <>
+          <option value="">Chọn giới tính</option>
+          <option value="Nam">Nam</option>
+          <option value="Nữ">Nữ</option>
+          <option value="Khác">Khác</option>
+        </>
+      );
+    
+    default:
+      return null;
   }
-  return null;
 };
 
 export default AddEmployee;

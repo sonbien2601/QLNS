@@ -10,18 +10,84 @@ const Contract = require('../models/Contract'); // Nhập mô hình Contract
 const FeedbackSalary = require('../models/FeedbackSalary');
 const Task = require('../models/Task');
 const Resignation = require('../models/Resignation');
+const Dismissal = require('../models/Dismissal');
+const Approval = require('../models/Approval');
 const router = express.Router(); // Tạo router từ Express
 const moment = require('moment-timezone');
 const schedule = require('node-schedule');
 
 
+
+
 // Hàm tạo token
 const generateToken = (user) => {
   return jwt.sign(
-    { userId: user._id, role: user.role },
+    {
+      userId: user._id,
+      role: user.role,  // Đảm bảo role được set đúng là 'hr'
+      isHR: user.role === 'hr',
+      isFinance: user.role === 'finance'
+    },
     process.env.JWT_SECRET || 'your_jwt_secret',
-    { expiresIn: '24h' } // Token hết hạn sau 24 giờ
+    { expiresIn: '24h' }
   );
+};
+
+const handleHRRequest = async (req, res, next) => {
+  if (req.user.role === 'hr') {
+    try {
+      // Tạo yêu cầu phê duyệt
+      const approval = new Approval({
+        requestType: req.originalUrl.split('/')[2], // Lấy loại request từ URL
+        requestData: {
+          endpoint: req.originalUrl,
+          method: req.method,
+          body: req.body,
+          params: req.params,
+          requestedBy: {
+            userId: req.user.userId,
+            role: req.user.role
+          }
+        },
+        requestedBy: req.user.userId,
+        status: 'pending'
+      });
+      await approval.save();
+
+      return res.status(201).json({
+        message: 'Yêu cầu đã được gửi đến Admin để phê duyệt',
+        approvalId: approval._id
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Lỗi khi tạo yêu cầu phê duyệt',
+        error: error.message
+      });
+    }
+  }
+  next();
+};
+
+const isHR = (req, res, next) => {
+  if (req.user.role !== 'hr') {
+    return res.status(403).json({ message: 'Không có quyền truy cập' });
+  }
+  next();
+};
+
+const isAdminOrHR = (req, res, next) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'hr') {
+    return res.status(403).json({ message: 'Không có quyền truy cập' });
+  }
+  next();
+};
+
+// Thêm middleware kiểm tra quyền Finance
+const isFinance = (req, res, next) => {
+  if (req.user.role !== 'finance' && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Không có quyền truy cập' });
+  }
+  next();
 };
 
 // Middleware để kiểm tra token
@@ -48,15 +114,15 @@ const authenticate = (req, res, next) => {
 
 // Route đăng ký
 router.post('/register', async (req, res) => {
-  const { 
-    username, 
-    fullName, 
-    email, 
-    password, 
-    phoneNumber, 
-    position, 
-    companyName, 
-    city, 
+  const {
+    username,
+    fullName,
+    email,
+    password,
+    phoneNumber,
+    position,
+    companyName,
+    city,
     gender,
     // Thêm các trường câu hỏi bảo mật vào destructuring
     securityQuestion1,
@@ -123,10 +189,11 @@ router.post('/register', async (req, res) => {
 
 
 // Route đăng nhập
+// Trong route login
 router.post('/login', async (req, res) => {
-  const { login, password } = req.body;
-
   try {
+    const { login, password } = req.body;
+
     let user = await User.findOne({
       $or: [{ email: login }, { username: login }]
     });
@@ -146,6 +213,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Mật khẩu không đúng' });
     }
 
+    // Log để debug
+    console.log('User found:', {
+      id: user._id,
+      username: user.username,
+      position: user.position,
+      role: user.role
+    });
+
     const token = generateToken(user);
 
     res.json({
@@ -153,10 +228,12 @@ router.post('/login', async (req, res) => {
       userId: user._id,
       role: user.role,
       fullName: user.fullName,
-      username: user.username
+      username: user.username,
+      isHR: user.role === 'hr',
+      isFinance: user.role === 'finance'
     });
   } catch (error) {
-    console.error('Lỗi đăng nhập:', error);
+    console.error('Login error:', error);
     res.status(500).json({ message: 'Lỗi server khi đăng nhập' });
   }
 });
@@ -164,12 +241,13 @@ router.post('/login', async (req, res) => {
 
 
 // Route tạo tài khoản người dùng từ admin
+// Route tạo tài khoản người dùng từ admin/hr
 router.post('/create-user', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền tạo tài khoản' });
-  }
-
   try {
+    if (req.user.role !== 'admin' && req.user.role !== 'hr') {
+      return res.status(403).json({ message: 'Bạn không có quyền tạo tài khoản' });
+    }
+
     const {
       username,
       fullName,
@@ -184,166 +262,182 @@ router.post('/create-user', authenticate, async (req, res) => {
       contractStatus,
       employeeType,
       gender,
-      // Thêm các trường câu hỏi bảo mật
       securityQuestion1,
       securityAnswer1,
       securityQuestion2,
       securityAnswer2,
       securityQuestion3,
-      securityAnswer3
+      securityAnswer3,
+      requestedBy // Thông tin người tạo từ frontend
     } = req.body;
 
-    // Kiểm tra các giá trị enum
-    const validGenders = ['Nam', 'Nữ', 'Khác'];
-    const validContractTypes = ['Toàn thời gian', 'Bán thời gian', 'Tạm thời'];
-    const validEmployeeTypes = ['Thử việc', 'Chính thức'];
-    const validContractStatuses = ['active', 'inactive', 'expired'];
-
-    // Validate dữ liệu đầu vào
-    if (!validGenders.includes(gender)) {
-      return res.status(400).json({ message: 'Giới tính không hợp lệ' });
+    // Validate required fields
+    if (!username || !fullName || !email || !password || !phoneNumber || !position || !basicSalary || !gender) {
+      return res.status(400).json({
+        message: 'Vui lòng điền đầy đủ thông tin bắt buộc'
+      });
     }
 
-    if (contractType && !validContractTypes.includes(contractType)) {
-      return res.status(400).json({ message: 'Loại hợp đồng không hợp lệ' });
-    }
-
-    if (!validEmployeeTypes.includes(employeeType)) {
-      return res.status(400).json({ message: 'Loại nhân viên không hợp lệ' });
-    }
-
-    if (contractStatus && !validContractStatuses.includes(contractStatus)) {
-      return res.status(400).json({ message: 'Trạng thái hợp đồng không hợp lệ' });
-    }
-
-    // Validate thông tin câu hỏi bảo mật
-    if (!securityQuestion1 || !securityAnswer1 || !securityQuestion2 || !securityAnswer2 || !securityQuestion3 || !securityAnswer3) {
-      return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ câu hỏi và câu trả lời bảo mật' });
-    }
-
-    // Kiểm tra user đã tồn tại
-    const existingUserInUser = await User.findOne({
+    // Kiểm tra user tồn tại
+    const existingUser = await User2.findOne({
       $or: [{ email }, { username }]
     });
 
-    const existingUserInUser2 = await User2.findOne({
-      $or: [{ email }, { username }]
-    });
-
-    if (existingUserInUser || existingUserInUser2) {
-      if ((existingUserInUser?.email === email) || (existingUserInUser2?.email === email)) {
+    if (existingUser) {
+      if (existingUser.email === email) {
         return res.status(400).json({ message: 'Email đã được sử dụng' });
       }
-      if ((existingUserInUser?.username === username) || (existingUserInUser2?.username === username)) {
+      if (existingUser.username === username) {
         return res.status(400).json({ message: 'Username đã được sử dụng' });
       }
     }
 
-    // Mã hóa mật khẩu
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Xử lý dựa trên role
+    if (req.user.role === 'hr') {
+      try {
+        // Tạo yêu cầu phê duyệt cho HR
+        const approval = new Approval({
+          requestType: 'create_user',
+          requestData: {
+            ...req.body,
+            createdAt: new Date(),
+            requestedBy: {
+              id: req.user.userId,
+              role: 'hr'
+            }
+          },
+          requestedBy: req.user.userId,
+          status: 'pending'
+        });
 
-    // Xây dựng đối tượng user mới
-    const userData = {
-      username,
-      fullName,
-      email,
-      password: hashedPassword,
-      phoneNumber,
-      position,
-      role: 'user',
-      basicSalary: Number(basicSalary),
-      gender,
-      employeeType: employeeType || 'Thử việc',
-      // Thêm thông tin bảo mật
-      securityQuestion1,
-      securityAnswer1,
-      securityQuestion2,
-      securityAnswer2,
-      securityQuestion3,
-      securityAnswer3
-    };
+        await approval.save();
 
-    // Chỉ thêm thông tin hợp đồng nếu là nhân viên chính thức
-    if (employeeType === 'Chính thức') {
-      if (!contractType || !contractStart || !contractEnd) {
-        return res.status(400).json({
-          message: 'Vui lòng cung cấp đầy đủ thông tin hợp đồng cho nhân viên chính thức'
+        return res.status(201).json({
+          message: 'Yêu cầu tạo tài khoản đã được gửi đến Admin để phê duyệt',
+          approvalId: approval._id,
+          status: 'pending'
+        });
+      } catch (error) {
+        console.error('Lỗi khi tạo yêu cầu phê duyệt:', error);
+        return res.status(500).json({
+          message: 'Lỗi khi tạo yêu cầu phê duyệt',
+          error: error.message
         });
       }
+    } else {
+      try {
+        // Admin tạo user trực tiếp
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-      userData.contractType = contractType;
-      userData.contractStart = new Date(contractStart);
-      userData.contractEnd = new Date(contractEnd);
-      userData.contractStatus = contractStatus || 'active';
+        // Xác định role dựa trên position
+        let userRole = 'user';
+        if (position === 'Nhân viên nhân sự') {
+          userRole = 'hr';
+        } else if (position === 'Nhân viên tài vụ') {
+          userRole = 'finance';
+        }
 
-      // Kiểm tra ngày hợp đồng
-      if (userData.contractEnd <= userData.contractStart) {
-        return res.status(400).json({
-          message: 'Ngày kết thúc hợp đồng phải sau ngày bắt đầu'
+        // Tạo user mới
+        const userData = {
+          username,
+          fullName,
+          email,
+          password: hashedPassword,
+          phoneNumber,
+          position,
+          role: userRole,
+          basicSalary: Number(basicSalary),
+          gender,
+          employeeType,
+          securityQuestion1,
+          securityAnswer1,
+          securityQuestion2,
+          securityAnswer2,
+          securityQuestion3,
+          securityAnswer3
+        };
+
+        // Thêm thông tin hợp đồng nếu là nhân viên chính thức
+        if (employeeType === 'Chính thức') {
+          userData.contractType = contractType;
+          userData.contractStart = contractStart ? new Date(contractStart) : null;
+          userData.contractEnd = contractEnd ? new Date(contractEnd) : null;
+          userData.contractStatus = contractStatus || 'active';
+
+          if (userData.contractEnd && userData.contractStart && userData.contractEnd <= userData.contractStart) {
+            return res.status(400).json({
+              message: 'Ngày kết thúc hợp đồng phải sau ngày bắt đầu'
+            });
+          }
+        }
+
+        const newUser = new User2(userData);
+        await newUser.save();
+
+        // Tạo bản ghi lương
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth() + 1;
+        const currentYear = currentDate.getFullYear();
+
+        const newSalary = new Salary({
+          userId: newUser._id,
+          month: currentMonth,
+          year: currentYear,
+          basicSalary: Number(basicSalary),
+          bonus: 0,
+          workingDays: 0,
+          actualWorkHours: 0,
+          standardWorkHours: 0,
+          taskBonus: 0,
+          taskPenalty: 0,
+          completedTasks: 0,
+          totalSalary: 0
+        });
+
+        await newSalary.calculateWorkingDays();
+        await newSalary.save();
+
+        // Tạo token mới
+        const newToken = generateToken(req.user);
+
+        return res.status(201).json({
+          message: 'Tạo tài khoản thành công',
+          user: {
+            id: newUser._id,
+            username: newUser.username,
+            fullName: newUser.fullName,
+            email: newUser.email,
+            phoneNumber: newUser.phoneNumber,
+            position: newUser.position,
+            role: newUser.role,
+            basicSalary: newUser.basicSalary,
+            contractStart: newUser.contractStart,
+            contractEnd: newUser.contractEnd,
+            contractType: newUser.contractType,
+            contractStatus: newUser.contractStatus,
+            gender: newUser.gender,
+            employeeType: newUser.employeeType
+          },
+          salary: newSalary,
+          newToken
+        });
+      } catch (error) {
+        console.error('Lỗi khi tạo tài khoản:', error);
+        return res.status(500).json({
+          message: 'Lỗi khi tạo tài khoản',
+          error: error.message
         });
       }
     }
-
-    const newUser = new User2(userData);
-    await newUser.save();
-
-    // Khởi tạo bản ghi lương cho tháng hiện tại
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth() + 1;
-    const currentYear = currentDate.getFullYear();
-
-    const newSalary = new Salary({
-      userId: newUser._id,
-      month: currentMonth,
-      year: currentYear,
-      basicSalary: Number(basicSalary),
-      bonus: 0,
-      workingDays: 0,
-      actualWorkHours: 0,
-      standardWorkHours: 0,
-      taskBonus: 0,
-      taskPenalty: 0,
-      completedTasks: 0,
-      totalSalary: 0
-    });
-
-    // Tính số ngày làm việc chuẩn cho tháng hiện tại
-    newSalary.calculateWorkingDays();
-    await newSalary.save();
-
-    // Tạo token mới cho admin
-    const newToken = generateToken(req.user);
-
-    res.status(201).json({
-      message: 'Tạo tài khoản thành công',
-      user: {
-        id: newUser._id,
-        username: newUser.username,
-        fullName: newUser.fullName,
-        email: newUser.email,
-        phoneNumber: newUser.phoneNumber,
-        position: newUser.position,
-        role: newUser.role,
-        basicSalary: newUser.basicSalary,
-        contractStart: newUser.contractStart,
-        contractEnd: newUser.contractEnd,
-        contractType: newUser.contractType,
-        contractStatus: newUser.contractStatus,
-        gender: newUser.gender,
-        employeeType: newUser.employeeType
-      },
-      salary: newSalary,
-      newToken
-    });
-
   } catch (error) {
-    console.error('Lỗi khi tạo tài khoản:', error);
-    res.status(500).json({
-      message: 'Lỗi khi tạo tài khoản',
+    console.error('Lỗi tổng thể:', error);
+    return res.status(500).json({
+      message: 'Lỗi server',
       error: error.message
     });
   }
 });
+
 
 // Route làm mới token
 router.post('/refresh-token', authenticate, (req, res) => {
@@ -357,6 +451,162 @@ router.post('/refresh-token', authenticate, (req, res) => {
 
 
 // ================== API YÊU CẦU BỔ NHIỆM ==================
+
+router.put('/hr-appointments/:id/process', authenticate, isHR, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, feedback } = req.body;
+
+    console.log('Processing HR request:', {
+      appointmentId: id,
+      action,
+      feedback
+    });
+
+    // Validate appointment exists
+    const appointment = await Appointment.findById(id)
+      .populate('userId', 'fullName position');
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm' });
+    }
+
+    // Validate status
+    if (appointment.status !== 'pending') {
+      return res.status(400).json({
+        message: 'Yêu cầu này không thể xử lý do không ở trạng thái chờ duyệt'
+      });
+    }
+
+    // Update appointment based on action
+    const updateData = {
+      hrFeedback: feedback,
+      hrFeedbackAt: new Date(),
+      hrProcessedBy: req.user.userId
+    };
+
+    if (action === 'approve') {
+      updateData.status = 'waiting_admin';
+    } else if (action === 'reject') {
+      updateData.status = 'waiting_admin'; // Thay đổi ở đây, cũng chuyển về waiting_admin
+    } else {
+      return res.status(400).json({ message: 'Hành động không hợp lệ' });
+    }
+
+    // Tạo approval request cho admin
+    const approvalRequest = new Approval({
+      requestType: 'appointment_approval',
+      requestData: {
+        appointmentId: appointment._id,
+        userId: appointment.userId._id,
+        oldPosition: appointment.oldPosition,
+        newPosition: appointment.newPosition,
+        reason: appointment.reason,
+        hrFeedback: feedback,
+        hrAction: action // Thêm trường này để admin biết HR đề xuất approve hay reject
+      },
+      requestedBy: req.user.userId,
+      status: 'pending',
+      adminResponse: ''
+    });
+
+    await approvalRequest.save();
+
+    // Cập nhật appointment
+    const updatedAppointment = await Appointment.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          ...updateData,
+          hrAction: action // Thêm trường này để lưu action của HR
+        }
+      },
+      { new: true }
+    ).populate('userId', 'fullName position');
+
+    // Return response
+    res.json({
+      message: action === 'approve' ?
+        'Đã gửi đề xuất phê duyệt đến Admin' :
+        'Đã gửi đề xuất từ chối đến Admin',
+      appointment: updatedAppointment,
+      approvalId: approvalRequest._id
+    });
+
+  } catch (error) {
+    console.error('Process HR request error:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xử lý yêu cầu',
+      error: error.message
+    });
+  }
+});
+
+// API lấy danh sách bổ nhiệm cho HR
+router.get('/hr-appointments', authenticate, isHR, async (req, res) => {
+  try {
+    // HR có thể xem tất cả yêu cầu bổ nhiệm nhưng không thể phê duyệt
+    const appointments = await Appointment.find()
+      .populate('userId', 'fullName position')
+      .sort({ createdAt: -1 });
+
+    // Thêm thông tin chi tiết cho từng bổ nhiệm
+    const detailedAppointments = await Promise.all(appointments.map(async (appointment) => {
+      const user = await User2.findById(appointment.userId);
+      return {
+        ...appointment.toObject(),
+        oldPosition: user?.position || 'Không có thông tin',
+      };
+    }));
+
+    res.json({
+      appointments: detailedAppointments,
+      message: 'Lấy danh sách bổ nhiệm thành công'
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy danh sách bổ nhiệm:', error);
+    res.status(500).json({
+      message: 'Lỗi khi lấy danh sách bổ nhiệm',
+      error: error.message
+    });
+  }
+});
+
+// API để HR xem chi tiết một yêu cầu bổ nhiệm cụ thể
+router.get('/hr-appointments/:id', authenticate, isHR, async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id)
+      .populate('userId', 'fullName position');
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm' });
+    }
+
+    // Lấy thêm thông tin chi tiết về vị trí hiện tại
+    const user = await User2.findById(appointment.userId);
+
+    const detailedAppointment = {
+      ...appointment.toObject(),
+      oldPosition: user?.position || 'Không có thông tin',
+    };
+
+    res.json({
+      appointment: detailedAppointment,
+      message: 'Lấy thông tin chi tiết bổ nhiệm thành công'
+    });
+
+  } catch (error) {
+    console.error('Lỗi khi lấy chi tiết bổ nhiệm:', error);
+    res.status(500).json({
+      message: 'Lỗi khi lấy chi tiết bổ nhiệm',
+      error: error.message
+    });
+  }
+});
+
+// API để HR gửi feedback về yêu cầu bổ nhiệm
+// Modify the HR process route handler in your backend
+
 
 // Route để lấy thông tin người dùng
 router.get('/user-info', authenticate, async (req, res) => {
@@ -376,6 +626,7 @@ router.get('/user-info', authenticate, async (req, res) => {
     res.status(500).json({ message: 'Lỗi server khi lấy thông tin người dùng' });
   }
 });
+
 // Cập nhật route tạo yêu cầu bổ nhiệm
 router.post('/appointment-request', authenticate, async (req, res) => {
   const { newPosition, reason } = req.body;
@@ -443,26 +694,7 @@ router.get('/get-appointments', authenticate, async (req, res) => {
 });
 
 // Phê duyệt bổ nhiệm
-router.put('/approve-appointment/:id', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền phê duyệt' });
-  }
-
-  try {
-    const appointment = await Appointment.findByIdAndUpdate(req.params.id,
-      {
-        status: 'approved',
-        approvedAt: Date.now() // Cập nhật thời gian phê duyệt
-      },
-      { new: true }
-    );
-
-    res.json({ message: 'Yêu cầu bổ nhiệm đã được phê duyệt', appointment });
-
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi phê duyệt bổ nhiệm', error: error.message });
-  }
-});
+// Cập nhật route phê duyệt bổ nhiệm
 
 // Từ chối bổ nhiệm
 router.put('/reject-appointment/:id', authenticate, async (req, res) => {
@@ -532,6 +764,94 @@ router.delete('/delete-appointment/:id', authenticate, async (req, res) => {
   }
 });
 
+// ================== API MIỄN NHIỆM ==================
+
+// API miễn nhiệm trực tiếp
+router.post('/dismissals', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Không có quyền thực hiện thao tác này' });
+  }
+
+  try {
+    const { userId, newPosition, reason, effectiveDate } = req.body;
+
+    // Validate input
+    if (!userId || !newPosition || !reason || !effectiveDate) {
+      return res.status(400).json({
+        message: 'Vui lòng cung cấp đầy đủ thông tin: userId, newPosition, reason, effectiveDate'
+      });
+    }
+
+    // Kiểm tra user tồn tại
+    const user = await User2.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
+    }
+
+    const oldPosition = user.position;
+
+    // Validate vị trí mới phải khác vị trí cũ
+    if (oldPosition === newPosition) {
+      return res.status(400).json({ message: 'Vị trí mới phải khác vị trí hiện tại' });
+    }
+
+    // Cập nhật RIÊNG trường position, bỏ qua validation
+    await User2.findByIdAndUpdate(
+      userId,
+      { $set: { position: newPosition } },
+      {
+        new: true,
+        runValidators: false // Tắt validation
+      }
+    );
+
+    // Tạo bản ghi miễn nhiệm
+    const dismissal = new Dismissal({
+      userId: user._id,
+      oldPosition,
+      newPosition,
+      reason,
+      effectiveDate: new Date(effectiveDate),
+      createdBy: req.user.userId
+    });
+
+    await dismissal.save();
+
+    // Populate thông tin user trước khi trả về
+    await dismissal.populate('userId', 'fullName position');
+
+    res.status(201).json({
+      message: 'Miễn nhiệm thành công',
+      dismissal
+    });
+
+  } catch (error) {
+    console.error('Lỗi khi thực hiện miễn nhiệm:', error);
+    res.status(500).json({
+      message: 'Lỗi khi thực hiện miễn nhiệm',
+      error: error.message
+    });
+  }
+});
+
+// API lấy lịch sử miễn nhiệm 
+router.get('/dismissals', authenticate, async (req, res) => {
+  try {
+    const dismissals = await Dismissal.find()
+      .populate('userId', 'fullName position')
+      .populate('createdBy', 'fullName')
+      .sort({ createdAt: -1 });
+
+    res.json(dismissals);
+  } catch (error) {
+    console.error('Lỗi khi lấy lịch sử miễn nhiệm:', error);
+    res.status(500).json({
+      message: 'Lỗi khi lấy lịch sử miễn nhiệm',
+      error: error.message
+    });
+  }
+});
+
 
 // ================== API CHẤM CÔNG ==================
 // ================== ATTENDANCE HELPER FUNCTIONS ==================
@@ -559,7 +879,7 @@ const calculateLatePenalty = (lateMinutes) => {
 const handleLatePenalty = async (userId, checkInTime, session, month, year) => {
   let lateMinutes = 0;
   const expectedTime = moment(checkInTime).startOf('day');
-  
+
   if (session === 'morning') {
     expectedTime.add(8, 'hours'); // 8:00
     lateMinutes = moment(checkInTime).diff(expectedTime, 'minutes');
@@ -567,7 +887,7 @@ const handleLatePenalty = async (userId, checkInTime, session, month, year) => {
     expectedTime.add(13, 'hours').add(30, 'minutes'); // 13:30
     lateMinutes = moment(checkInTime).diff(expectedTime, 'minutes');
   }
-  
+
   if (lateMinutes > 0) {
     let salary = await Salary.findOne({ userId, month, year });
     if (!salary) {
@@ -589,14 +909,14 @@ const handleLatePenalty = async (userId, checkInTime, session, month, year) => {
     const penalty = calculateLatePenalty(lateMinutes);
     const monthKey = `${month}-${year}`;
     let monthDetails = salary.monthlyLateDetails.get(monthKey) || [];
-    
+
     monthDetails.push({
       date: moment(checkInTime).startOf('day'),
       minutes: lateMinutes,
       penalty: penalty,
       session: session // Thêm thông tin về buổi sáng/chiều
     });
-    
+
     salary.monthlyLateDetails.set(monthKey, monthDetails);
     salary.latePenalty = monthDetails.reduce((sum, detail) => sum + detail.penalty, 0);
     salary.lateCount = monthDetails.length;
@@ -648,7 +968,7 @@ const calculateWorkingTime = (checkIn, checkOut) => {
   try {
     const startTime = moment(checkIn);
     const endTime = moment(checkOut);
-    
+
     // Đảm bảo thời gian hợp lệ
     if (!startTime.isValid() || !endTime.isValid()) {
       console.error('Invalid time:', { checkIn, checkOut });
@@ -673,7 +993,7 @@ const formatDuration = (minutes) => {
 // Cập nhật hàm calculateDailyWorkingTime để thêm xử lý bonus/penalty từ tasks
 const calculateDailyWorkingTime = async (attendance, userId) => {
   // Tính toán thời gian làm việc như cũ
-  const morningMinutes = attendance.morningCheckIn && attendance.morningCheckOut ? 
+  const morningMinutes = attendance.morningCheckIn && attendance.morningCheckOut ?
     calculateWorkingTime(attendance.morningCheckIn, attendance.morningCheckOut) : 0;
 
   const afternoonMinutes = attendance.afternoonCheckIn && attendance.afternoonCheckOut ?
@@ -753,7 +1073,7 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
   try {
     console.log('Starting check-in process...');
     const userId = req.user.userId;
-    
+
     // Validate user exists
     const user = await User2.findById(userId);
     if (!user) {
@@ -769,7 +1089,7 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
 
     // Validate workday with clear error message
     if (now.day() === 0 || now.day() === 6) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Hôm nay không phải ngày làm việc',
         details: `Ngày ${now.format('dddd')} không phải là ngày làm việc`
       });
@@ -812,7 +1132,7 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
     // Handle check-in based on period with validation
     if (period === 'morning') {
       if (attendance.morningCheckIn) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Bạn đã check-in buổi sáng rồi',
           checkInTime: moment(attendance.morningCheckIn).format('HH:mm:ss')
         });
@@ -823,7 +1143,7 @@ router.post('/attendance/check-in', authenticate, async (req, res) => {
         : 'present';
     } else {
       if (attendance.afternoonCheckIn) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Bạn đã check-in buổi chiều rồi',
           checkInTime: moment(attendance.afternoonCheckIn).format('HH:mm:ss')
         });
@@ -1070,7 +1390,7 @@ const calculateMonthlyWorkingMinutes = async (userId, month, year) => {
     if (record.morningCheckIn && record.morningCheckOut) {
       totalMinutes += calculateWorkingTime(record.morningCheckIn, record.morningCheckOut);
     }
-    
+
     // Tính giờ làm việc buổi chiều
     if (record.afternoonCheckIn && record.afternoonCheckOut) {
       totalMinutes += calculateWorkingTime(record.afternoonCheckIn, record.afternoonCheckOut);
@@ -1113,7 +1433,7 @@ router.get('/attendance/history', authenticate, async (req, res) => {
 
     const formattedHistory = history.map(record => ({
 
-      
+
       date: moment(record.date).format('YYYY-MM-DD'),
       morningSession: {
         checkIn: formatTimeResponse(record.morningCheckIn),
@@ -1124,7 +1444,7 @@ router.get('/attendance/history', authenticate, async (req, res) => {
         checkOut: formatTimeResponse(record.afternoonCheckOut)
       },
       workingHours: {
-        daily: record.dailyHours 
+        daily: record.dailyHours
           ? `${Math.floor(record.dailyHours)} giờ ${Math.round((record.dailyHours % 1) * 60)} phút`
           : '0 giờ 0 phút',
         monthly: record.monthlyHours
@@ -1146,114 +1466,118 @@ router.get('/attendance/history', authenticate, async (req, res) => {
 
 // Admin attendance records API
 router.get('/attendance/all', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
-  }
-
   try {
-    const { month, year, userId } = req.query;
-    const query = {};
-
-    // Thêm filter theo tháng và năm
-    if (month && year) {
-      query.month = parseInt(month);
-      query.year = parseInt(year);
-    } else {
-      // Nếu không có tháng năm, lấy tháng hiện tại
-      const now = moment().tz('Asia/Ho_Chi_Minh');
-      query.month = now.month() + 1;
-      query.year = now.year();
+    if (req.user.role !== 'admin' && req.user.role !== 'hr') {
+      return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
     }
 
-    // Thêm filter theo userId nếu có
-    if (userId) {
-      query.userId = userId;
-    }
+    const { month, year } = req.query;
 
-    const attendanceRecords = await Attendance.find(query)
-      .populate('userId', 'fullName position')
-      .sort({ date: -1 })
-      .lean();
+    // Validate month và year
+    const queryMonth = month ? parseInt(month) : moment().month() + 1;
+    const queryYear = year ? parseInt(year) : moment().year();
 
-    const formattedRecords = await Promise.all(attendanceRecords.map(async record => {
-      // Tính toán trạng thái đi muộn
-      const morningLate = record.morningCheckIn ? 
-        moment(record.morningCheckIn).hour() > 8 || 
-        (moment(record.morningCheckIn).hour() === 8 && moment(record.morningCheckIn).minute() > 15)
-        : null;
+    // Trả về mảng rỗng nếu không có dữ liệu
+    const attendanceRecords = await Attendance.find({
+      month: queryMonth,
+      year: queryYear
+    }).populate('userId').lean();
 
-      const afternoonLate = record.afternoonCheckIn ?
-        moment(record.afternoonCheckIn).hour() > 13 || 
-        (moment(record.afternoonCheckIn).hour() === 13 && moment(record.afternoonCheckIn).minute() > 45)
-        : null;
-
-      // Format thời gian làm việc
-      const workingTimes = {
-        daily: record.dailyHours 
-          ? `${Math.floor(record.dailyHours)} giờ ${Math.round((record.dailyHours % 1) * 60)} phút`
-          : '0 giờ 0 phút',
-        monthly: record.monthlyHours
-          ? `${Math.floor(record.monthlyHours)} giờ ${Math.round((record.monthlyHours % 1) * 60)} phút`
-          : '0 giờ 0 phút'
-      };
-
-      // Lấy thông tin lương của tháng
-      const salary = await Salary.findOne({
-        userId: record.userId._id,
-        month: record.month,
-        year: record.year
+    if (!attendanceRecords || attendanceRecords.length === 0) {
+      return res.json({
+        attendanceRecords: [],
+        summary: {
+          workingDays: 0,
+          totalLateRecords: 0,
+          totalWorkHours: 0,
+          averageWorkHours: 0
+        }
       });
+    }
 
-      return {
-        _id: record._id,
+    const formattedRecords = attendanceRecords.map(record => {
+      // Kiểm tra và xử lý dữ liệu an toàn
+      const safeRecord = {
+        _id: record._id || 'N/A',
+        date: record.date ? moment(record.date).format('YYYY-MM-DD') : 'N/A',
         userId: {
-          _id: record.userId._id,
-          fullName: record.userId.fullName,
-          position: record.userId.position
+          fullName: record.userId?.fullName || 'N/A',
+          position: record.userId?.position || 'N/A'
         },
-        date: moment(record.date).format('YYYY-MM-DD'),
-        month: record.month,
-        year: record.year,
         morningSession: {
-          checkIn: formatTimeResponse(record.morningCheckIn),
-          checkOut: formatTimeResponse(record.morningCheckOut),
-          isLate: morningLate
+          checkIn: record.morningCheckIn ? moment(record.morningCheckIn).format('HH:mm:ss') : null,
+          checkOut: record.morningCheckOut ? moment(record.morningCheckOut).format('HH:mm:ss') : null,
+          isLate: false
         },
         afternoonSession: {
-          checkIn: formatTimeResponse(record.afternoonCheckIn),
-          checkOut: formatTimeResponse(record.afternoonCheckOut),
-          isLate: afternoonLate
+          checkIn: record.afternoonCheckIn ? moment(record.afternoonCheckIn).format('HH:mm:ss') : null,
+          checkOut: record.afternoonCheckOut ? moment(record.afternoonCheckOut).format('HH:mm:ss') : null,
+          isLate: false
         },
-        workingHours: workingTimes,
+        workingHours: {
+          daily: '0 giờ 0 phút',
+          monthly: '0 giờ 0 phút'
+        },
+        status: record.status || 'absent',
         monthlyStats: {
-          totalHours: record.monthlyHours,
-          standardHours: salary ? salary.standardWorkHours : 0,
-          workRatio: salary ? 
-            ((record.monthlyHours / salary.standardWorkHours) * 100).toFixed(2) + '%' 
-            : '0%'
-        },
-        status: record.status
+          totalHours: 0,
+          standardHours: 0,
+          workRatio: '0%'
+        }
       };
-    }));
 
-    // Tính toán thống kê tổng quan
+      // Tính toán thời gian làm việc nếu có dữ liệu
+      if (record.morningCheckIn && record.morningCheckOut) {
+        const morningStart = moment(record.morningCheckIn);
+        const morningEnd = moment(record.morningCheckOut);
+        if (morningStart.isValid() && morningEnd.isValid()) {
+          const morningMinutes = morningEnd.diff(morningStart, 'minutes');
+          safeRecord.morningSession.isLate = morningStart.hour() >= 8 && morningStart.minute() > 15;
+          safeRecord.workingHours.daily = formatDuration(morningMinutes);
+        }
+      }
+
+      if (record.afternoonCheckIn && record.afternoonCheckOut) {
+        const afternoonStart = moment(record.afternoonCheckIn);
+        const afternoonEnd = moment(record.afternoonCheckOut);
+        if (afternoonStart.isValid() && afternoonEnd.isValid()) {
+          const afternoonMinutes = afternoonEnd.diff(afternoonStart, 'minutes');
+          safeRecord.afternoonSession.isLate = afternoonStart.hour() >= 13 && afternoonStart.minute() > 45;
+          const totalMinutes = parseInt(safeRecord.workingHours.daily) + afternoonMinutes;
+          safeRecord.workingHours.daily = formatDuration(totalMinutes);
+        }
+      }
+
+      // Set monthly stats if available
+      if (record.monthlyHours) {
+        safeRecord.workingHours.monthly = formatDuration(record.monthlyHours * 60);
+        safeRecord.monthlyStats.totalHours = record.monthlyHours;
+      }
+
+      return safeRecord;
+    });
+
+    // Tính toán summary
     const summary = {
-      totalRecords: formattedRecords.length,
+      workingDays: calculateWorkingDaysInMonth(queryYear, queryMonth),
       totalLateRecords: formattedRecords.filter(r =>
         r.morningSession.isLate || r.afternoonSession.isLate
       ).length,
-      averageMonthlyHours: formattedRecords.reduce((acc, curr) =>
-        acc + (curr.monthlyStats.totalHours || 0), 0) / formattedRecords.length,
-      averageWorkRatio: formattedRecords.reduce((acc, curr) =>
-        acc + (parseFloat(curr.monthlyStats.workRatio) || 0), 0) / formattedRecords.length
+      totalWorkHours: formattedRecords.reduce((acc, curr) =>
+        acc + (curr.monthlyStats.totalHours || 0), 0),
+      averageWorkHours: 0
     };
+
+    if (formattedRecords.length > 0) {
+      summary.averageWorkHours = summary.totalWorkHours / formattedRecords.length;
+    }
 
     res.json({
       attendanceRecords: formattedRecords,
       summary: {
         ...summary,
-        averageMonthlyHours: `${Math.floor(summary.averageMonthlyHours)} giờ ${Math.round((summary.averageMonthlyHours % 1) * 60)} phút`,
-        averageWorkRatio: `${summary.averageWorkRatio.toFixed(2)}%`
+        totalWorkHours: formatDuration(summary.totalWorkHours * 60),
+        averageWorkHours: formatDuration(summary.averageWorkHours * 60)
       }
     });
 
@@ -1265,6 +1589,8 @@ router.get('/attendance/all', authenticate, async (req, res) => {
     });
   }
 });
+
+
 
 // API Thống kê chấm công theo tháng
 router.get('/attendance/stats', authenticate, async (req, res) => {
@@ -1343,7 +1669,7 @@ const calculateWorkingDaysInMonth = (year, month) => {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0);
   let workingDays = 0;
-  
+
   const currentDate = new Date(startDate);
   while (currentDate <= endDate) {
     // 0 = CN, 6 = T7
@@ -1352,7 +1678,7 @@ const calculateWorkingDaysInMonth = (year, month) => {
     }
     currentDate.setDate(currentDate.getDate() + 1);
   }
-  
+
   return workingDays;
 };
 
@@ -1452,11 +1778,50 @@ router.get('/contracts', authenticate, async (req, res) => {
 });
 
 // API để cập nhật hợp đồng
-router.put('/contracts/:id', authenticate, async (req, res) => {
+router.put('/contracts/:id', authenticate, isAdminOrHR, async (req, res) => {
   try {
     const { id } = req.params;
     const { contractType, startDate, endDate, status } = req.body;
 
+    // Tìm hợp đồng hiện tại
+    const currentUser = await User2.findById(id);
+    if (!currentUser) {
+      return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
+    }
+
+    // Nếu là HR, tạo yêu cầu phê duyệt
+    if (req.user.role === 'hr') {
+      const approval = new Approval({
+        requestType: 'update_contract',
+        requestData: {
+          contractId: id,
+          updateData: {
+            contractType,
+            startDate,
+            endDate,
+            status
+          },
+          // Lưu thông tin cũ để so sánh
+          oldData: {
+            contractType: currentUser.contractType,
+            startDate: currentUser.contractStart,
+            endDate: currentUser.contractEnd,
+            status: currentUser.contractStatus
+          }
+        },
+        requestedBy: req.user.userId,
+        status: 'pending'
+      });
+
+      await approval.save();
+
+      return res.status(201).json({
+        message: 'Yêu cầu cập nhật hợp đồng đã được gửi đến Admin để phê duyệt',
+        approvalId: approval._id
+      });
+    }
+
+    // Nếu là Admin, cập nhật trực tiếp
     const updatedUser = await User2.findByIdAndUpdate(
       id,
       {
@@ -1467,10 +1832,6 @@ router.put('/contracts/:id', authenticate, async (req, res) => {
       },
       { new: true, runValidators: true }
     );
-
-    if (!updatedUser) {
-      return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
-    }
 
     const updatedContract = {
       _id: updatedUser._id,
@@ -1486,8 +1847,13 @@ router.put('/contracts/:id', authenticate, async (req, res) => {
     };
 
     res.json(updatedContract);
+
   } catch (error) {
-    res.status(400).json({ message: 'Lỗi khi cập nhật hợp đồng', error: error.message });
+    console.error('Lỗi khi cập nhật hợp đồng:', error);
+    res.status(500).json({
+      message: 'Lỗi khi cập nhật hợp đồng',
+      error: error.message
+    });
   }
 });
 
@@ -1517,36 +1883,32 @@ router.get('/user-contract/:userId', authenticate, async (req, res) => {
 // API để xóa hợp đồng
 router.delete('/contracts/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+    return res.status(403).json({ message: 'Chỉ Admin mới có quyền xóa hợp đồng' });
   }
 
   try {
     const { id } = req.params;
-    console.log('ID nhân viên cần xóa hợp đồng:', id);
 
-    const user = await User2.findById(id);
+    const user = await User2.findByIdAndUpdate(id, {
+      $unset: {
+        contractType: "",
+        contractStart: "",
+        contractEnd: "",
+        contractStatus: ""
+      }
+    });
 
     if (!user) {
-      console.log('Không tìm thấy nhân viên với ID:', id);
       return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
     }
 
-    console.log('Thông tin nhân viên trước khi xóa hợp đồng:', user);
-
-    // Xóa hoàn toàn thông tin hợp đồng
-    user.contractStart = undefined;
-    user.contractEnd = undefined;
-    user.contractType = undefined;
-    user.contractStatus = undefined;
-
-    await user.save();
-
-    console.log('Thông tin nhân viên sau khi xóa hợp đồng:', user);
-
-    res.json({ message: 'Hợp đồng đã được xóa thành công' });
+    res.json({ message: 'Đã xóa thông tin hợp đồng thành công' });
   } catch (error) {
-    console.error('Lỗi chi tiết khi xóa hợp đồng:', error);
-    res.status(500).json({ message: 'Lỗi khi xóa hợp đồng', error: error.message, stack: error.stack });
+    console.error('Lỗi khi xóa hợp đồng:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xóa hợp đồng',
+      error: error.message
+    });
   }
 });
 
@@ -1554,26 +1916,13 @@ router.delete('/contracts/:id', authenticate, async (req, res) => {
 
 // ================== API HỒ SƠ ==================
 // Route để lấy danh sách user
-router.get('/users', authenticate, async (req, res) => {
+router.get('/users', authenticate, isAdminOrHR, async (req, res) => {
   try {
-    let users;
-    if (req.user.role === 'admin') {
-      // Nếu là admin, lấy thông tin của tất cả user
-      users = await User.find().select('-password');
-      users = users.concat(await User2.find().select('-password'));
-    } else {
-      // Nếu không phải admin, lấy thông tin của chính người dùng đang đăng nhập
-      const user = await User.findById(req.user.userId).select('-password');
-      users = user ? [user] : [];
-      if (!user) {
-        const user2 = await User2.findById(req.user.userId).select('-password');
-        users = user2 ? [user2] : [];
-      }
-    }
-
-    res.json({ users });
+    // HR và admin đều có thể xem toàn bộ danh sách
+    const users = await User.find().select('-password');
+    const users2 = await User2.find().select('-password');
+    res.json({ users: [...users, ...users2] });
   } catch (error) {
-    console.error('Lỗi khi lấy danh sách user:', error);
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 });
@@ -1585,7 +1934,7 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
     const updateData = req.body;
 
     // Kiểm tra vai trò của người dùng
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'hr') {
       return res.status(403).json({ message: 'Bạn không có quyền cập nhật' });
     }
 
@@ -1601,7 +1950,36 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
       }
     }
 
-    // Xử lý đặc biệt khi chuyển từ thử việc sang chính thức
+    // Nếu người dùng là HR, tạo yêu cầu phê duyệt
+    if (req.user.role === 'hr') {
+      try {
+        const approval = new Approval({
+          requestType: 'update_user',
+          requestData: {
+            userId: userId,
+            updateData: updateData,
+            oldData: user.toObject()
+          },
+          requestedBy: req.user.userId,
+          status: 'pending'
+        });
+
+        await approval.save();
+
+        return res.status(201).json({
+          message: 'Yêu cầu cập nhật đã được gửi đến Admin để phê duyệt',
+          approvalId: approval._id
+        });
+      } catch (error) {
+        console.error('Error creating approval request:', error);
+        return res.status(500).json({
+          message: 'Lỗi khi tạo yêu cầu phê duyệt',
+          error: error.message
+        });
+      }
+    }
+
+    // Nếu là admin thì thực hiện cập nhật trực tiếp
     if (updateData.employeeType === 'Chính thức' && user.employeeType === 'Thử việc') {
       if (!updateData.contractType || !updateData.contractStart || !updateData.contractEnd) {
         return res.status(400).json({
@@ -1641,12 +2019,12 @@ router.put('/admin/user/:userId', authenticate, async (req, res) => {
       user: updatedUser,
       newToken
     });
+
   } catch (error) {
     console.error('Lỗi cập nhật:', error);
     res.status(500).json({
       message: 'Lỗi khi cập nhật thông tin',
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: error.message
     });
   }
 });
@@ -1753,7 +2131,7 @@ const calculateTotalWorkHours = (attendanceRecords) => {
 const calculateMonthlyAttendance = async (userId, month, year) => {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0);
-  
+
   const attendanceRecords = await Attendance.find({
     userId,
     date: {
@@ -1761,9 +2139,9 @@ const calculateMonthlyAttendance = async (userId, month, year) => {
       $lte: endDate
     }
   });
-  
+
   let totalMonthlyMinutes = 0;
-  
+
   // Tính tổng thời gian làm việc từ tất cả các bản ghi trong tháng
   attendanceRecords.forEach(record => {
     // Tính giờ làm việc buổi sáng
@@ -1771,7 +2149,7 @@ const calculateMonthlyAttendance = async (userId, month, year) => {
       const morningMinutes = calculateWorkingTime(record.morningCheckIn, record.morningCheckOut);
       totalMonthlyMinutes += morningMinutes;
     }
-    
+
     // Tính giờ làm việc buổi chiều
     if (record.afternoonCheckIn && record.afternoonCheckOut) {
       const afternoonMinutes = calculateWorkingTime(record.afternoonCheckIn, record.afternoonCheckOut);
@@ -1779,65 +2157,75 @@ const calculateMonthlyAttendance = async (userId, month, year) => {
     }
   });
 
-   // Chuyển đổi từ phút sang giờ
-   const totalMonthlyHours = totalMonthlyMinutes / 60;
-  
-   // Cập nhật bản ghi lương của tháng
-   const salary = await Salary.findOne({ userId, month, year });
-   if (salary) {
-     salary.actualWorkHours = totalMonthlyHours;
-     salary.calculateFinalSalary();
-     await salary.save();
-   }
-   
-   return totalMonthlyHours;
- };
+  // Chuyển đổi từ phút sang giờ
+  const totalMonthlyHours = totalMonthlyMinutes / 60;
+
+  // Cập nhật bản ghi lương của tháng
+  const salary = await Salary.findOne({ userId, month, year });
+  if (salary) {
+    salary.actualWorkHours = totalMonthlyHours;
+    salary.calculateFinalSalary();
+    await salary.save();
+  }
+
+  return totalMonthlyHours;
+};
 
 // API lấy danh sách lương
 // Trong router (api/auth.js)
 router.get('/salary', authenticate, async (req, res) => {
-  if (req.user.role !== 'admin') {
+  // Kiểm tra quyền truy cập cho cả admin và finance
+  if (req.user.role !== 'admin' && req.user.role !== 'finance') {
     return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
   }
 
   try {
-    // Lấy tháng và năm từ query params
     const queryMonth = parseInt(req.query.month);
     const queryYear = parseInt(req.query.year);
 
     console.log('Fetching salaries for:', { month: queryMonth, year: queryYear });
 
-    // Tìm tất cả bản ghi lương cho tháng/năm được chọn
-    const salaries = await Salary.find({ 
+    // Lọc users dựa trên role
+    let users;
+    if (req.user.role === 'admin') {
+      // Admin có thể xem tất cả
+      users = await User2.find({});
+    } else {
+      // Finance chỉ có thể xem nhân viên thường và HR
+      users = await User2.find({
+        role: { $in: ['user', 'hr'] }
+      });
+    }
+
+    // Tìm bản ghi lương cho tháng/năm được chọn
+    const salaries = await Salary.find({
       month: queryMonth,
-      year: queryYear
+      year: queryYear,
+      userId: { $in: users.map(u => u._id) }
     }).populate('userId', 'fullName position');
 
-    // Lấy tất cả user
-    const users = await User2.find({});
-
-    // Tạo map để theo dõi user đã có bản ghi lương
+    // Các logic xử lý khác giữ nguyên
     const salaryMap = new Map(salaries.map(s => [s.userId?._id.toString(), s]));
 
-    // Tạo hoặc cập nhật bản ghi lương cho mỗi user
     const processedSalaries = await Promise.all(users.map(async (user) => {
       let salary = salaryMap.get(user._id.toString());
 
       // Nếu chưa có bản ghi lương cho user này
       if (!salary) {
-        // Tìm bản ghi chấm công
+        // Logic tạo bản ghi lương mới giữ nguyên
         const attendanceRecords = await Attendance.find({
           userId: user._id,
           month: queryMonth,
           year: queryYear
         });
 
-        // Tính toán số giờ làm việc và thông tin đi muộn
+        // Các phần tính toán giữ nguyên
         let totalWorkMinutes = 0;
         let lateCount = 0;
         let latePenalty = 0;
         let lateDetails = [];
 
+        // Logic xử lý attendance giữ nguyên
         attendanceRecords.forEach(record => {
           // Tính giờ làm việc
           if (record.morningCheckIn && record.morningCheckOut) {
@@ -1904,9 +2292,9 @@ router.get('/salary', authenticate, async (req, res) => {
           latePenalty,
           lateDetails,
           completedTasks: completedTasks.length,
-          taskBonus: completedTasks.reduce((sum, task) => 
+          taskBonus: completedTasks.reduce((sum, task) =>
             sum + (moment(task.completedAt).isSameOrBefore(task.dueDate) ? (task.bonus || 0) : 0), 0),
-          taskPenalty: completedTasks.reduce((sum, task) => 
+          taskPenalty: completedTasks.reduce((sum, task) =>
             sum + (moment(task.completedAt).isAfter(task.dueDate) ? (task.penalty || 0) : 0), 0)
         });
 
@@ -1928,11 +2316,11 @@ router.get('/salary', authenticate, async (req, res) => {
       totalEmployees: processedSalaries.length,
       totalWorkHours: processedSalaries.reduce((sum, s) => sum + (s.actualWorkHours || 0), 0),
       totalSalaryPaid: processedSalaries.reduce((sum, s) => sum + (s.totalSalary || 0), 0),
-      averageWorkHours: processedSalaries.length > 0 ? 
+      averageWorkHours: processedSalaries.length > 0 ?
         processedSalaries.reduce((sum, s) => sum + (s.actualWorkHours || 0), 0) / processedSalaries.length : 0
     };
 
-    res.status(200).json({ 
+    res.status(200).json({
       salaries: processedSalaries,
       summary: stats
     });
@@ -1948,7 +2336,7 @@ router.get('/salary', authenticate, async (req, res) => {
 
 // API cập nhật lương
 // Trong file router (api/auth.js)
-router.post('/salary/:id', authenticate, async (req, res) => {
+router.post('/salary/:id', authenticate, isAdminOrHR, handleHRRequest, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
   }
@@ -1997,7 +2385,7 @@ router.post('/salary/:id', authenticate, async (req, res) => {
 
     // Tính toán các thông tin cần thiết
     salary.calculateWorkingDays();
-    
+
     const actualHours = await calculateMonthlyAttendance(userId, month, year);
     salary.actualWorkHours = actualHours;
 
@@ -2064,9 +2452,9 @@ router.delete('/salary/:id', authenticate, async (req, res) => {
     res.status(200).json({ message: 'Xóa lương thành công' });
   } catch (error) {
     console.error('Lỗi khi xóa lương:', error);
-    res.status(500).json({ 
-      message: 'Lỗi khi xóa lương', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Lỗi khi xóa lương',
+      error: error.message
     });
   }
 });
@@ -2107,7 +2495,7 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
     completedTasks.forEach(task => {
       const completedDate = new Date(task.completedAt);
       const dueDate = new Date(task.dueDate);
-      
+
       if (completedDate <= dueDate) {
         totalTaskBonus += task.bonus || 0;
       } else {
@@ -2158,12 +2546,12 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
 
     // Cập nhật thông tin đi muộn từ bản ghi chấm công
     const lateDetails = attendanceRecords.map(record => {
-      const morningLateMinutes = record.morningCheckIn ? 
-        moment(record.morningCheckIn).diff(moment(record.date).set({hour: 8, minute: 0}), 'minutes') : 0;
+      const morningLateMinutes = record.morningCheckIn ?
+        moment(record.morningCheckIn).diff(moment(record.date).set({ hour: 8, minute: 0 }), 'minutes') : 0;
       const afternoonLateMinutes = record.afternoonCheckIn ?
-        moment(record.afternoonCheckIn).diff(moment(record.date).set({hour: 13, minute: 30}), 'minutes') : 0;
+        moment(record.afternoonCheckIn).diff(moment(record.date).set({ hour: 13, minute: 30 }), 'minutes') : 0;
       const details = [];
-      
+
       if (morningLateMinutes > 15) { // Tính buffer 15 phút
         details.push({
           date: record.date,
@@ -2172,11 +2560,11 @@ router.get('/salary/:userId', authenticate, async (req, res) => {
           penalty: calculateLatePenalty(morningLateMinutes - 15)
         });
       }
-      
+
       if (afternoonLateMinutes > 15) { // Tính buffer 15 phút
         details.push({
           date: record.date,
-          session: 'afternoon', 
+          session: 'afternoon',
           minutes: afternoonLateMinutes - 15,
           penalty: calculateLatePenalty(afternoonLateMinutes - 15)
         });
@@ -2248,20 +2636,22 @@ router.get('/salary-history/:userId', authenticate, async (req, res) => {
     res.json({ salaryHistory });
   } catch (error) {
     console.error('Error fetching salary history:', error);
-    res.status(500).json({ 
-      message: 'Lỗi khi lấy lịch sử lương', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Lỗi khi lấy lịch sử lương',
+      error: error.message
     });
   }
 });
 
-// Gửi feedback lương
+// Cập nhật API gửi feedback để bao gồm tháng và năm
 router.post('/feedback-salary', authenticate, async (req, res) => {
   try {
-    const { message, userId } = req.body;
+    const { message, userId, month, year } = req.body;
     const newFeedback = new FeedbackSalary({
-      userId: userId || req.user.userId, // Sử dụng userId được cung cấp hoặc ID của người dùng hiện tại
+      userId: userId || req.user.userId,
       message,
+      month: parseInt(month),
+      year: parseInt(year),
       isFromAdmin: req.user.role === 'admin'
     });
     await newFeedback.save();
@@ -2275,10 +2665,20 @@ router.post('/feedback-salary', authenticate, async (req, res) => {
 router.get('/feedback-salary/:userId', authenticate, async (req, res) => {
   try {
     const userId = req.params.userId;
+    const { month, year } = req.query;
+
     if (req.user.role !== 'admin' && req.user.userId !== userId) {
       return res.status(403).json({ message: 'Bạn không có quyền truy cập thông tin này' });
     }
-    const feedbacks = await FeedbackSalary.find({ userId }).sort({ createdAt: -1 });
+
+    // Tạo query chỉ lấy feedback của tháng và năm được chọn
+    const query = { userId };
+    if (month && year) {
+      query.month = parseInt(month);
+      query.year = parseInt(year);
+    }
+
+    const feedbacks = await FeedbackSalary.find(query).sort({ createdAt: -1 });
     res.json({ feedbacks });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy feedback lương', error: error.message });
@@ -2525,9 +2925,9 @@ router.put('/tasks/:taskId/status', authenticate, async (req, res) => {
 
   } catch (error) {
     console.error('Error updating task status:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Lỗi khi cập nhật trạng thái công việc',
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -2782,7 +3182,7 @@ const setupMonthlyJobs = () => {
       const now = moment().tz('Asia/Ho_Chi_Minh');
       const currentMonth = now.month() + 1;
       const currentYear = now.year();
-      
+
       console.log(`Starting monthly reset for ${currentMonth}/${currentYear}`);
 
       // Lấy tất cả user
@@ -2835,8 +3235,8 @@ router.post('/forgot-password/check-email', async (req, res) => {
     if (!user) {
       user = await User2.findOne({ email });
       if (!user) {
-        return res.status(404).json({ 
-          message: 'Email không tồn tại trong hệ thống' 
+        return res.status(404).json({
+          message: 'Email không tồn tại trong hệ thống'
         });
       }
       isAdmin = user.role === 'admin';
@@ -2911,7 +3311,7 @@ router.post('/forgot-password/verify', async (req, res) => {
       user.securityAnswer3?.toLowerCase()
     ];
 
-    const isCorrect = answers.every((answer, index) => 
+    const isCorrect = answers.every((answer, index) =>
       answer.toLowerCase() === correctAnswers[index]
     );
 
@@ -2938,5 +3338,577 @@ router.post('/forgot-password/verify', async (req, res) => {
     });
   }
 });
+
+
+//////////////////////// API PHÊ DUYỆT CHO HR////////////////
+// API để HR gửi yêu cầu phê duyệt
+router.post('/approval-request', authenticate, isHR, async (req, res) => {
+  try {
+    const { requestType, requestData } = req.body;
+
+    const approvalRequest = new Approval({
+      requestType: 'appointment_approval',
+      requestData: {
+        appointmentId: appointment._id,
+        userId: appointment.userId._id,
+        oldPosition: appointment.oldPosition,
+        newPosition: appointment.newPosition,
+        reason: appointment.reason,
+        hrFeedback: feedback,
+        hrAction: action // 'approve' hoặc 'reject'
+      },
+      requestedBy: req.user.userId,
+      status: 'pending'
+    });
+
+    await approvalRequest.save();
+
+    res.status(201).json({
+      message: 'Yêu cầu đã được gửi đến Admin để phê duyệt',
+      approvalId: approvalRequest._id
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Lỗi khi tạo yêu cầu phê duyệt',
+      error: error.message
+    });
+  }
+});
+
+// API để Admin xem danh sách yêu cầu phê duyệt
+router.get('/approvals', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Không có quyền truy cập' });
+  }
+
+  try {
+    const approvals = await Approval.find()
+      .populate('requestedBy', 'fullName position')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      approvals: approvals.map(formatApprovalResponse)
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Lỗi khi lấy danh sách yêu cầu phê duyệt',
+      error: error.message
+    });
+  }
+});
+
+
+// API để Admin phê duyệt/từ chối yêu cầu
+
+router.put('/approve-appointment/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Bạn không có quyền phê duyệt' });
+  }
+
+  try {
+    // Tìm thông tin bổ nhiệm
+    const appointment = await Appointment.findById(req.params.id)
+      .populate('userId');
+    
+    if (!appointment) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm' });
+    }
+
+    // Kiểm tra xem đây là phê duyệt bổ nhiệm hay phê duyệt từ chối
+    const isRejectApproval = appointment.hrAction === 'reject';
+
+    try {
+      // 1. Cập nhật trạng thái appointment trước
+      const updatedAppointment = await Appointment.findByIdAndUpdate(
+        appointment._id,
+        {
+          status: isRejectApproval ? 'rejected' : 'approved',
+          approvedAt: new Date()
+        },
+        { new: true }
+      );
+
+      // 2. Nếu là phê duyệt bổ nhiệm, cập nhật vị trí user
+      if (!isRejectApproval) {
+        await User2.updateOne(
+          { _id: appointment.userId._id },
+          { $set: { position: appointment.newPosition } },
+          { runValidators: false }
+        );
+      }
+
+      // 3. Lấy thông tin user đã cập nhật
+      const updatedUser = await User2.findById(appointment.userId._id)
+        .select('_id fullName position');
+
+      return res.json({ 
+        message: isRejectApproval ? 
+          'Đã phê duyệt việc từ chối bổ nhiệm' : 
+          'Yêu cầu bổ nhiệm đã được phê duyệt',
+        appointment: {
+          ...updatedAppointment._doc,
+          userId: updatedUser
+        }
+      });
+
+    } catch (updateError) {
+      console.error('Error updating:', updateError);
+      return res.status(500).json({
+        message: 'Lỗi khi cập nhật dữ liệu',
+        error: updateError.message
+      });
+    }
+
+  } catch (error) {
+    console.error('Approval error:', error);
+    return res.status(500).json({
+      message: 'Lỗi khi phê duyệt',
+      error: error.message
+    });
+  }
+});
+
+
+// Route xử lý phê duyệt
+router.put('/approvals/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, adminResponse } = req.body;
+
+    // Validate role
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Không có quyền phê duyệt' });
+    }
+
+    // Validate ObjectId
+    if (!id?.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'ID yêu cầu không hợp lệ' });
+    }
+
+    // Find and validate approval
+    const approval = await Approval.findById(id);
+    if (!approval) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu phê duyệt' });
+    }
+
+    if (!approval.isProcessable()) {
+      return res.status(400).json({ message: 'Yêu cầu này đã được xử lý trước đó' });
+    }
+
+    // Update approval
+    approval.status = status;
+    approval.adminResponse = adminResponse;
+    approval.processedBy = req.user.userId;
+    approval.processedAt = new Date();
+
+    // Process different request types
+    if (status === 'approved') {
+      switch (approval.requestType) {
+        case 'create_user': {
+          const userData = approval.requestData;
+          const hashedPassword = await bcrypt.hash(userData.password, 10);
+          const userRole = determineUserRole(userData.position);
+
+          const newUser = new User2({
+            ...userData,
+            password: hashedPassword,
+            role: userRole,
+            createdAt: new Date(),
+            createdBy: approval.requestedBy
+          });
+
+          await newUser.save();
+
+          const salary = new Salary({
+            userId: newUser._id,
+            month: new Date().getMonth() + 1,
+            year: new Date().getFullYear(),
+            basicSalary: Number(userData.basicSalary),
+            bonus: 0,
+            workingDays: calculateWorkingDaysInMonth(new Date().getFullYear(), new Date().getMonth() + 1),
+            actualWorkHours: 0,
+            standardWorkHours: 0,
+            taskBonus: 0,
+            taskPenalty: 0,
+            completedTasks: 0,
+            totalSalary: 0
+          });
+
+          await salary.save();
+          break;
+        }
+
+        case 'update_user': {
+          const { userId, updateData } = approval.requestData;
+          const user = await User2.findById(userId) || await User.findById(userId);
+
+          if (!user) {
+            throw new Error('Không tìm thấy người dùng cần cập nhật');
+          }
+
+          // Handle special cases
+          if (updateData.employeeType === 'Chính thức' && user.employeeType === 'Thử việc') {
+            validateContractData(updateData);
+          }
+
+          if (updateData.password) {
+            updateData.password = await bcrypt.hash(updateData.password, 10);
+          }
+
+          const updatedUser = await User2.findByIdAndUpdate(
+            userId,
+            { $set: updateData },
+            { new: true, runValidators: true }
+          );
+
+          if (!updatedUser) {
+            throw new Error('Cập nhật thông tin thất bại');
+          }
+          break;
+        }
+
+        case 'update_contract': {
+          const { contractId, updateData } = approval.requestData;
+
+          const updatedUser = await User2.findByIdAndUpdate(
+            contractId,
+            {
+              contractType: updateData.contractType,
+              contractStart: updateData.startDate,
+              contractEnd: updateData.endDate,
+              contractStatus: updateData.status === 'Còn hiệu lực' ? 'active' : 'inactive'
+            },
+            { new: true }
+          );
+
+          if (!updatedUser) {
+            throw new Error('Cập nhật hợp đồng thất bại');
+          }
+          break;
+        }
+
+        // Add other cases as needed
+        default:
+          break;
+      }
+    }
+
+    await approval.save();
+
+    // Return response
+    return res.json({
+      message: `Yêu cầu đã được ${status === 'approved' ? 'phê duyệt' : 'từ chối'} thành công`,
+      approval: {
+        ...approval.toObject(),
+        processedBy: req.user.userId,
+        processedAt: new Date()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error processing approval:', error);
+    return res.status(500).json({
+      message: 'Lỗi khi xử lý yêu cầu phê duyệt',
+      error: error.message
+    });
+  }
+});
+
+// Helper functions
+function validateContractData(data) {
+  if (!data.contractType || !data.contractStart || !data.contractEnd) {
+    throw new Error('Thiếu thông tin hợp đồng khi chuyển sang nhân viên chính thức');
+  }
+
+  const startDate = new Date(data.contractStart);
+  const endDate = new Date(data.contractEnd);
+
+  if (endDate <= startDate) {
+    throw new Error('Ngày kết thúc phải sau ngày bắt đầu');
+  }
+}
+
+const helpers = {
+  determineUserRole(position) {
+    switch (position) {
+      case 'Nhân viên nhân sự': return 'hr';
+      case 'Nhân viên tài vụ': return 'finance';
+      default: return 'user';
+    }
+  },
+
+  validateContractData(data) {
+    if (!data.contractType || !data.contractStart || !data.contractEnd) {
+      throw new Error('Thiếu thông tin hợp đồng');
+    }
+    const startDate = new Date(data.contractStart);
+    const endDate = new Date(data.contractEnd);
+    if (endDate <= startDate) {
+      throw new Error('Ngày kết thúc phải sau ngày bắt đầu');
+    }
+  },
+
+  formatApprovalResponse(approval) {
+    return {
+      id: approval._id,
+      requestType: approval.requestType,
+      requestData: approval.requestData,
+      requestedBy: approval.requestedBy,
+      status: approval.status,
+      adminResponse: approval.adminResponse,
+      processedBy: approval.processedBy,
+      processedAt: approval.processedAt,
+      createdAt: approval.createdAt
+    };
+  }
+};
+
+
+// Middleware xử lý lỗi chung
+router.use((error, req, res, next) => {
+  console.error('Server Error:', error);
+  res.status(500).json({
+    message: 'Đã có lỗi xảy ra từ phía server',
+    error: error.message
+  });
+});
+
+// API để HR xem danh sách yêu cầu của mình
+router.get('/my-approvals', authenticate, async (req, res) => {
+  if (req.user.role !== 'hr') {
+    return res.status(403).json({ message: 'Không có quyền truy cập' });
+  }
+
+  try {
+    const approvals = await Approval.find({ requestedBy: req.user.userId })
+      .populate('processedBy', 'fullName')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      approvals: approvals.map(formatApprovalResponse)
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Lỗi khi lấy danh sách yêu cầu',
+      error: error.message
+    });
+  }
+});
+
+// API để Admin xem danh sách yêu cầu phê duyệt
+router.get('/approval-requests', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Không có quyền truy cập' });
+  }
+
+  try {
+    const approvals = await Approval.find()
+      .populate('requestedBy', 'fullName position')
+      .sort({ createdAt: -1 });
+
+    res.json({ approvals });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Lỗi khi lấy danh sách yêu cầu phê duyệt',
+      error: error.message
+    });
+  }
+});
+
+// API để Admin phê duyệt yêu cầu tạo user
+router.put('/approve-user-request/:approvalId', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Không có quyền phê duyệt' });
+  }
+
+  try {
+    const approval = await Approval.findById(req.params.approvalId);
+    if (!approval) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu phê duyệt' });
+    }
+
+    const { status, adminResponse } = req.body;
+
+    if (status === 'approved') {
+      // Tiến hành tạo user từ dữ liệu trong approval
+      const userData = approval.requestData;
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+      // Tạo user mới với dữ liệu từ yêu cầu
+      const newUser = new User2({
+        ...userData,
+        password: hashedPassword
+      });
+
+      await newUser.save();
+
+      // Tạo bản ghi lương
+      const currentDate = new Date();
+      const newSalary = new Salary({
+        userId: newUser._id,
+        month: currentDate.getMonth() + 1,
+        year: currentDate.getFullYear(),
+        basicSalary: Number(userData.basicSalary),
+        bonus: 0,
+        workingDays: 0,
+        actualWorkHours: 0,
+        standardWorkHours: 0,
+        taskBonus: 0,
+        taskPenalty: 0,
+        completedTasks: 0,
+        totalSalary: 0
+      });
+
+      newSalary.calculateWorkingDays();
+      await newSalary.save();
+    }
+
+    // Cập nhật trạng thái phê duyệt
+    approval.status = status;
+    approval.adminResponse = adminResponse;
+    approval.processedAt = new Date();
+    approval.processedBy = req.user.userId;
+    await approval.save();
+
+    res.json({
+      message: `Yêu cầu đã được ${status === 'approved' ? 'phê duyệt' : 'từ chối'}`,
+      approval
+    });
+
+  } catch (error) {
+    console.error('Lỗi khi xử lý yêu cầu phê duyệt:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xử lý yêu cầu phê duyệt',
+      error: error.message
+    });
+  }
+});
+
+// Route phê duyệt yêu cầu cho admin
+// Route xử lý phê duyệt
+router.put('/approve-request/:id', authenticate, async (req, res) => {
+  try {
+    // Validate ID
+    if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'ID yêu cầu không hợp lệ' });
+    }
+
+    const approval = await Approval.findById(req.params.id);
+
+    if (!approval) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu phê duyệt' });
+    }
+
+    // Kiểm tra quyền admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Không có quyền phê duyệt' });
+    }
+
+    // Cập nhật trạng thái
+    approval.status = 'approved';
+    approval.approvedBy = req.user.userId;
+    approval.approvedAt = new Date();
+
+    await approval.save();
+
+    // Xử lý logic phê duyệt tùy theo loại yêu cầu
+    if (approval.requestType === 'create_user') {
+      // Xử lý tạo user mới
+      const userData = approval.requestData;
+      // ... logic tạo user
+    }
+
+    return res.status(200).json({
+      message: 'Yêu cầu đã được phê duyệt thành công',
+      approval
+    });
+
+  } catch (error) {
+    console.error('Lỗi khi phê duyệt:', error);
+    return res.status(500).json({
+      message: 'Lỗi khi xử lý phê duyệt',
+      error: error.message
+    });
+  }
+});
+
+// Helper functions
+async function validateUserData(data) {
+  const validGenders = ['Nam', 'Nữ', 'Khác'];
+  const validContractTypes = ['Toàn thời gian', 'Bán thời gian', 'Tạm thời'];
+  const validEmployeeTypes = ['Thử việc', 'Chính thức'];
+  const validContractStatuses = ['active', 'inactive', 'expired'];
+
+  if (!validGenders.includes(data.gender)) {
+    return { message: 'Giới tính không hợp lệ' };
+  }
+
+  // Thêm các validation khác...
+
+  const existingUser = await User2.findOne({
+    $or: [{ email: data.email }, { username: data.username }]
+  });
+
+  if (existingUser) {
+    return { message: 'Email hoặc username đã tồn tại' };
+  }
+
+  return null;
+}
+
+
+function buildUserData(data) {
+  return {
+    username: data.username,
+    fullName: data.fullName,
+    email: data.email,
+    password: data.hashedPassword,
+    phoneNumber: data.phoneNumber,
+    position: data.position,
+    role: data.userRole,
+    basicSalary: Number(data.basicSalary),
+    gender: data.gender,
+    employeeType: data.employeeType,
+    securityQuestion1: data.securityQuestion1,
+    securityAnswer1: data.securityAnswer1,
+    securityQuestion2: data.securityQuestion2,
+    securityAnswer2: data.securityAnswer2,
+    securityQuestion3: data.securityQuestion3,
+    securityAnswer3: data.securityAnswer3
+  };
+}
+
+async function handleApprovedRequest(approval) {
+  const userData = approval.requestData;
+  const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+  const newUser = new User2({
+    ...userData,
+    password: hashedPassword
+  });
+
+  await newUser.save();
+
+  // Tạo bản ghi lương
+  await createInitialSalaryRecord(newUser._id, userData.basicSalary);
+
+  return newUser;
+}
+
+function formatApprovalResponse(approval) {
+  return {
+    id: approval._id,
+    requestType: approval.requestType,
+    requestData: approval.requestData,
+    requestedBy: approval.requestedBy,
+    status: approval.status,
+    adminResponse: approval.adminResponse,
+    processedBy: approval.processedBy,
+    processedAt: approval.processedAt,
+    createdAt: approval.createdAt
+  };
+}
+
+
 
 module.exports = router;

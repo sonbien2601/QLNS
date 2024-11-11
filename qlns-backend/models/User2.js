@@ -1,114 +1,125 @@
 const mongoose = require('mongoose');
 
 const user2Schema = new mongoose.Schema({
-  username: { 
-    type: String, 
-    required: true, 
-    unique: true 
+  username: {
+    type: String,
+    required: true,
+    unique: true
   },
-  fullName: { 
-    type: String, 
-    required: true 
+  fullName: {
+    type: String,
+    required: true
   },
-  email: { 
-    type: String, 
-    required: true, 
-    unique: true 
+  email: {
+    type: String,
+    required: true,
+    unique: true
   },
-  password: { 
-    type: String, 
-    required: true 
+  password: {
+    type: String,
+    required: true
   },
-  phoneNumber: { 
-    type: String, 
-    required: true 
+  phoneNumber: {
+    type: String,
+    required: true
   },
-  position: { 
-    type: String, 
-    required: true 
+  position: {
+    type: String,
+    required: true
   },
-  role: { 
-    type: String, 
-    enum: ['admin', 'user'], 
-    default: 'user' 
+  role: {
+    type: String,
+    enum: ['admin', 'hr', 'finance', 'user'], // Thêm 2 role mới
+    default: 'user'
   },
-  basicSalary: { 
-    type: Number, 
-    required: true 
+  basicSalary: {
+    type: Number,
+    required: true
   },
-  contractStart: { 
+  contractStart: {
     type: Date,
     default: null
   },
-  contractEnd: { 
+  contractEnd: {
     type: Date,
     default: null
   },
-  contractType: { 
-    type: String, 
+  contractType: {
+    type: String,
     enum: ['Toàn thời gian', 'Bán thời gian', 'Tạm thời', 'Chưa ký hợp đồng'],
     default: 'Chưa ký hợp đồng'
   },
-  contractStatus: { 
-    type: String, 
+  contractStatus: {
+    type: String,
     enum: ['active', 'inactive', 'expired'],
     default: 'inactive'
   },
-  employeeType: { 
-    type: String, 
-    enum: ['Thử việc', 'Chính thức'], 
-    default: 'Thử việc' 
+  employeeType: {
+    type: String,
+    enum: ['Thử việc', 'Chính thức'],
+    default: 'Thử việc'
   },
-  gender: { 
-    type: String, 
-    enum: ['Nam', 'Nữ', 'Khác'], 
-    required: true 
+  gender: {
+    type: String,
+    enum: ['Nam', 'Nữ', 'Khác'],
+    required: true
   },
   status: {
     type: String,
     enum: ['active', 'inactive'],
     default: 'active'
   },
-  // Thêm các trường cho câu hỏi bảo mật
   securityQuestion1: {
     type: String,
-    required: true
+    required: function() {
+      return this.isNew; 
+    }
   },
   securityAnswer1: {
     type: String,
-    required: true
+    required: function() {
+      return this.isNew;
+    }
   },
   securityQuestion2: {
     type: String,
-    required: true
+    required: function() {
+      return this.isNew;
+    }
   },
   securityAnswer2: {
     type: String,
-    required: true
+    required: function() {
+      return this.isNew;
+    }
   },
   securityQuestion3: {
     type: String,
-    required: true
+    required: function() {
+      return this.isNew;
+    }
   },
   securityAnswer3: {
     type: String,
-    required: true
+    required: function() {
+      return this.isNew;
+    }
   }
-}, { 
-  timestamps: true 
+}, {
+  timestamps: true
 });
 
 // Virtual field để tính trạng thái hợp đồng cho frontend
-user2Schema.virtual('contractDisplayStatus').get(function() {
+user2Schema.virtual('contractDisplayStatus').get(function () {
   if (!this.contractType || this.contractType === 'Chưa ký hợp đồng') {
     return 'Chưa ký hợp đồng';
   }
-  
+
   const currentDate = new Date();
   if (this.contractEnd && this.contractEnd < currentDate) {
     return 'Hết hiệu lực';
   }
-  
+
   return 'Còn hiệu lực';
 });
 

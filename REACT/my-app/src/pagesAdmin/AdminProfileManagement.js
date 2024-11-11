@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import moment from 'moment';
+import { jwtDecode } from 'jwt-decode';
 
 const MySwal = withReactContent(Swal);
 
@@ -115,8 +116,94 @@ const AdminProfileManagement = () => {
 
 
     useEffect(() => {
-        fetchUserData();
-    }, []);
+        const init = async () => {
+            try {
+                // Kiểm tra token và phân quyền 
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Không tìm thấy thông tin đăng nhập. Vui lòng đăng nhập lại.');
+                }
+
+                // Decode token để lấy role
+                const decodedToken = jwtDecode(token);
+                const userRole = decodedToken.role;
+
+                // Kiểm tra quyền truy cập
+                if (!['admin', 'hr'].includes(userRole)) {
+                    MySwal.fire({
+                        icon: 'error',
+                        title: 'Không có quyền truy cập!',
+                        text: 'Bạn không có quyền truy cập trang này.',
+                        confirmButtonColor: '#d33',
+                    }).then(() => {
+                        navigate('/');
+                    });
+                    return;
+                }
+
+                // Hiển thị thông báo cho HR
+                if (userRole === 'hr') {
+                    MySwal.fire({
+                        icon: 'info',
+                        title: 'Lưu ý!',
+                        text: 'Các thay đổi thông tin nhân viên sẽ cần được Admin phê duyệt trước khi có hiệu lực.',
+                        confirmButtonColor: '#3085d6',
+                    });
+                }
+
+                // Fetch dữ liệu người dùng
+                setLoading(true);
+                const response = await axios.get(`http://localhost:5000/api/auth/users`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (response.headers['new-token']) {
+                    localStorage.setItem('token', response.headers['new-token']);
+                }
+
+                setUsers(response.data.users);
+
+            } catch (err) {
+                console.error('Lỗi khởi tạo:', err);
+                let errorMessage = 'Lỗi khi lấy danh sách user: ';
+
+                if (err.response) {
+                    switch (err.response.status) {
+                        case 401:
+                            errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+                            localStorage.removeItem('token');
+                            navigate('/login');
+                            break;
+                        case 403:
+                            errorMessage = 'Bạn không có quyền truy cập trang này';
+                            navigate('/');
+                            break;
+                        default:
+                            errorMessage += err.response.data.message || err.message;
+                    }
+                } else if (err.request) {
+                    errorMessage = 'Không thể kết nối đến server';
+                } else {
+                    errorMessage += err.message;
+                }
+
+                setError(errorMessage);
+
+                if (err.response?.status !== 401) {
+                    MySwal.fire({
+                        icon: 'error',
+                        title: 'Lỗi',
+                        text: errorMessage,
+                        confirmButtonColor: '#d33',
+                    });
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        init();
+    }, [navigate]);
 
     const fetchUserData = async () => {
         try {
@@ -282,9 +369,18 @@ const AdminProfileManagement = () => {
 
     const handleUpdate = async (field) => {
         try {
+            // Lấy token và kiểm tra role
+            const token = localStorage.getItem('token');
+            if (!token) {
+                throw new Error('Không tìm thấy thông tin đăng nhập');
+            }
+
+            const decodedToken = jwtDecode(token);
+            const userRole = decodedToken.role;
             let result;
             const currentValue = selectedUser[field];
 
+            // Logic hiển thị form chỉnh sửa dựa trên loại field
             if (['gender', 'role', 'employeeType', 'contractType', 'contractStatus'].includes(field)) {
                 let options;
                 switch (field) {
@@ -309,6 +405,7 @@ const AdminProfileManagement = () => {
                         options = [];
                 }
 
+                // Validation đặc biệt cho employeeType
                 if (field === 'employeeType' && selectedUser.employeeType === 'Chính thức') {
                     await MySwal.fire({
                         icon: 'error',
@@ -325,14 +422,10 @@ const AdminProfileManagement = () => {
                     inputValue: currentValue,
                     showCancelButton: true,
                     confirmButtonText: 'Lưu',
-                    cancelButtonText: 'Hủy',
-                    customClass: {
-                        confirmButton: 'swal2-confirm',
-                        cancelButton: 'swal2-cancel'
-                    }
+                    cancelButtonText: 'Hủy'
                 });
+
             } else if (field.startsWith('securityQuestion')) {
-                // Xử lý cho câu hỏi bảo mật
                 result = await MySwal.fire({
                     title: `Chỉnh sửa ${labelMap[field]}`,
                     input: 'select',
@@ -343,46 +436,29 @@ const AdminProfileManagement = () => {
                     inputValue: currentValue || "",
                     showCancelButton: true,
                     confirmButtonText: 'Lưu',
-                    cancelButtonText: 'Hủy',
-                    customClass: {
-                        confirmButton: 'swal2-confirm',
-                        cancelButton: 'swal2-cancel'
-                    }
+                    cancelButtonText: 'Hủy'
                 });
             } else if (field.startsWith('securityAnswer')) {
-                // Xử lý cho câu trả lời bảo mật
                 result = await MySwal.fire({
                     title: `Chỉnh sửa ${labelMap[field]}`,
                     input: 'text',
                     inputValue: currentValue || "",
                     inputValidator: (value) => {
-                        if (!value) {
-                            return 'Vui lòng nhập câu trả lời';
-                        }
+                        if (!value) return 'Vui lòng nhập câu trả lời';
                     },
                     showCancelButton: true,
                     confirmButtonText: 'Lưu',
-                    cancelButtonText: 'Hủy',
-                    customClass: {
-                        confirmButton: 'swal2-confirm',
-                        cancelButton: 'swal2-cancel'
-                    }
+                    cancelButtonText: 'Hủy'
                 });
             } else if (['contractStart', 'contractEnd'].includes(field)) {
                 result = await MySwal.fire({
                     title: `Chỉnh sửa ${labelMap[field]}`,
                     html: `<input id="datepicker" class="swal2-input" type="date" value="${currentValue}">`,
                     focusConfirm: false,
-                    preConfirm: () => {
-                        return document.getElementById('datepicker').value;
-                    },
+                    preConfirm: () => document.getElementById('datepicker').value,
                     showCancelButton: true,
                     confirmButtonText: 'Lưu',
-                    cancelButtonText: 'Hủy',
-                    customClass: {
-                        confirmButton: 'swal2-confirm',
-                        cancelButton: 'swal2-cancel'
-                    }
+                    cancelButtonText: 'Hủy'
                 });
             } else {
                 result = await MySwal.fire({
@@ -391,21 +467,17 @@ const AdminProfileManagement = () => {
                     inputValue: currentValue,
                     showCancelButton: true,
                     confirmButtonText: 'Lưu',
-                    cancelButtonText: 'Hủy',
-                    customClass: {
-                        confirmButton: 'swal2-confirm',
-                        cancelButton: 'swal2-cancel'
-                    }
+                    cancelButtonText: 'Hủy'
                 });
             }
 
+            // Xử lý sau khi người dùng chọn xong
             if (result.isConfirmed) {
                 const newValue = result.value;
-                const token = localStorage.getItem('token');
                 const userId = selectedUser._id;
                 let updateData = { [field]: newValue };
 
-                // Kiểm tra câu hỏi trùng lặp khi cập nhật câu hỏi bảo mật
+                // Validate câu hỏi bảo mật
                 if (field.startsWith('securityQuestion')) {
                     const otherQuestions = [
                         selectedUser.securityQuestion1,
@@ -423,6 +495,7 @@ const AdminProfileManagement = () => {
                     }
                 }
 
+                // Xử lý đặc biệt cho chuyển từ thử việc sang chính thức
                 if (field === 'employeeType' && newValue === 'Chính thức' && selectedUser.employeeType === 'Thử việc') {
                     const contractResult = await MySwal.fire({
                         title: 'Nhập thông tin hợp đồng chính thức',
@@ -480,10 +553,6 @@ const AdminProfileManagement = () => {
                                 contractEnd,
                                 contractStatus: 'active'
                             };
-                        },
-                        customClass: {
-                            confirmButton: 'swal2-confirm',
-                            cancelButton: 'swal2-cancel'
                         }
                     });
 
@@ -495,38 +564,73 @@ const AdminProfileManagement = () => {
                 }
 
                 try {
-                    const response = await axios.put(
-                        `http://localhost:5000/api/auth/admin/user/${userId}`,
-                        updateData,
-                        { headers: { Authorization: `Bearer ${token}` } }
-                    );
+                    // Xử lý khác nhau cho HR và Admin
+                    if (userRole === 'hr') {
+                        const approvalResponse = await axios.post(
+                            'http://localhost:5000/api/auth/approval-request',
+                            {
+                                requestType: 'update_user',
+                                requestData: {
+                                    userId: selectedUser._id,
+                                    updateData: updateData,
+                                    oldData: {
+                                        [field]: currentValue
+                                    }
+                                }
+                            },
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        );
 
-                    const newToken = response.headers['new-token'];
-                    if (newToken) {
-                        localStorage.setItem('token', newToken);
+                        await MySwal.fire({
+                            icon: 'success',
+                            title: 'Đã gửi yêu cầu!',
+                            text: 'Yêu cầu thay đổi thông tin đã được gửi đến Admin để phê duyệt.',
+                            confirmButtonColor: '#3085d6'
+                        });
+                    } else {
+                        // Admin cập nhật trực tiếp
+                        const response = await axios.put(
+                            `http://localhost:5000/api/auth/admin/user/${userId}`,
+                            updateData,
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        );
+
+                        // Xử lý token mới nếu có
+                        if (response.headers['new-token']) {
+                            localStorage.setItem('token', response.headers['new-token']);
+                        }
+
+                        // Cập nhật UI
+                        setUsers(prevUsers => prevUsers.map(user =>
+                            user._id === userId ? { ...user, ...response.data.user } : user
+                        ));
+
+                        setSelectedUser(prevUser => ({
+                            ...prevUser,
+                            ...response.data.user
+                        }));
+
+                        await MySwal.fire({
+                            icon: 'success',
+                            title: 'Cập nhật thành công!',
+                            showConfirmButton: false,
+                            timer: 1500
+                        });
+                    }
+                } catch (error) {
+                    let errorMessage = `Lỗi khi cập nhật ${labelMap[field]}`;
+                    if (error.response?.status === 401) {
+                        localStorage.removeItem('token');
+                        navigate('/login');
+                        errorMessage = 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.';
+                    } else if (error.response?.data?.message) {
+                        errorMessage = error.response.data.message;
                     }
 
-                    setUsers(prevUsers => prevUsers.map(user =>
-                        user._id === userId ? { ...user, ...response.data.user } : user
-                    ));
-
-                    setSelectedUser(prevUser => ({
-                        ...prevUser,
-                        ...response.data.user
-                    }));
-
-                    await MySwal.fire({
-                        icon: 'success',
-                        title: 'Cập nhật thành công!',
-                        showConfirmButton: false,
-                        timer: 1500
-                    });
-                } catch (error) {
-                    console.error(`Lỗi khi cập nhật ${labelMap[field]}:`, error);
                     await MySwal.fire({
                         icon: 'error',
                         title: 'Lỗi',
-                        text: error.response?.data?.message || `Lỗi khi cập nhật ${labelMap[field]}`
+                        text: errorMessage
                     });
                 }
             }

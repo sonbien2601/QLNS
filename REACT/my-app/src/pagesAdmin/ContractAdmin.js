@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 
 const MySwal = withReactContent(Swal);
 
@@ -14,10 +16,56 @@ const ContractAdmin = () => {
   const [currentContract, setCurrentContract] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchContracts();
-  }, []);
+    const init = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('Không tìm thấy token');
+        }
+  
+        // Decode token để lấy role
+        const decodedToken = jwtDecode(token);
+        const userRole = decodedToken.role;
+  
+        // Kiểm tra quyền truy cập
+        if (!['admin', 'hr'].includes(userRole)) {
+          MySwal.fire({
+            icon: 'error',
+            title: 'Không có quyền truy cập!',
+            text: 'Bạn không có quyền truy cập trang này.',
+            confirmButtonColor: '#d33',
+          }).then(() => {
+            navigate('/');
+          });
+          return;
+        }
+  
+        // Hiển thị thông báo cho HR
+        if (userRole === 'hr') {
+          MySwal.fire({
+            icon: 'info',
+            title: 'Lưu ý!',
+            text: 'Các thay đổi thông tin hợp đồng sẽ cần được Admin phê duyệt trước khi có hiệu lực.',
+            confirmButtonColor: '#3085d6',
+          });
+        }
+  
+        // Fetch dữ liệu hợp đồng
+        await fetchContracts();
+      } catch (error) {
+        console.error('Lỗi khởi tạo:', error);
+        if (error.response?.status === 401) {
+          navigate('/login');
+        }
+        setError('Có lỗi xảy ra khi tải dữ liệu');
+      }
+    };
+  
+    init();
+  }, [navigate]);
 
   const getContractTypeDisplay = (type) => {
     switch (type) {
@@ -67,22 +115,87 @@ const ContractAdmin = () => {
   const handleSaveChanges = async () => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/auth/contracts/${currentContract._id}`, currentContract, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchContracts();
-      handleCloseModal();
-      MySwal.fire({
-        icon: 'success',
-        title: 'Thành công!',
-        text: 'Cập nhật hợp đồng thành công!',
-      });
+      const decodedToken = jwtDecode(token);
+      const userRole = decodedToken.role;
+  
+      if (userRole === 'hr') {
+        // HR - Gửi yêu cầu phê duyệt
+        const response = await axios.post(
+          'http://localhost:5000/api/auth/approval-request',
+          {
+            requestType: 'update_contract',
+            requestData: {
+              contractId: currentContract._id,
+              updateData: {
+                contractType: currentContract.contractType,
+                startDate: currentContract.startDate,
+                endDate: currentContract.endDate,
+                status: currentContract.status
+              },
+              employeeId: currentContract.employeeId._id,
+              oldData: {
+                contractType: contracts.find(c => c._id === currentContract._id)?.contractType,
+                startDate: contracts.find(c => c._id === currentContract._id)?.startDate,
+                endDate: contracts.find(c => c._id === currentContract._id)?.endDate,
+                status: contracts.find(c => c._id === currentContract._id)?.status
+              }
+            }
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+  
+        handleCloseModal();
+        MySwal.fire({
+          icon: 'success',
+          title: 'Đã gửi yêu cầu!',
+          text: 'Yêu cầu cập nhật hợp đồng đã được gửi đến Admin để phê duyệt.',
+          confirmButtonColor: '#3085d6'
+        });
+      } else {
+        // Admin - Cập nhật trực tiếp
+        const response = await axios.put(
+          `http://localhost:5000/api/auth/contracts/${currentContract._id}`,
+          {
+            contractType: currentContract.contractType,
+            startDate: currentContract.startDate,
+            endDate: currentContract.endDate,
+            status: currentContract.status
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+  
+        await fetchContracts();
+        handleCloseModal();
+        MySwal.fire({
+          icon: 'success',
+          title: 'Thành công!',
+          text: 'Cập nhật hợp đồng thành công!',
+          confirmButtonColor: '#3085d6'
+        });
+      }
     } catch (error) {
       console.error('Error updating contract:', error);
+      let errorMessage = 'Có lỗi xảy ra khi cập nhật hợp đồng';
+  
+      if (error.response?.status === 401) {
+        errorMessage = 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.';
+        localStorage.removeItem('token');
+        navigate('/login');
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Bạn không có quyền thực hiện thao tác này';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+  
       MySwal.fire({
         icon: 'error',
         title: 'Lỗi!',
-        text: 'Có lỗi xảy ra khi cập nhật hợp đồng. Vui lòng thử lại.',
+        text: errorMessage,
+        confirmButtonColor: '#d33'
       });
     }
   };
@@ -95,39 +208,53 @@ const ContractAdmin = () => {
   };
 
   const handleDelete = async (userId) => {
-    const result = await MySwal.fire({
-      title: 'Bạn có chắc chắn?',
-      text: "Bạn không thể hoàn tác hành động này!",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Có, xóa nó!',
-      cancelButtonText: 'Hủy'
-    });
-
-    if (result.isConfirmed) {
-      try {
-        const token = localStorage.getItem('token');
+    try {
+      const token = localStorage.getItem('token');
+      const decodedToken = jwtDecode(token);
+      const userRole = decodedToken.role;
+  
+      if (userRole !== 'admin') {
+        MySwal.fire({
+          icon: 'error',
+          title: 'Không có quyền!',
+          text: 'Chỉ Admin mới có quyền xóa hợp đồng.',
+          confirmButtonColor: '#d33'
+        });
+        return;
+      }
+  
+      const result = await MySwal.fire({
+        title: 'Bạn có chắc chắn?',
+        text: "Bạn không thể hoàn tác hành động này!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Có, xóa nó!',
+        cancelButtonText: 'Hủy'
+      });
+  
+      if (result.isConfirmed) {
         await axios.delete(`http://localhost:5000/api/auth/contracts/${userId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-
+  
+        setContracts(prevContracts => prevContracts.filter(contract => contract._id !== userId));
+  
         MySwal.fire(
           'Đã xóa!',
           'Hợp đồng đã được xóa thành công.',
           'success'
         );
-
-        setContracts(prevContracts => prevContracts.filter(contract => contract._id !== userId));
-      } catch (error) {
-        console.error('Lỗi chi tiết khi xóa hợp đồng:', error.response?.data || error);
-        MySwal.fire(
-          'Lỗi!',
-          `Có lỗi xảy ra khi xóa hợp đồng: ${error.response?.data?.message || error.message}`,
-          'error'
-        );
       }
+    } catch (error) {
+      console.error('Lỗi khi xóa hợp đồng:', error);
+      MySwal.fire({
+        icon: 'error',
+        title: 'Lỗi!',
+        text: 'Có lỗi xảy ra khi xóa hợp đồng',
+        confirmButtonColor: '#d33'
+      });
     }
   };
 

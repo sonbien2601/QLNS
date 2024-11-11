@@ -19,6 +19,55 @@ const OverviewUser = () => {
   const [error, setError] = useState(null);
   const [tasks, setTasks] = useState([]);
 
+  const attendanceData = React.useMemo(() => {
+    console.log('Processing Attendance Records:', overviewData.attendanceRecords);
+
+    return overviewData.attendanceRecords
+      .slice(0, 7)
+      .map(record => {
+        console.log('Processing Record:', record);
+
+        let totalMinutes = 0;
+
+        // Tính giờ làm việc từ workingHours.daily nếu có
+        if (record.workingHours?.daily) {
+          const match = record.workingHours.daily.match(/(\d+)\s*giờ\s*(\d*)/);
+          if (match) {
+            const hours = parseInt(match[1]);
+            const minutes = match[2] ? parseInt(match[2]) : 0;
+            totalMinutes = hours * 60 + minutes;
+          }
+        }
+
+        // Backup: Tính từ morning/afternoon session nếu không có workingHours
+        if (totalMinutes === 0) {
+          if (record.morningSession?.checkIn && record.morningSession?.checkOut) {
+            const morningStart = new Date(record.morningSession.checkIn);
+            const morningEnd = new Date(record.morningSession.checkOut);
+            if (morningStart && morningEnd) {
+              totalMinutes += (morningEnd - morningStart) / (1000 * 60);
+            }
+          }
+
+          if (record.afternoonSession?.checkIn && record.afternoonSession?.checkOut) {
+            const afternoonStart = new Date(record.afternoonSession.checkIn);
+            const afternoonEnd = new Date(record.afternoonSession.checkOut);
+            if (afternoonStart && afternoonEnd) {
+              totalMinutes += (afternoonEnd - afternoonStart) / (1000 * 60);
+            }
+          }
+        }
+
+        const hours = totalMinutes / 60;
+        const dateStr = record.date ? new Date(record.date).toLocaleDateString('vi-VN') : 'N/A';
+
+        return {
+          date: dateStr,
+          hours: parseFloat(hours.toFixed(2))
+        };
+      });
+  }, [overviewData.attendanceRecords]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -26,13 +75,21 @@ const OverviewUser = () => {
         const headers = { Authorization: `Bearer ${token}` };
         const userId = localStorage.getItem('userId');
 
+        // Lấy thông tin user từ API user-info
+        const userResponse = await axios.get('http://localhost:5000/api/auth/user-info', {
+          headers
+        });
+        const userInfo = userResponse.data;
+
+        // Lấy danh sách tasks
         const tasksResponse = await axios.get(`http://localhost:5000/api/auth/tasks/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers
         });
         const fetchedTasks = tasksResponse.data.tasks;
         setTasks(fetchedTasks);
 
-        const overdueTasks = fetchedTasks.filter(task => 
+        // Kiểm tra tasks quá hạn
+        const overdueTasks = fetchedTasks.filter(task =>
           new Date(task.dueDate) < new Date() && task.status !== 'completed'
         );
 
@@ -42,36 +99,31 @@ const OverviewUser = () => {
             title: 'Công việc quá hạn',
             text: `Bạn có ${overdueTasks.length} công việc đã quá hạn và chưa hoàn thành. Vui lòng kiểm tra và cập nhật trạng thái.`,
           });
-
-          try {
-            await axios.post('http://localhost:5000/api/auth/notify-admin-overdue-tasks', 
-              { overdueTasks }, 
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-          } catch (error) {
-            console.error('Error notifying admin about overdue tasks:', error);
-          }
         }
 
+        // Helper function để fetch data an toàn
         const fetchSafely = async (url) => {
           try {
             const response = await axios.get(url, { headers });
             return response.data;
           } catch (error) {
+            if (error.response?.status === 401) {
+              localStorage.clear();
+              navigate('/login');
+            }
             console.error(`Error fetching ${url}:`, error);
             return null;
           }
         };
 
-        const [attendanceData, salaryData, contractData, userData] = await Promise.all([
+        // Fetch các dữ liệu khác song song
+        const [attendanceData, salaryData, contractData] = await Promise.all([
           fetchSafely(`http://localhost:5000/api/auth/attendance/history`),
           fetchSafely(`http://localhost:5000/api/auth/salary/${userId}`),
-          fetchSafely(`http://localhost:5000/api/auth/user-contract/${userId}`),
-          fetchSafely(`http://localhost:5000/api/auth/users`)
+          fetchSafely(`http://localhost:5000/api/auth/user-contract/${userId}`)
         ]);
 
-        const userInfo = userData?.users?.find(user => user._id === userId) || {};
-
+        // Set overview data với thông tin user từ userResponse
         setOverviewData({
           userInfo: {
             fullName: userInfo.fullName || 'N/A',
@@ -86,6 +138,7 @@ const OverviewUser = () => {
           tasks: fetchedTasks
         });
 
+        // Set edited user info
         setEditedUserInfo({
           fullName: userInfo.fullName || '',
           email: userInfo.email || '',
@@ -94,9 +147,18 @@ const OverviewUser = () => {
         });
 
         setIsLoading(false);
+
       } catch (error) {
         console.error('Error fetching data:', error);
         setIsLoading(false);
+
+        // Kiểm tra lỗi token hết hạn
+        if (error.response?.status === 401) {
+          localStorage.clear();
+          navigate('/login');
+          return;
+        }
+
         setError('Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.');
         Swal.fire({
           icon: 'error',
@@ -107,9 +169,9 @@ const OverviewUser = () => {
     };
 
     fetchData();
-  }, []);
+  }, [navigate]); // Thêm navigate vào dependencies
 
-  
+
 
 
   const handleCompleteTask = async (taskId) => {
@@ -118,9 +180,9 @@ const OverviewUser = () => {
       const response = await axios.put(`http://localhost:5000/api/auth/tasks/${taskId}/complete`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       const updatedTask = response.data.task;
-      setTasks(tasks.map(task => 
+      setTasks(tasks.map(task =>
         task._id === taskId ? updatedTask : task
       ));
 
@@ -161,19 +223,19 @@ const OverviewUser = () => {
     try {
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
-  
+
       const response = await axios.put(
         `http://localhost:5000/api/auth/user/${userId}`,
         editedUserInfo,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-  
+
       // Lấy token mới từ response header
       const newToken = response.headers['new-token'];
       if (newToken) {
         localStorage.setItem('token', newToken);
       }
-  
+
       setOverviewData(prev => ({
         ...prev,
         userInfo: {
@@ -181,9 +243,9 @@ const OverviewUser = () => {
           ...response.data.user
         }
       }));
-  
+
       setIsEditing(false);
-  
+
       Swal.fire({
         icon: 'success',
         title: 'Cập nhật thành công!',
@@ -200,14 +262,14 @@ const OverviewUser = () => {
         return;
       }
       Swal.fire({
-        icon: 'error', 
+        icon: 'error',
         title: 'Lỗi!',
         text: error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật thông tin.',
       });
     }
   };
 
-  
+
   if (isLoading) {
     return <div className="loading">Đang tải dữ liệu...</div>;
   }
@@ -216,26 +278,13 @@ const OverviewUser = () => {
     return <div className="error">{error}</div>;
   }
 
-  const attendanceData = overviewData.attendanceRecords.slice(0, 7).map(record => {
-    let hours = 0;
-    if (record.totalHours) {
-      const match = record.totalHours.match(/(\d+)/);
-      if (match) {
-        hours = parseFloat(match[0]);
-      }
-    }
-    return {
-      date: new Date(record.checkIn).toLocaleDateString(),
-      hours: hours
-    };
-  });
 
   const formatDateTime = (dateTimeString) => {
-    const options = { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric', 
-      hour: '2-digit', 
+    const options = {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
       minute: '2-digit',
       hour12: true
     };
@@ -321,21 +370,34 @@ const OverviewUser = () => {
           {attendanceData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={attendanceData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" stroke="#888888" />
-                <YAxis stroke="#888888" />
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12 }}
+                />
+                <YAxis
+                  domain={[0, 'dataMax + 2']}
+                  tickFormatter={(value) => `${value}h`}
+                />
                 <Tooltip
+                  formatter={(value) => [`${value} giờ`, 'Thời gian làm việc']}
                   contentStyle={{
                     backgroundColor: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+                    border: '1px solid #ccc',
+                    borderRadius: '4px'
                   }}
                 />
                 <Legend />
-                <Bar dataKey="hours" fill="#4f46e5" radius={[4, 4, 0, 0]}>
+                <Bar
+                  name="Số giờ làm việc"
+                  dataKey="hours"
+                  fill="#4f46e5"
+                >
                   {attendanceData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.hours > 8 ? '#10b981' : '#4f46e5'} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.hours >= 8 ? '#10b981' : '#4f46e5'}
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -347,41 +409,41 @@ const OverviewUser = () => {
         <div className="chart-card fade-in">
           <h3>Nhắc việc</h3>
           {tasks.length > 0 ? (
-  <ul className="task-list">
-    {tasks.map((task) => (
-      <li key={task._id} className={`task-item slide-in-bottom ${new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>
-        <h4>{task.title}</h4>
-        <p>{task.description}</p>
-        <p>Hạn chót: {formatDateTime(task.dueDate)}</p>
-        <p>Thời gian hoàn thành dự kiến: {task.expectedCompletionTime}</p>
-        <p>Trạng thái: {task.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}</p>
-        
-        {/* Thêm phần hiển thị thưởng/phạt */}
-        <div className="task-rewards">
-          <div className="reward-item">
-            <span>Thưởng hoàn thành đúng hạn:</span>
-            <span className="bonus">+{(task.bonus || 0).toLocaleString()} ₫</span>
-          </div>
-          <div className="reward-item">
-            <span>Phạt trễ hạn:</span>
-            <span className="penalty">-{(task.penalty || 0).toLocaleString()} ₫</span>
-          </div>
-        </div>
+            <ul className="task-list">
+              {tasks.map((task) => (
+                <li key={task._id} className={`task-item slide-in-bottom ${new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>
+                  <h4>{task.title}</h4>
+                  <p>{task.description}</p>
+                  <p>Hạn chót: {formatDateTime(task.dueDate)}</p>
+                  <p>Thời gian hoàn thành dự kiến: {task.expectedCompletionTime}</p>
+                  <p>Trạng thái: {task.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}</p>
 
-        {task.status !== 'completed' && (
-          <button onClick={() => handleCompleteTask(task._id)}>
-            Đánh dấu hoàn thành
-          </button>
-        )}
-        {new Date(task.dueDate) < new Date() && task.status !== 'completed' && (
-          <p className="overdue-warning">Công việc đã quá hạn! Bạn có thể bị phạt.</p>
-        )}
-      </li>
-    ))}
-  </ul>
-) : (
-  <p>Không có nhắc việc nào.</p>
-)}
+                  {/* Thêm phần hiển thị thưởng/phạt */}
+                  <div className="task-rewards">
+                    <div className="reward-item">
+                      <span>Thưởng hoàn thành đúng hạn:</span>
+                      <span className="bonus">+{(task.bonus || 0).toLocaleString()} ₫</span>
+                    </div>
+                    <div className="reward-item">
+                      <span>Phạt trễ hạn:</span>
+                      <span className="penalty">-{(task.penalty || 0).toLocaleString()} ₫</span>
+                    </div>
+                  </div>
+
+                  {task.status !== 'completed' && (
+                    <button onClick={() => handleCompleteTask(task._id)}>
+                      Đánh dấu hoàn thành
+                    </button>
+                  )}
+                  {new Date(task.dueDate) < new Date() && task.status !== 'completed' && (
+                    <p className="overdue-warning">Công việc đã quá hạn! Bạn có thể bị phạt.</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>Không có nhắc việc nào.</p>
+          )}
         </div>
       </div>
 

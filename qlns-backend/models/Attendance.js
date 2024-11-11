@@ -13,7 +13,7 @@ const attendanceSchema = new mongoose.Schema({
     required: true
   },
   year: {
-    type: Number, 
+    type: Number,
     required: true
   },
   date: {
@@ -58,7 +58,7 @@ const attendanceSchema = new mongoose.Schema({
 attendanceSchema.index({ userId: 1, month: 1, year: 1, date: 1 });
 
 // Middleware để tự động cập nhật giờ làm việc
-attendanceSchema.pre('save', async function(next) {
+attendanceSchema.pre('save', async function (next) {
   try {
     // Validate check-in/out times
     if (this.morningCheckOut && this.morningCheckIn) {
@@ -66,7 +66,7 @@ attendanceSchema.pre('save', async function(next) {
         throw new Error('Thời gian check-out buổi sáng không thể trước check-in');
       }
     }
-    
+
     if (this.afternoonCheckOut && this.afternoonCheckIn) {
       if (new Date(this.afternoonCheckOut) < new Date(this.afternoonCheckIn)) {
         throw new Error('Thời gian check-out buổi chiều không thể trước check-in');
@@ -138,7 +138,7 @@ attendanceSchema.pre('save', async function(next) {
 });
 
 // Method định dạng thời gian làm việc
-attendanceSchema.methods.getFormattedTimes = function() {
+attendanceSchema.methods.getFormattedTimes = function () {
   return {
     dailyHours: `${Math.floor(this.dailyHours)} giờ ${Math.round((this.dailyHours % 1) * 60)} phút`,
     monthlyHours: `${Math.floor(this.monthlyHours)} giờ ${Math.round((this.monthlyHours % 1) * 60)} phút`

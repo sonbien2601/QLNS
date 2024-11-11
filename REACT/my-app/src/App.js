@@ -23,6 +23,7 @@ import ContractAdmin from './pagesAdmin/ContractAdmin';
 import AdminProfileManagement from './pagesAdmin/AdminProfileManagement';
 import OverviewAdmin from './pagesAdmin/OverviewAdmin';
 import ResignationAdmin from './pagesAdmin/ResignationAdmin';
+import ApprovalList from './pagesAdmin/ApprovalList';
 
 // User Pages
 import User from './pagesUser/User';
@@ -49,7 +50,7 @@ function App() {
           element={
             <>
               <Header />
-              {role === 'admin' && <HeaderAdmin />}
+              {(role === 'admin' || role === 'hr') && <HeaderAdmin />}
               {role === 'user' && <HeaderUser />}
               <Routes>
                 {/* Public routes */}
@@ -78,10 +79,10 @@ function App() {
                   }
                 />
 
-                {/* Protected routes for admin */}
+                {/* Protected routes for admin and HR */}
                 <Route
                   path="/admin"
-                  element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>}
+                  element={<ProtectedRoute roles={['admin', 'hr']}><Admin /></ProtectedRoute>}
                 >
                   <Route index element={<Navigate to="overview-admin" replace />} />
                   <Route path="overview-admin" element={<OverviewAdmin />} />
@@ -95,6 +96,16 @@ function App() {
                   <Route path="contracts" element={<ContractAdmin />} />
                   <Route path="adminProfile" element={<AdminProfileManagement />} />
                   <Route path="resignation-admin" element={<ResignationAdmin />} />
+
+                  {/* Route phê duyệt chỉ dành cho Admin */}
+                  <Route 
+                    path="approval-list" 
+                    element={
+                      <ProtectedRoute roles={['admin']}>
+                        <ApprovalList />
+                      </ProtectedRoute>
+                    } 
+                  />
                 </Route>
 
                 {/* Protected routes for user */}

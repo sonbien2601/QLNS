@@ -6,7 +6,7 @@ const PublicRoute = ({ children }) => {
   const role = localStorage.getItem('role');
   
   // Nếu người dùng đã đăng nhập, chuyển hướng họ đến trang tương ứng
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'hr') {  // Thêm điều kiện cho HR
     return <Navigate to="/admin" replace />;
   } else if (role === 'user') {
     return <Navigate to="/user" replace />;

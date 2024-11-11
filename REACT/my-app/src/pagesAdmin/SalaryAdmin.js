@@ -14,7 +14,6 @@ import "@fontsource/roboto";
 
 // Styled Components
 
-
 const ExportContainer = styled.div`
   display: flex;
   gap: 1rem;
@@ -610,12 +609,12 @@ const SalaryAdmin = () => {
           // Xử lý dữ liệu lương
           const salariesWithFeedback = await Promise.all(
             salaryResponse.data.salaries.map(async (salary) => {
-              // Lấy feedback cho từng nhân viên
               try {
                 const feedbackResponse = await axios.get(
                   `http://localhost:5000/api/auth/feedback-salary/${salary.userId?._id}`,
                   {
-                    headers: { Authorization: `Bearer ${token}` }
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: { month: currentMonth, year: currentYear } // Thêm params để filter theo tháng
                   }
                 );
 
@@ -1046,7 +1045,8 @@ const SalaryAdmin = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setNewFeedbackMessage('');
-      fetchAllFeedbacks();
+      // Refresh lại dữ liệu
+      fetchSalaries();
       Swal.fire({
         icon: 'success',
         title: 'Gửi feedback thành công!',
@@ -1345,8 +1345,11 @@ const SalaryAdmin = () => {
                   <Td>
                     <SalaryDetailInfo salary={salary} />
                   </Td>
+                  {/* Thay thế đoạn này */}
                   <Td>
-                    {feedbacks[salary.userId?._id]?.[0]?.message.substring(0, 30) + '...' || 'Chưa có feedback'}
+                    {salary.feedbacks && salary.feedbacks.length > 0
+                      ? salary.feedbacks[0]?.message.substring(0, 30) + '...'
+                      : 'Chưa có feedback tháng này'}
                   </Td>
                   <Td>
                     <ActionButton onClick={() => handleUpdateClick(salary)}>
@@ -1381,7 +1384,9 @@ const SalaryAdmin = () => {
                   </SubTitle>
 
                   <FeedbackList>
-                    {feedbacks[selectedUserForFeedback]?.map((feedback) => (
+                    {feedbacks[selectedUserForFeedback]?.filter(feedback =>
+                      feedback.month === currentMonth && feedback.year === currentYear
+                    ).map((feedback) => (
                       <motion.div
                         key={feedback._id}
                         initial={{ opacity: 0, x: -20 }}
@@ -1424,17 +1429,20 @@ const SalaryAdmin = () => {
                       </motion.div>
                     ))}
 
-                    {(!feedbacks[selectedUserForFeedback] || feedbacks[selectedUserForFeedback].length === 0) && (
-                      <div style={{
-                        textAlign: 'center',
-                        padding: '20px',
-                        color: '#7f8c8d',
-                        backgroundColor: '#f8f9fa',
-                        borderRadius: '8px'
-                      }}>
-                        Chưa có phản hồi nào
-                      </div>
-                    )}
+                    {(!feedbacks[selectedUserForFeedback] ||
+                      feedbacks[selectedUserForFeedback]
+                        .filter(feedback => feedback.month === currentMonth && feedback.year === currentYear)
+                        .length === 0) && (
+                        <div style={{
+                          textAlign: 'center',
+                          padding: '20px',
+                          color: '#7f8c8d',
+                          backgroundColor: '#f8f9fa',
+                          borderRadius: '8px'
+                        }}>
+                          Chưa có phản hồi nào trong tháng {currentMonth}/{currentYear}
+                        </div>
+                      )}
                   </FeedbackList>
 
                   <FeedbackForm onSubmit={handleFeedbackSubmit}>

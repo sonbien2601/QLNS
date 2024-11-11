@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, Cell
-} from 'recharts';
+import {BarChart, Bar, PieChart, Pie,XAxis, YAxis, CartesianGrid, Tooltip, Legend,ResponsiveContainer, Cell} from 'recharts';
 import axios from 'axios';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
 import { X, AlertCircle, Trash2 } from 'lucide-react';
+
 
 // Styled components
 const PageContainer = styled(motion.div)`
@@ -663,24 +660,6 @@ const OverdueTasks = ({ tasks }) => (
   </OverdueTasksCard>
 );
 
-const EmployeeRewards = () => (
-  <EmployeeRewardsCard>
-    <h3>Khen thưởng nhân viên</h3>
-    <ScrollableList>
-      <p>Chưa có thông tin khen thưởng.</p>
-    </ScrollableList>
-  </EmployeeRewardsCard>
-);
-
-const EmployeeBirthdays = () => (
-  <EmployeeBirthdaysCard>
-    <h3>Sinh nhật nhân viên</h3>
-    <ScrollableList>
-      <p>Chưa có thông tin sinh nhật.</p>
-    </ScrollableList>
-  </EmployeeBirthdaysCard>
-);
-
 const AssignedTasksModal = ({ isOpen, onClose, tasks, users, setSelectedTask, setNewDeadline, setShowUpdateDeadlineModal, handleDeleteTask }) => {
   if (!isOpen) return null;
 
@@ -1066,6 +1045,12 @@ const OverviewAdmin = () => {
 
         const attendanceRecords = processData(results[2], { attendanceRecords: [] }).attendanceRecords;
         const salaries = processData(results[3], { salaries: [] }).salaries;
+
+        // Update state cho salary một cách an toàn hơn
+        setOverviewData(prev => ({
+          ...prev,
+          salaries: Array.isArray(salaries) ? salaries : []
+        }));
         const resignations = processData(results[4], { resignations: [] }).resignations;
         const tasksData = processData(results[5], { tasks: [] }).tasks;
         setTasks(tasksData);
@@ -1304,57 +1289,67 @@ const OverviewAdmin = () => {
               </ResponsiveContainer>
             </ChartCard>
             <ChartCard>
-  <h3>Thống kê lương và thưởng phạt</h3>
-  <ChartSubtitle>Tất cả nhân viên - Tháng hiện tại</ChartSubtitle>
-  <ResponsiveContainer width="100%" height={300}>
-    <BarChart
-      data={overviewData.salaries
-        .filter(salary => salary.userId) // Lọc bỏ dữ liệu không có userId
-        .map(salary => ({
-          name: salary.userId.fullName,
-          'Lương cơ bản': salary.basicSalary || 0,
-          'Thưởng': salary.taskBonus || 0,
-          'Phạt': salary.taskPenalty || 0,
-          'Tổng nhận': salary.totalSalary || 0
-        }))}
-      margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-    >
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis
-        dataKey="name"
-        angle={-45}
-        textAnchor="end"
-        interval={0}
-        height={80}
-      />
-      <YAxis
-        tickFormatter={(value) =>
-          new Intl.NumberFormat('vi-VN', {
-            style: 'currency',
-            currency: 'VND',
-            minimumFractionDigits: 0,
-            notation: 'compact'
-          }).format(value)
-        }
-      />
-      <Tooltip
-        formatter={(value) =>
-          new Intl.NumberFormat('vi-VN', {
-            style: 'currency',
-            currency: 'VND',
-            minimumFractionDigits: 0
-          }).format(value)
-        }
-      />
-      <Legend />
-      <Bar dataKey="Lương cơ bản" fill="#8884d8" />
-      <Bar dataKey="Thưởng" fill="#82ca9d" />
-      <Bar dataKey="Phạt" fill="#ff7675" />
-      <Bar dataKey="Tổng nhận" fill="#74b9ff" />
-    </BarChart>
-  </ResponsiveContainer>
-</ChartCard>
-
+              <h3>Thống kê lương và thưởng phạt</h3>
+              <ChartSubtitle>Tất cả nhân viên - Tháng hiện tại</ChartSubtitle>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={(overviewData.salaries || []) // Thêm mảng rỗng làm giá trị mặc định
+                    .filter(salary => salary?.userId) // Kiểm tra tồn tại userId
+                    .map(salary => ({
+                      name: salary.userId?.fullName || 'N/A',
+                      'Lương cơ bản': salary.basicSalary || 0,
+                      'Thưởng': (salary.taskBonus || 0) + (salary.bonus || 0),
+                      'Phạt task': salary.taskPenalty || 0,
+                      'Phạt đi muộn': salary.monthlyLateData?.latePenalty || 0,
+                      'Tổng nhận': salary.totalSalary || 0
+                    }))
+                    .filter(data => data !== null) // Lọc bỏ dữ liệu null/undefined
+                  }
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="name"
+                    angle={-45}
+                    textAnchor="end"
+                    interval={0}
+                    height={80}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis
+                    tickFormatter={(value) =>
+                      new Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                        minimumFractionDigits: 0,
+                        notation: 'compact'
+                      }).format(value)
+                    }
+                  />
+                  <Tooltip
+                    formatter={(value) =>
+                      new Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                        minimumFractionDigits: 0
+                      }).format(value)
+                    }
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                      border: 'none'
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="Lương cơ bản" fill="#3498db" />
+                  <Bar dataKey="Thưởng" fill="#2ecc71" />
+                  <Bar dataKey="Phạt task" fill="#e74c3c" />
+                  <Bar dataKey="Phạt đi muộn" fill="#e67e22" />
+                  <Bar dataKey="Tổng nhận" fill="#9b59b6" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
 
             <ChartCard
               as={motion.div}
@@ -1446,90 +1441,6 @@ const OverviewAdmin = () => {
                 </PieChart>
               </ResponsiveContainer>
             </ChartCard>
-
-
-            <ChartCard
-  style={{ 
-    width: '100%', // Đảm bảo card sử dụng toàn bộ không gian có sẵn
-    minWidth: '800px' // Đặt chiều rộng tối thiểu
-  }}
->
-  <h3>Tỷ lệ thực hiện công việc theo người</h3>
-  <ChartSubtitle>Hiệu suất làm việc theo nhân viên</ChartSubtitle>
-  <div style={{ width: '100%', overflowX: 'auto' }}> {/* Wrapper cho phép scroll ngang */}
-    <div style={{ minWidth: '800px', height: '600px' }}> {/* Container cố định kích thước tối thiểu */}
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={users.map(user => ({
-            name: user.fullName,
-            'Tỷ lệ hoàn thành': Math.round(
-              (tasks.filter(t => 
-                t.assignedTo?._id === user._id && 
-                t.status === 'completed' && 
-                new Date(t.completedAt) <= new Date(t.dueDate)
-              ).length / 
-              tasks.filter(t => t.assignedTo?._id === user._id).length || 0) * 100
-            ),
-            'Số công việc được giao': tasks.filter(t => t.assignedTo?._id === user._id).length
-          }))}
-          margin={{ 
-            top: 20, 
-            right: 50,  // Tăng margin phải
-            left: 50,   // Tăng margin trái
-            bottom: 150 
-          }}
-        >
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="name"
-            height={120}
-            interval={0}
-            tick={props => (
-              <g transform={`translate(${props.x},${props.y})`}>
-                <text
-                  x={0}
-                  y={0}
-                  dy={16}
-                  textAnchor="end"
-                  fill="#666"
-                  transform="rotate(-35)"
-                  style={{ fontSize: '12px' }}
-                >
-                  {props.payload.value}
-                </text>
-              </g>
-            )}
-          />
-          <YAxis 
-            domain={[0, 100]}
-            ticks={[0, 20, 40, 60, 80, 100]}
-          />
-          <Tooltip />
-          <Legend 
-            verticalAlign="top"
-            height={36}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="Tỷ lệ hoàn thành"
-            stroke="#8884d8"
-            strokeWidth={2}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="Số công việc được giao"
-            stroke="#82ca9d"
-            strokeWidth={2}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  </div>
-</ChartCard>
           </ChartsGrid>
         </>
       )}
@@ -1543,8 +1454,6 @@ const OverviewAdmin = () => {
             onViewMore={() => setShowAssignedTasksModal(true)}
           />
           <OverdueTasks tasks={overdueTasks} />
-          <EmployeeRewards />
-          <EmployeeBirthdays />
         </TaskGrid>
       )}
 

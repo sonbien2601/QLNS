@@ -256,6 +256,8 @@ const SalaryUser = () => {
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
   
+      console.log('Fetching data for:', { month: currentMonth, year: currentYear });
+  
       const [salaryResponse, feedbackResponse] = await Promise.all([
         axios.get(`http://localhost:5000/api/auth/salary/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -263,50 +265,58 @@ const SalaryUser = () => {
         }),
         axios.get(`http://localhost:5000/api/auth/feedback-salary/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
+          params: { month: currentMonth, year: currentYear }
         })
       ]);
   
-      if (salaryResponse.status === 404) {
-        setError(`Không có dữ liệu lương cho tháng ${currentMonth}/${currentYear}`);
-        setSalary(null);
-      } else if (salaryResponse.data && salaryResponse.data.salary) {
+      if (salaryResponse.data && salaryResponse.data.salary) {
         setSalary(salaryResponse.data.salary);
         setError(null);
       } else {
-        setError('Không thể lấy thông tin lương');
+        setError('Không có dữ liệu lương cho tháng này');
         setSalary(null);
       }
       
+      // Log để debug
+      console.log('Received feedbacks:', feedbackResponse.data.feedbacks);
+      console.log('Current month/year:', currentMonth, currentYear);
+      console.log('Feedback data:', feedbackResponse.data.feedbacks.map(f => ({
+        message: f.message,
+        month: f.month,
+        year: f.year,
+        createdAt: f.createdAt
+      })));
+  
       setFeedbacks(feedbackResponse.data.feedbacks || []);
+  
     } catch (error) {
-      console.error('Error fetching salary and feedbacks:', error);
-      if (error.response && error.response.status === 404) {
-        setError(`Không có dữ liệu lương cho tháng ${currentMonth}/${currentYear}`);
-      } else {
-        setError('Không thể lấy thông tin. Vui lòng thử lại sau.');
-      }
+      console.error('Error fetching data:', error);
+      setError('Không thể lấy thông tin. Vui lòng thử lại sau.');
       setSalary(null);
     } finally {
       setLoading(false);
     }
   };
-
   
 
   const handleFeedbackSubmit = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
+      console.log('Sending feedback for:', { month: currentMonth, year: currentYear });
+      
       await axios.post('http://localhost:5000/api/auth/feedback-salary', 
         { 
           message: newFeedbackMessage,
-          month: currentMonth,
-          year: currentYear
+          month: currentMonth, // Đảm bảo gửi đúng tháng hiện tại
+          year: currentYear   // Đảm bảo gửi đúng năm hiện tại
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      
       setNewFeedbackMessage('');
-      fetchSalaryAndFeedbacks();
+      fetchSalaryAndFeedbacks(); // Refresh data sau khi gửi feedback
+      
       Swal.fire({
         icon: 'success',
         title: 'Gửi feedback thành công!',
@@ -380,19 +390,31 @@ const SalaryUser = () => {
 
         <h3 style={styles.subtitle}>Feedback Lương</h3>
         <div style={styles.feedbackList}>
-          {feedbacks.map((feedback) => (
-            <div 
-              key={feedback._id} 
-              style={feedback.isFromAdmin ? styles.adminFeedback : styles.userFeedback}
-            >
-              <div style={styles.feedbackHeader}>
-                <strong>{feedback.isFromAdmin ? 'Admin' : 'Bạn'}</strong>
-                <span>{formatDate(feedback.createdAt)}</span>
-              </div>
-              <p>{feedback.message}</p>
-            </div>
-          ))}
+  {feedbacks && feedbacks.length > 0 ? (
+    feedbacks.map((feedback) => (
+      <div 
+        key={feedback._id} 
+        style={feedback.isFromAdmin ? styles.adminFeedback : styles.userFeedback}
+      >
+        <div style={styles.feedbackHeader}>
+          <strong>{feedback.isFromAdmin ? 'Admin' : 'Bạn'}</strong>
+          <span>
+            {feedback.month && feedback.year 
+              ? `Tháng ${feedback.month}/${feedback.year} - `
+              : ''
+            }
+            {formatDate(feedback.createdAt)}
+          </span>
         </div>
+        <p>{feedback.message}</p>
+      </div>
+    ))
+  ) : (
+    <div style={styles.noFeedback}>
+      Chưa có feedback nào cho tháng {currentMonth}/{currentYear}
+    </div>
+  )}
+</div>
         <form onSubmit={handleFeedbackSubmit} style={styles.feedbackForm}>
           <textarea
             value={newFeedbackMessage}
@@ -416,6 +438,8 @@ const SalaryUser = () => {
     </div>
   );
 };
+
+
 
 const styles = {
   monthSelector: {
@@ -660,6 +684,14 @@ const styles = {
     padding: '0.5rem',
     borderBottom: '1px solid #edf2f7',
     fontSize: '0.875rem',
+  },
+  noFeedback: {
+    textAlign: 'center',
+    padding: '20px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+    color: '#6c757d',
+    fontStyle: 'italic'
   }
 };
 
