@@ -1783,57 +1783,70 @@ router.put('/contracts/:id', authenticate, isAdminOrHR, async (req, res) => {
     const { id } = req.params;
     const { contractType, startDate, endDate, status } = req.body;
 
-    // Tìm hợp đồng hiện tại
-    const currentUser = await User2.findById(id);
-    if (!currentUser) {
-      return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
-    }
+    console.log('Received update data:', {
+      id,
+      contractType,
+      startDate,
+      endDate, 
+      status
+    });
 
-    // Nếu là HR, tạo yêu cầu phê duyệt
-    if (req.user.role === 'hr') {
-      const approval = new Approval({
-        requestType: 'update_contract',
-        requestData: {
-          contractId: id,
-          updateData: {
-            contractType,
-            startDate,
-            endDate,
-            status
-          },
-          // Lưu thông tin cũ để so sánh
-          oldData: {
-            contractType: currentUser.contractType,
-            startDate: currentUser.contractStart,
-            endDate: currentUser.contractEnd,
-            status: currentUser.contractStatus
-          }
-        },
-        requestedBy: req.user.userId,
-        status: 'pending'
-      });
-
-      await approval.save();
-
-      return res.status(201).json({
-        message: 'Yêu cầu cập nhật hợp đồng đã được gửi đến Admin để phê duyệt',
-        approvalId: approval._id
+    // Validate input
+    if (!contractType || !startDate || !endDate || !status) {
+      return res.status(400).json({
+        message: 'Thiếu thông tin bắt buộc'
       });
     }
 
-    // Nếu là Admin, cập nhật trực tiếp
+    // Kiểm tra contractType hợp lệ theo enum tiếng Việt
+    const validContractTypes = ['Toàn thời gian', 'Bán thời gian', 'Tạm thời'];
+    if (!validContractTypes.includes(contractType)) {
+      return res.status(400).json({
+        message: 'Loại hợp đồng không hợp lệ'
+      });
+    }
+
+    // Validate dates
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+      return res.status(400).json({
+        message: 'Ngày không hợp lệ'
+      });
+    }
+
+    if (endDateObj <= startDateObj) {
+      return res.status(400).json({
+        message: 'Ngày kết thúc phải sau ngày bắt đầu'
+      });
+    }
+
+    // Tìm và cập nhật user
     const updatedUser = await User2.findByIdAndUpdate(
       id,
       {
-        contractType,
-        contractStart: startDate,
-        contractEnd: endDate,
-        contractStatus: status === 'Còn hiệu lực' ? 'active' : 'inactive'
+        $set: {
+          contractType,
+          contractStart: startDateObj,
+          contractEnd: endDateObj,
+          contractStatus: status === 'Còn hiệu lực' ? 'active' : 'inactive'
+        }
       },
-      { new: true, runValidators: true }
+      {
+        new: true,
+        runValidators: true
+      }
     );
 
-    const updatedContract = {
+    if (!updatedUser) {
+      return res.status(404).json({
+        message: 'Không tìm thấy nhân viên'
+      });
+    }
+
+    // Format response
+    const contractResponse = {
       _id: updatedUser._id,
       employeeId: {
         _id: updatedUser._id,
@@ -1846,13 +1859,20 @@ router.put('/contracts/:id', authenticate, isAdminOrHR, async (req, res) => {
       status: updatedUser.contractStatus === 'active' ? 'Còn hiệu lực' : 'Hết hiệu lực'
     };
 
-    res.json(updatedContract);
+    // Log response để debug
+    console.log('Update successful:', contractResponse);
+
+    res.json({
+      message: 'Cập nhật hợp đồng thành công',
+      contract: contractResponse
+    });
 
   } catch (error) {
-    console.error('Lỗi khi cập nhật hợp đồng:', error);
+    console.error('Contract update error:', error);
     res.status(500).json({
       message: 'Lỗi khi cập nhật hợp đồng',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -3342,32 +3362,62 @@ router.post('/forgot-password/verify', async (req, res) => {
 
 //////////////////////// API PHÊ DUYỆT CHO HR////////////////
 // API để HR gửi yêu cầu phê duyệt
+// API tạo yêu cầu phê duyệt cho HR
 router.post('/approval-request', authenticate, isHR, async (req, res) => {
   try {
     const { requestType, requestData } = req.body;
 
+    console.log('Received approval request:', {
+      requestType,
+      requestData,
+      requestedBy: req.user.userId
+    });
+
+    // Validate dữ liệu
+    if (!requestType || !requestData) {
+      return res.status(400).json({
+        message: 'Thiếu thông tin yêu cầu phê duyệt'
+      });
+    }
+
+    // Validate dữ liệu cho update contract
+    if (requestType === 'update_contract') {
+      if (!requestData.contractId || !requestData.updateData) {
+        return res.status(400).json({
+          message: 'Thiếu thông tin cập nhật hợp đồng'
+        });
+      }
+
+      // Kiểm tra hợp đồng tồn tại
+      const user = await User2.findById(requestData.contractId);
+      if (!user) {
+        return res.status(404).json({
+          message: 'Không tìm thấy hợp đồng cần cập nhật'
+        });
+      }
+    }
+
+    // Tạo yêu cầu phê duyệt mới
     const approvalRequest = new Approval({
-      requestType: 'appointment_approval',
-      requestData: {
-        appointmentId: appointment._id,
-        userId: appointment.userId._id,
-        oldPosition: appointment.oldPosition,
-        newPosition: appointment.newPosition,
-        reason: appointment.reason,
-        hrFeedback: feedback,
-        hrAction: action // 'approve' hoặc 'reject'
-      },
+      requestType,
+      requestData,
       requestedBy: req.user.userId,
-      status: 'pending'
+      status: 'pending',
+      createdAt: new Date()
     });
 
     await approvalRequest.save();
+
+    // Log để debug
+    console.log('Created approval request:', approvalRequest);
 
     res.status(201).json({
       message: 'Yêu cầu đã được gửi đến Admin để phê duyệt',
       approvalId: approvalRequest._id
     });
+
   } catch (error) {
+    console.error('Error creating approval request:', error);
     res.status(500).json({
       message: 'Lỗi khi tạo yêu cầu phê duyệt',
       error: error.message
@@ -3409,7 +3459,7 @@ router.put('/approve-appointment/:id', authenticate, async (req, res) => {
     // Tìm thông tin bổ nhiệm
     const appointment = await Appointment.findById(req.params.id)
       .populate('userId');
-    
+
     if (!appointment) {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm' });
     }
@@ -3441,9 +3491,9 @@ router.put('/approve-appointment/:id', authenticate, async (req, res) => {
       const updatedUser = await User2.findById(appointment.userId._id)
         .select('_id fullName position');
 
-      return res.json({ 
-        message: isRejectApproval ? 
-          'Đã phê duyệt việc từ chối bổ nhiệm' : 
+      return res.json({
+        message: isRejectApproval ?
+          'Đã phê duyệt việc từ chối bổ nhiệm' :
           'Yêu cầu bổ nhiệm đã được phê duyệt',
         appointment: {
           ...updatedAppointment._doc,
@@ -3468,6 +3518,19 @@ router.put('/approve-appointment/:id', authenticate, async (req, res) => {
   }
 });
 
+
+const determineUserRole = (position) => {
+  switch (position) {
+    case 'Nhân viên nhân sự':
+      return 'hr';
+    case 'Nhân viên tài vụ':
+      return 'finance';
+    case 'Khác':
+      return 'user';
+    default:
+      return 'user';
+  }
+};
 
 // Route xử lý phê duyệt
 router.put('/approvals/:id', authenticate, async (req, res) => {

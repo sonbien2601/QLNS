@@ -197,7 +197,7 @@ const StatusBadge = styled.span`
 // Component hiển thị từng dòng bổ nhiệm với kiểm tra role
 const AppointmentRow = ({
   id,
-  name,
+  appointment, // Thêm prop appointment để lấy toàn bộ thông tin
   oldPosition,
   newPosition,
   status,
@@ -213,7 +213,24 @@ const AppointmentRow = ({
   handleDelete,
   userRole
 }) => {
-  if (!name) return null;
+  // Log data để debug
+  console.log('AppointmentRow Data:', {
+    id,
+    appointment,
+    status,
+    userRole
+  });
+
+  // Lấy tên nhân viên từ nhiều nguồn dữ liệu có thể có
+  const getEmployeeName = () => {
+    if (appointment?.userId?.fullName) return appointment.userId.fullName;
+    if (appointment?.requestData?.userId?.fullName) return appointment.requestData.userId.fullName;
+    if (appointment?.requestData?.employeeName) return appointment.requestData.employeeName;
+    return 'N/A';
+  };
+
+  const name = getEmployeeName();
+  if (!name || name === 'N/A') return null;
 
   const canApprove = userRole === 'admin' || (userRole === 'hr' && status === 'pending');
   const canDelete = userRole === 'admin';
@@ -228,6 +245,18 @@ const AppointmentRow = ({
     }
   };
 
+  // Format date với options cụ thể
+  const formatDate = (date) => {
+    if (!date) return '';
+    return new Date(date).toLocaleString('vi-VN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
     <motion.tr
       initial={{ opacity: 0, y: 20 }}
@@ -235,49 +264,90 @@ const AppointmentRow = ({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
     >
-      <Td>{name}</Td>
-      <Td>{oldPosition}</Td>
-      <Td>{newPosition}</Td>
+      <Td>
+        <span style={{ fontWeight: '500' }}>{name}</span>
+      </Td>
+      <Td>{oldPosition || 'N/A'}</Td>
+      <Td>{newPosition || 'N/A'}</Td>
       <Td>
         <StatusBadge status={status}>
           {getStatusText(status)}
         </StatusBadge>
       </Td>
-      <Td>{new Date(createdAt).toLocaleString()}</Td>
+      <Td>{formatDate(createdAt)}</Td>
       <Td>
-        {approvedAt ? new Date(approvedAt).toLocaleString() :
-          rejectedAt ? new Date(rejectedAt).toLocaleString() :
-            hrFeedbackAt ? `HR phản hồi: ${new Date(hrFeedbackAt).toLocaleString()}` :
-              'Chưa xử lý'}
+        {approvedAt ? (
+          <span style={{ color: '#16a34a' }}>
+            Đã duyệt: {formatDate(approvedAt)}
+          </span>
+        ) : rejectedAt ? (
+          <span style={{ color: '#dc2626' }}>
+            Đã từ chối: {formatDate(rejectedAt)}
+          </span>
+        ) : hrFeedbackAt ? (
+          <span style={{ color: '#2563eb' }}>
+            HR phản hồi: {formatDate(hrFeedbackAt)}
+          </span>
+        ) : (
+          <span style={{ color: '#6b7280' }}>Chưa xử lý</span>
+        )}
       </Td>
-      <Td>
-        <Button className="view-btn"
+      <Td style={{ display: 'flex', gap: '8px' }}>
+        <Button 
+          className="view-btn"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => handleView(id)}>
+          onClick={() => handleView(id)}
+          style={{ 
+            backgroundColor: '#3b82f6',
+            minWidth: 'auto',
+            padding: '8px 12px'
+          }}
+        >
           Xem chi tiết
         </Button>
         {canApprove && status === 'pending' && (
           <>
-            <Button className="approve-btn"
+            <Button 
+              className="approve-btn"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => handleApprove(id)}>
+              onClick={() => handleApprove(id)}
+              style={{ 
+                backgroundColor: '#22c55e',
+                minWidth: 'auto',
+                padding: '8px 12px'
+              }}
+            >
               {userRole === 'hr' ? 'Đề xuất duyệt' : 'Phê duyệt'}
             </Button>
-            <Button className="reject-btn"
+            <Button 
+              className="reject-btn"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => handleReject(id)}>
+              onClick={() => handleReject(id)}
+              style={{ 
+                backgroundColor: '#ef4444',
+                minWidth: 'auto',
+                padding: '8px 12px'
+              }}
+            >
               Từ chối
             </Button>
           </>
         )}
         {canDelete && (
-          <Button className="delete-btn"
+          <Button 
+            className="delete-btn"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => handleDelete(id)}>
+            onClick={() => handleDelete(id)}
+            style={{ 
+              backgroundColor: '#6b7280',
+              minWidth: 'auto',
+              padding: '8px 12px'
+            }}
+          >
             Xóa yêu cầu
           </Button>
         )}

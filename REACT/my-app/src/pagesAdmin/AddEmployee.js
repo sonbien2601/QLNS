@@ -23,12 +23,8 @@ const AddEmployee = () => {
     role: '',
     basicSalary: '',
     employeeType: 'Thử việc',
-    contractType: '',
-    contractStart: '',
-    contractEnd: '',
-    contractStatus: 'active',
+    // Bỏ các trường hợp đồng khỏi initial state khi là nhân viên thử việc
     gender: '',
-    // Thêm các trường câu hỏi bảo mật
     securityQuestion1: '',
     securityAnswer1: '',
     securityQuestion2: '',
@@ -207,23 +203,39 @@ const AddEmployee = () => {
   // Sửa lại hàm handleChange để xử lý thay đổi employeeType
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({
-      ...prevState,
-      [name]: value,
-      // Giữ nguyên logic xử lý employeeType
-      ...(name === 'employeeType' && value === 'Thử việc' ? {
-        contractType: '',
-        contractStart: '',
-        contractEnd: '',
-        contractStatus: 'active'
-      } : {}),
-      // Cập nhật logic xử lý role dựa trên position
-      ...(name === 'position' && {
-        role: value === 'Nhân viên nhân sự' ? 'hr' :
+    setFormData(prevState => {
+      let newState = {
+        ...prevState,
+        [name]: value
+      };
+
+      // Khi chuyển đổi loại nhân viên
+      if (name === 'employeeType') {
+        if (value === 'Thử việc') {
+          // Xóa các trường liên quan đến hợp đồng
+          const { contractType, contractStart, contractEnd, contractStatus, ...rest } = newState;
+          return rest;
+        } else if (value === 'Chính thức') {
+          // Thêm các trường hợp đồng khi chuyển sang nhân viên chính thức
+          return {
+            ...newState,
+            contractType: '',
+            contractStart: '',
+            contractEnd: '',
+            contractStatus: 'active'
+          };
+        }
+      }
+
+      // Xử lý cập nhật role dựa trên position
+      if (name === 'position') {
+        newState.role = value === 'Nhân viên nhân sự' ? 'hr' :
           value === 'Nhân viên tài vụ' ? 'finance' :
-            value === 'Khác' ? 'user' : ''
-      })
-    }));
+            value === 'Khác' ? 'user' : '';
+      }
+
+      return newState;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -374,77 +386,123 @@ const AddEmployee = () => {
             Thêm Nhân Viên Mới
           </FormTitle>
           <StyledForm onSubmit={handleSubmit}>
-            <FormGrid>
-              <AnimatePresence>
-                {Object.entries(formData).map(([key, value], index) => {
-                  // Bỏ qua render cho role vì sẽ tự động hiển thị
-                  if (
-                    key.startsWith('security') ||
-                    (['contractStart', 'contractEnd', 'contractStatus'].includes(key) &&
-                      formData.employeeType === 'Thử việc') ||
-                    key === 'role'
-                  ) {
-                    return null;
-                  }
+          <FormGrid>
+  <AnimatePresence>
+    {Object.entries(formData).map(([key, value], index) => {
+      // Bỏ qua render cho các trường sau:
+      if (key.startsWith('security') || key === 'role') {
+        return null;
+      }
 
-                  return (
-                    <FormGroup
-                      key={key}
-                      as={motion.div}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ delay: index * 0.1, duration: 0.5 }}
-                    >
-                      <Label htmlFor={key}>{getLabelText(key)}:</Label>
-                      {key === 'position' ? (
-                        <div>
-                          <Select
-                            id={key}
-                            name={key}
-                            value={value}
-                            onChange={handleChange}
-                            $isInvalid={!!errors[key]}
-                          >
-                            {getOptions(key)}
-                          </Select>
-                          {formData.position && (
-                            <RoleDisplay>
-                              Role: {formData.position === 'Nhân viên nhân sự' ? 'HR' :
-                                formData.position === 'Nhân viên tài vụ' ? 'Finance' :
-                                  formData.position === 'Khác' ? 'User' : ''}
-                            </RoleDisplay>
-                          )}
-                        </div>
-                      ) : (key === 'contractType' ||
-                        key === 'contractStatus' ||
-                        key === 'employeeType' ||
-                        key === 'gender') ? (
-                        <Select
-                          id={key}
-                          name={key}
-                          value={value}
-                          onChange={handleChange}
-                          $isInvalid={!!errors[key]}
-                        >
-                          {getOptions(key)}
-                        </Select>
-                      ) : (
-                        <Input
-                          type={getInputType(key)}
-                          id={key}
-                          name={key}
-                          value={value}
-                          onChange={handleChange}
-                          $isInvalid={!!errors[key]}
-                          placeholder={getPlaceholder(key)}
-                        />
-                      )}
-                      {errors[key] && <ErrorMessage>{errors[key]}</ErrorMessage>}
-                    </FormGroup>
-                  );
-                })}
-              </AnimatePresence>
+      // Đặc biệt xử lý các trường hợp đồng
+      if (formData.employeeType === 'Thử việc' && 
+          ['contractType', 'contractStart', 'contractEnd', 'contractStatus'].includes(key)) {
+        return null;
+      }
+
+      // Render trường bình thường
+      return (
+        <FormGroup
+          key={key}
+          as={motion.div}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ delay: index * 0.1, duration: 0.5 }}
+        >
+          <Label htmlFor={key}>{getLabelText(key)}:</Label>
+          {key === 'position' ? (
+            <div>
+              <Select
+                id={key}
+                name={key}
+                value={value}
+                onChange={handleChange}
+                $isInvalid={!!errors[key]}
+              >
+                {getOptions(key)}
+              </Select>
+              {formData.position && (
+                <RoleDisplay>
+                  Role: {formData.position === 'Nhân viên nhân sự' ? 'HR' :
+                    formData.position === 'Nhân viên tài vụ' ? 'Finance' :
+                    formData.position === 'Khác' ? 'User' : ''}
+                </RoleDisplay>
+              )}
+            </div>
+          ) : ['employeeType', 'gender', 'contractType', 'contractStatus'].includes(key) ? (
+            <Select
+              id={key}
+              name={key}
+              value={value}
+              onChange={handleChange}
+              $isInvalid={!!errors[key]}
+            >
+              {getOptions(key)}
+            </Select>
+          ) : (
+            <Input
+              type={getInputType(key)}
+              id={key}
+              name={key}
+              value={value}
+              onChange={handleChange}
+              $isInvalid={!!errors[key]}
+              placeholder={getPlaceholder(key)}
+            />
+          )}
+          {errors[key] && <ErrorMessage>{errors[key]}</ErrorMessage>}
+        </FormGroup>
+      );
+    })}
+  </AnimatePresence>
+
+  {/* Thêm các trường hợp đồng nếu là nhân viên chính thức */}
+  <AnimatePresence>
+    {formData.employeeType === 'Chính thức' && (
+      <>
+        <FormGroup>
+          <Label>Loại Hợp Đồng:</Label>
+          <Select
+            name="contractType"
+            value={formData.contractType || ''}
+            onChange={handleChange}
+            $isInvalid={!!errors.contractType}
+          >
+            <option value="">Chọn loại hợp đồng</option>
+            <option value="Toàn thời gian">Toàn thời gian</option>
+            <option value="Bán thời gian">Bán thời gian</option>
+            <option value="Tạm thời">Tạm thời</option>
+          </Select>
+          {errors.contractType && <ErrorMessage>{errors.contractType}</ErrorMessage>}
+        </FormGroup>
+
+        <FormGroup>
+          <Label>Ngày Bắt Đầu:</Label>
+          <Input
+            type="date"
+            name="contractStart"
+            value={formData.contractStart || ''}
+            onChange={handleChange}
+            $isInvalid={!!errors.contractStart}
+          />
+          {errors.contractStart && <ErrorMessage>{errors.contractStart}</ErrorMessage>}
+        </FormGroup>
+
+        <FormGroup>
+          <Label>Ngày Kết Thúc:</Label>
+          <Input
+            type="date"
+            name="contractEnd"
+            value={formData.contractEnd || ''}
+            onChange={handleChange}
+            $isInvalid={!!errors.contractEnd}
+          />
+          {errors.contractEnd && <ErrorMessage>{errors.contractEnd}</ErrorMessage>}
+        </FormGroup>
+      </>
+    )}
+  </AnimatePresence>
 
               {/* Phần câu hỏi bảo mật */}
               <SecuritySection
@@ -762,17 +820,18 @@ const getOptions = (key) => {
           <option value="Khác">Khác</option>
         </>
       );
-    
+
     case 'contractType':
+      // Thêm các option cho loại hợp đồng
       return (
         <>
           <option value="">Chọn loại hợp đồng</option>
           <option value="Toàn thời gian">Toàn thời gian</option>
-          <option value="Bán thời gian">Bán thời gian</option> 
+          <option value="Bán thời gian">Bán thời gian</option>
           <option value="Tạm thời">Tạm thời</option>
         </>
       );
-    
+
     case 'contractStatus':
       return (
         <>
@@ -781,7 +840,7 @@ const getOptions = (key) => {
           <option value="expired">Đã hết hạn</option>
         </>
       );
-    
+
     case 'employeeType':
       return (
         <>
@@ -790,7 +849,7 @@ const getOptions = (key) => {
           <option value="Chính thức">Chính thức</option>
         </>
       );
-    
+
     case 'gender':
       return (
         <>
@@ -800,7 +859,7 @@ const getOptions = (key) => {
           <option value="Khác">Khác</option>
         </>
       );
-    
+
     default:
       return null;
   }

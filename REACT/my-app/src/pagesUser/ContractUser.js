@@ -32,6 +32,27 @@ const ContractUser = () => {
         }
     };
 
+
+        // Thêm hàm kiểm tra trạng thái hợp đồng
+        const getContractStatus = (startDate, endDate) => {
+            const today = new Date();
+            const contractStart = new Date(startDate);
+            const contractEnd = new Date(endDate);
+    
+            // Reset time phần để so sánh chỉ dựa trên ngày
+            today.setHours(0, 0, 0, 0);
+            contractStart.setHours(0, 0, 0, 0);
+            contractEnd.setHours(0, 0, 0, 0);
+    
+            if (today < contractStart) {
+                return "Chưa có hiệu lực";
+            } else if (today > contractEnd) {
+                return "Hết hiệu lực";
+            } else {
+                return "Còn hiệu lực";
+            }
+        };
+
     const getContractTypeDisplay = (type) => {
         switch(type) {
             case 'fullTime':
@@ -44,6 +65,21 @@ const ContractUser = () => {
                 return type;
         }
     };
+
+                    // Thêm hàm helper để tính thời gian còn lại
+                const getTimeRemaining = (endDate) => {
+                    const today = new Date();
+                    const end = new Date(endDate);
+                    const diffTime = Math.abs(end - today);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (diffDays > 30) {
+                        const months = Math.floor(diffDays / 30);
+                        const remainingDays = diffDays % 30;
+                        return `${months} tháng ${remainingDays} ngày`;
+                    }
+                    return `${diffDays} ngày`;
+                };
 
     return (
         <div style={styles.page}>
@@ -63,16 +99,33 @@ const ContractUser = () => {
                         </div>
                         <div style={styles.contractDetail}>
                             <span style={styles.label}>Ngày Bắt Đầu:</span>
-                            <span style={styles.value}>{contract.startDate ? new Date(contract.startDate).toLocaleDateString() : 'Không xác định'}</span>
+                            <span style={styles.value}>
+                                {contract.startDate ? new Date(contract.startDate).toLocaleDateString('vi-VN') : 'Không xác định'}
+                            </span>
                         </div>
                         <div style={styles.contractDetail}>
                             <span style={styles.label}>Ngày Kết Thúc:</span>
-                            <span style={styles.value}>{contract.endDate ? new Date(contract.endDate).toLocaleDateString() : 'Không xác định'}</span>
+                            <span style={styles.value}>
+                                {contract.endDate ? new Date(contract.endDate).toLocaleDateString('vi-VN') : 'Không xác định'}
+                            </span>
                         </div>
                         <div style={styles.contractDetail}>
                             <span style={styles.label}>Trạng Thái:</span>
-                            <span style={Object.assign({}, styles.value, styles.status[contract.status.toLowerCase()])}>{contract.status}</span>
+                            <span style={Object.assign({}, styles.value, 
+                                styles.status[getContractStatus(contract.startDate, contract.endDate).toLowerCase()]
+                            )}>
+                                {getContractStatus(contract.startDate, contract.endDate)}
+                            </span>
                         </div>
+                        {/* Thêm hiển thị thời gian còn lại của hợp đồng nếu còn hiệu lực */}
+                        {getContractStatus(contract.startDate, contract.endDate) === "Còn hiệu lực" && (
+                            <div style={styles.contractDetail}>
+                                <span style={styles.label}>Thời gian còn lại:</span>
+                                <span style={styles.value}>
+                                    {getTimeRemaining(contract.endDate)}
+                                </span>
+                            </div>
+                        )}
                     </div>
                 )}
                 {!loading && !error && !contract && (
@@ -173,6 +226,20 @@ const styles = {
             color: '#e74c3c',
             fontWeight: '600',
         },
+    },
+    status: {
+        'còn hiệu lực': {
+            color: '#27ae60',
+            fontWeight: '600',
+        },
+        'hết hiệu lực': {
+            color: '#e74c3c',
+            fontWeight: '600',
+        },
+        'chưa có hiệu lực': {
+            color: '#f39c12',
+            fontWeight: '600',
+        }
     },
 };
 

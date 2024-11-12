@@ -350,6 +350,8 @@ const ApprovalList = () => {
     }
   };
 
+
+
   const formatRequestData = (data) => {
     if (!data) return 'Không có dữ liệu';
 
@@ -386,6 +388,8 @@ const ApprovalList = () => {
     });
     return changes;
   };
+
+
 
   const formatContractFieldName = (field) => {
     const fieldMappings = {
@@ -1036,29 +1040,42 @@ const ApprovalList = () => {
                         </React.Fragment>
                         ) : approval.requestType === 'appointment_approval' ? (
                           <React.Fragment>
-                            <DetailRow>
-                              <DetailLabel>Nhân viên được bổ nhiệm</DetailLabel>
-                              <DetailValue>
-                                {approval.requestData.userId ? approval.requestData.userId.fullName || 'N/A' : 'N/A'}
-                              </DetailValue>
-                            </DetailRow>
-                            <DetailRow>
-                              <DetailLabel>Vị trí hiện tại</DetailLabel>
-                              <DetailValue>{approval.requestData.oldPosition || 'N/A'}</DetailValue>
-                            </DetailRow>
-                            <DetailRow>
-                              <DetailLabel>Vị trí bổ nhiệm</DetailLabel>
-                              <DetailValue>{approval.requestData.newPosition || 'N/A'}</DetailValue>
-                            </DetailRow>
-                            <DetailRow>
-                              <DetailLabel>Lý do bổ nhiệm</DetailLabel>
-                              <DetailValue>{approval.requestData.reason || 'N/A'}</DetailValue>
-                            </DetailRow>
-                            <DetailRow>
-                              <DetailLabel>Ý kiến HR</DetailLabel>
-                              <DetailValue>{approval.requestData.hrFeedback || 'N/A'}</DetailValue>
-                            </DetailRow>
-                          </React.Fragment>
+    <DetailRow>
+      <DetailLabel>Nhân viên được bổ nhiệm</DetailLabel>
+      <DetailValue>
+        {(() => {
+          const appointmentData = approval.requestData;
+          // Log để debug
+          console.log('Appointment Data:', appointmentData);
+          
+          // Kiểm tra và lấy tên nhân viên theo thứ tự ưu tiên
+          const employeeName = 
+            appointmentData?.user?.fullName || // Nếu có trong user
+            appointmentData?.employee?.fullName || // Hoặc trong employee  
+            appointmentData?.employeeName || // Hoặc trực tiếp trong data
+            'N/A'; // Mặc định nếu không có
+            
+          return employeeName;
+        })()}
+      </DetailValue>
+    </DetailRow>
+    <DetailRow>
+      <DetailLabel>Vị trí hiện tại</DetailLabel>
+      <DetailValue>{approval.requestData.oldPosition || 'N/A'}</DetailValue>
+    </DetailRow>
+    <DetailRow>
+      <DetailLabel>Vị trí bổ nhiệm</DetailLabel>
+      <DetailValue>{approval.requestData.newPosition || 'N/A'}</DetailValue>
+    </DetailRow>
+    <DetailRow>
+      <DetailLabel>Lý do bổ nhiệm</DetailLabel>
+      <DetailValue>{approval.requestData.reason || 'N/A'}</DetailValue>
+    </DetailRow>
+    <DetailRow>
+      <DetailLabel>Ý kiến HR</DetailLabel>
+      <DetailValue>{approval.requestData.hrFeedback || 'N/A'}</DetailValue>
+    </DetailRow>
+  </React.Fragment>
                         ) : (
                         <React.Fragment>
                           <DetailRow>

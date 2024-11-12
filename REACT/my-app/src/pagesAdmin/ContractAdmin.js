@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import NavigationAdmin from '../components/NavigationAdmin';
+import NavigationAdmin from '../components/NavigationAdmin'; 
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import styled from 'styled-components';
@@ -26,11 +26,9 @@ const ContractAdmin = () => {
           throw new Error('Không tìm thấy token');
         }
   
-        // Decode token để lấy role
         const decodedToken = jwtDecode(token);
         const userRole = decodedToken.role;
   
-        // Kiểm tra quyền truy cập
         if (!['admin', 'hr'].includes(userRole)) {
           MySwal.fire({
             icon: 'error',
@@ -43,7 +41,6 @@ const ContractAdmin = () => {
           return;
         }
   
-        // Hiển thị thông báo cho HR
         if (userRole === 'hr') {
           MySwal.fire({
             icon: 'info',
@@ -53,7 +50,6 @@ const ContractAdmin = () => {
           });
         }
   
-        // Fetch dữ liệu hợp đồng
         await fetchContracts();
       } catch (error) {
         console.error('Lỗi khởi tạo:', error);
@@ -66,20 +62,6 @@ const ContractAdmin = () => {
   
     init();
   }, [navigate]);
-
-  const getContractTypeDisplay = (type) => {
-    switch (type) {
-      case 'fullTime':
-        return 'Toàn thời gian';
-      case 'partTime':
-        return 'Bán thời gian';
-      case 'temporary':
-        return 'Tạm thời';
-      default:
-        return type || 'Không xác định';
-    }
-  };
-
 
   const fetchContracts = async () => {
     try {
@@ -102,9 +84,49 @@ const ContractAdmin = () => {
     }
   };
 
+
+
+  const getContractTypeDisplay = (type) => {
+    switch (type) {
+      case 'Toàn thời gian':
+        return 'Toàn thời gian';
+      case 'Bán thời gian':
+        return 'Bán thời gian';
+      case 'Tạm thời':
+        return 'Tạm thời';
+      case 'Chưa ký hợp đồng':
+        return 'Chưa ký hợp đồng';
+      default:
+        return type || 'Không xác định';
+    }
+  };
+
+
   const handleEdit = (contract) => {
-    setCurrentContract(contract);
-    setShowEditModal(true);
+    try {
+      // Đảm bảo tất cả dữ liệu được copy đúng định dạng
+      const formattedContract = {
+        _id: contract._id,
+        employeeId: contract.employeeId,
+        contractType: contract.contractType || '',
+        startDate: contract.startDate ? new Date(contract.startDate).toISOString().split('T')[0] : '',
+        endDate: contract.endDate ? new Date(contract.endDate).toISOString().split('T')[0] : '',
+        status: contract.status || ''
+      };
+      
+      // Log để kiểm tra dữ liệu
+      console.log('Editing contract:', formattedContract);
+      
+      setCurrentContract(formattedContract);
+      setShowEditModal(true);
+    } catch (error) {
+      console.error('Error formatting contract data:', error);
+      MySwal.fire({
+        icon: 'error',
+        title: 'Lỗi!', 
+        text: 'Không thể tải thông tin hợp đồng'
+      });
+    }
   };
 
   const handleCloseModal = () => {
@@ -114,81 +136,138 @@ const ContractAdmin = () => {
 
   const handleSaveChanges = async () => {
     try {
+      // Validate dữ liệu đầu vào
+      if (!currentContract.contractType || !currentContract.startDate || 
+          !currentContract.endDate || !currentContract.status) {
+        throw new Error('Vui lòng điền đầy đủ thông tin');
+      }
+  
+      // Validate ngày tháng
+      const startDate = new Date(currentContract.startDate);
+      const endDate = new Date(currentContract.endDate);
+      if (endDate <= startDate) {
+        throw new Error('Ngày kết thúc phải sau ngày bắt đầu');
+      }
+  
       const token = localStorage.getItem('token');
       const decodedToken = jwtDecode(token);
       const userRole = decodedToken.role;
   
+      // Chuẩn bị dữ liệu cập nhật
+      const updateData = {
+        contractType: currentContract.contractType,
+        startDate: currentContract.startDate,
+        endDate: currentContract.endDate,
+        status: currentContract.status
+      };
+  
+      // Log để debug
+      console.log('Preparing to save changes:', {
+        role: userRole,
+        currentContract,
+        updateData
+      });
+  
       if (userRole === 'hr') {
-        // HR - Gửi yêu cầu phê duyệt
-        const response = await axios.post(
-          'http://localhost:5000/api/auth/approval-request',
-          {
-            requestType: 'update_contract',
-            requestData: {
-              contractId: currentContract._id,
-              updateData: {
-                contractType: currentContract.contractType,
-                startDate: currentContract.startDate,
-                endDate: currentContract.endDate,
-                status: currentContract.status
-              },
-              employeeId: currentContract.employeeId._id,
-              oldData: {
-                contractType: contracts.find(c => c._id === currentContract._id)?.contractType,
-                startDate: contracts.find(c => c._id === currentContract._id)?.startDate,
-                endDate: contracts.find(c => c._id === currentContract._id)?.endDate,
-                status: contracts.find(c => c._id === currentContract._id)?.status
+        // Tìm thông tin hợp đồng cũ
+        const oldContract = contracts.find(c => c._id === currentContract._id);
+        if (!oldContract) {
+          throw new Error('Không tìm thấy thông tin hợp đồng');
+        }
+  
+        // Format dữ liệu cho yêu cầu phê duyệt
+        const approvalRequestData = {
+          requestType: 'update_contract',
+          requestData: {
+            contractId: currentContract._id,
+            updateData: updateData,
+            employeeId: currentContract.employeeId._id,
+            oldData: {
+              contractType: oldContract.contractType,
+              startDate: oldContract.startDate,
+              endDate: oldContract.endDate,
+              status: oldContract.status
+            }
+          }
+        };
+  
+        console.log('Sending HR approval request:', approvalRequestData);
+  
+        try {
+          const response = await axios.post(
+            'http://localhost:5000/api/auth/approval-request',
+            approvalRequestData,
+            {
+              headers: { 
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
               }
             }
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
+          );
   
-        handleCloseModal();
-        MySwal.fire({
-          icon: 'success',
-          title: 'Đã gửi yêu cầu!',
-          text: 'Yêu cầu cập nhật hợp đồng đã được gửi đến Admin để phê duyệt.',
-          confirmButtonColor: '#3085d6'
-        });
+          console.log('Approval request response:', response.data);
+  
+          handleCloseModal();
+          MySwal.fire({
+            icon: 'success',
+            title: 'Đã gửi yêu cầu!',
+            text: 'Yêu cầu cập nhật hợp đồng đã được gửi đến Admin để phê duyệt.',
+            confirmButtonColor: '#3085d6'
+          });
+        } catch (approvalError) {
+          console.error('Error sending approval request:', approvalError);
+          throw new Error(
+            approvalError.response?.data?.message || 
+            'Có lỗi khi gửi yêu cầu phê duyệt'
+          );
+        }
       } else {
-        // Admin - Cập nhật trực tiếp
-        const response = await axios.put(
-          `http://localhost:5000/api/auth/contracts/${currentContract._id}`,
-          {
-            contractType: currentContract.contractType,
-            startDate: currentContract.startDate,
-            endDate: currentContract.endDate,
-            status: currentContract.status
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
+        // Xử lý cho admin
+        try {
+          const response = await axios.put(
+            `http://localhost:5000/api/auth/contracts/${currentContract._id}`,
+            updateData,
+            {
+              headers: { 
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
   
-        await fetchContracts();
-        handleCloseModal();
-        MySwal.fire({
-          icon: 'success',
-          title: 'Thành công!',
-          text: 'Cập nhật hợp đồng thành công!',
-          confirmButtonColor: '#3085d6'
-        });
+          console.log('Admin update response:', response.data);
+  
+          await fetchContracts(); // Refresh data
+          handleCloseModal();
+          MySwal.fire({
+            icon: 'success',
+            title: 'Thành công!',
+            text: 'Cập nhật hợp đồng thành công!',
+            confirmButtonColor: '#3085d6'
+          });
+        } catch (updateError) {
+          console.error('Error updating contract:', updateError);
+          throw new Error(
+            updateError.response?.data?.message || 
+            'Có lỗi khi cập nhật hợp đồng'
+          );
+        }
       }
     } catch (error) {
-      console.error('Error updating contract:', error);
-      let errorMessage = 'Có lỗi xảy ra khi cập nhật hợp đồng';
-  
-      if (error.response?.status === 401) {
-        errorMessage = 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.';
-        localStorage.removeItem('token');
-        navigate('/login');
-      } else if (error.response?.status === 403) {
-        errorMessage = 'Bạn không có quyền thực hiện thao tác này';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      console.error('Error in handleSaveChanges:', error);
+      
+      // Xử lý các loại lỗi cụ thể
+      let errorMessage = error.message;
+      if (error.response) {
+        if (error.response.status === 401) {
+          errorMessage = 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.';
+          localStorage.removeItem('token');
+          navigate('/login');
+        } else if (error.response.status === 403) {
+          errorMessage = 'Bạn không có quyền thực hiện thao tác này';
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        }
       }
   
       MySwal.fire({
@@ -201,9 +280,15 @@ const ContractAdmin = () => {
   };
 
   const handleInputChange = (e) => {
-    setCurrentContract({
-      ...currentContract,
-      [e.target.name]: e.target.value
+    const { name, value } = e.target;
+    console.log(`Updating ${name} to ${value}`); // Log để debug
+    setCurrentContract(prev => {
+      const updated = {
+        ...prev,
+        [name]: value
+      };
+      console.log('Updated contract:', updated); // Log để debug
+      return updated;
     });
   };
 
@@ -358,7 +443,7 @@ const ContractAdmin = () => {
                   <ModalTitle>Chỉnh sửa Hợp đồng</ModalTitle>
                   {currentContract && (
                     <Form>
-                      <FormGroup>
+                    <FormGroup>
                         <Label>Loại Hợp Đồng:</Label>
                         <Select
                           name="contractType"
@@ -366,42 +451,42 @@ const ContractAdmin = () => {
                           onChange={handleInputChange}
                         >
                           <option value="">Chọn loại hợp đồng</option>
-                          <option value="fullTime">Toàn thời gian</option>
-                          <option value="partTime">Bán thời gian</option>
-                          <option value="temporary">Tạm thời</option>
+                          <option value="Toàn thời gian">Toàn thời gian</option>
+                          <option value="Bán thời gian">Bán thời gian</option>
+                          <option value="Tạm thời">Tạm thời</option>
                         </Select>
                       </FormGroup>
-                      <FormGroup>
-                        <Label>Ngày Bắt Đầu:</Label>
-                        <Input
-                          type="date"
-                          name="startDate"
-                          value={currentContract.startDate ? currentContract.startDate.split('T')[0] : ''}
-                          onChange={handleInputChange}
-                        />
-                      </FormGroup>
-                      <FormGroup>
-                        <Label>Ngày Kết Thúc:</Label>
-                        <Input
-                          type="date"
-                          name="endDate"
-                          value={currentContract.endDate ? currentContract.endDate.split('T')[0] : ''}
-                          onChange={handleInputChange}
-                        />
-                      </FormGroup>
-                      <FormGroup>
-                        <Label>Trạng Thái:</Label>
-                        <Select
-                          name="status"
-                          value={currentContract.status || ''}
-                          onChange={handleInputChange}
-                        >
-                          <option value="">Chọn trạng thái</option>
-                          <option value="Còn hiệu lực">Còn hiệu lực</option>
-                          <option value="Hết hiệu lực">Hết hiệu lực</option>
-                        </Select>
-                      </FormGroup>
-                    </Form>
+                    <FormGroup>
+                      <Label>Ngày Bắt Đầu:</Label>
+                      <Input
+                        type="date"
+                        name="startDate"
+                        value={currentContract.startDate || ''} 
+                        onChange={handleInputChange}
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label>Ngày Kết Thúc:</Label>
+                      <Input
+                        type="date"
+                        name="endDate"
+                        value={currentContract.endDate || ''}
+                        onChange={handleInputChange}
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label>Trạng Thái:</Label>
+                      <Select
+                        name="status"
+                        value={currentContract.status || ''}
+                        onChange={handleInputChange}
+                      >
+                        <option value="">Chọn trạng thái</option>
+                        <option value="Còn hiệu lực">Còn hiệu lực</option>
+                        <option value="Hết hiệu lực">Hết hiệu lực</option>
+                      </Select>
+                    </FormGroup>
+                  </Form>
                   )}
                   <ButtonGroup>
                     <Button
