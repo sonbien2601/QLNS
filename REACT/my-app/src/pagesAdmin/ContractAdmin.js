@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import NavigationAdmin from '../components/NavigationAdmin'; 
+import NavigationAdmin from '../components/NavigationAdmin';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import styled from 'styled-components';
@@ -25,10 +25,10 @@ const ContractAdmin = () => {
         if (!token) {
           throw new Error('Không tìm thấy token');
         }
-  
+
         const decodedToken = jwtDecode(token);
         const userRole = decodedToken.role;
-  
+
         if (!['admin', 'hr'].includes(userRole)) {
           MySwal.fire({
             icon: 'error',
@@ -40,7 +40,7 @@ const ContractAdmin = () => {
           });
           return;
         }
-  
+
         if (userRole === 'hr') {
           MySwal.fire({
             icon: 'info',
@@ -49,7 +49,7 @@ const ContractAdmin = () => {
             confirmButtonColor: '#3085d6',
           });
         }
-  
+
         await fetchContracts();
       } catch (error) {
         console.error('Lỗi khởi tạo:', error);
@@ -59,7 +59,7 @@ const ContractAdmin = () => {
         setError('Có lỗi xảy ra khi tải dữ liệu');
       }
     };
-  
+
     init();
   }, [navigate]);
 
@@ -113,17 +113,17 @@ const ContractAdmin = () => {
         endDate: contract.endDate ? new Date(contract.endDate).toISOString().split('T')[0] : '',
         status: contract.status || ''
       };
-      
+
       // Log để kiểm tra dữ liệu
       console.log('Editing contract:', formattedContract);
-      
+
       setCurrentContract(formattedContract);
       setShowEditModal(true);
     } catch (error) {
       console.error('Error formatting contract data:', error);
       MySwal.fire({
         icon: 'error',
-        title: 'Lỗi!', 
+        title: 'Lỗi!',
         text: 'Không thể tải thông tin hợp đồng'
       });
     }
@@ -137,22 +137,22 @@ const ContractAdmin = () => {
   const handleSaveChanges = async () => {
     try {
       // Validate dữ liệu đầu vào
-      if (!currentContract.contractType || !currentContract.startDate || 
-          !currentContract.endDate || !currentContract.status) {
+      if (!currentContract.contractType || !currentContract.startDate ||
+        !currentContract.endDate || !currentContract.status) {
         throw new Error('Vui lòng điền đầy đủ thông tin');
       }
-  
+
       // Validate ngày tháng
       const startDate = new Date(currentContract.startDate);
       const endDate = new Date(currentContract.endDate);
       if (endDate <= startDate) {
         throw new Error('Ngày kết thúc phải sau ngày bắt đầu');
       }
-  
+
       const token = localStorage.getItem('token');
       const decodedToken = jwtDecode(token);
       const userRole = decodedToken.role;
-  
+
       // Chuẩn bị dữ liệu cập nhật
       const updateData = {
         contractType: currentContract.contractType,
@@ -160,21 +160,21 @@ const ContractAdmin = () => {
         endDate: currentContract.endDate,
         status: currentContract.status
       };
-  
+
       // Log để debug
       console.log('Preparing to save changes:', {
         role: userRole,
         currentContract,
         updateData
       });
-  
+
       if (userRole === 'hr') {
         // Tìm thông tin hợp đồng cũ
         const oldContract = contracts.find(c => c._id === currentContract._id);
         if (!oldContract) {
           throw new Error('Không tìm thấy thông tin hợp đồng');
         }
-  
+
         // Format dữ liệu cho yêu cầu phê duyệt
         const approvalRequestData = {
           requestType: 'update_contract',
@@ -190,23 +190,23 @@ const ContractAdmin = () => {
             }
           }
         };
-  
+
         console.log('Sending HR approval request:', approvalRequestData);
-  
+
         try {
           const response = await axios.post(
             'http://localhost:5000/api/auth/approval-request',
             approvalRequestData,
             {
-              headers: { 
+              headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json'
               }
             }
           );
-  
+
           console.log('Approval request response:', response.data);
-  
+
           handleCloseModal();
           MySwal.fire({
             icon: 'success',
@@ -217,7 +217,7 @@ const ContractAdmin = () => {
         } catch (approvalError) {
           console.error('Error sending approval request:', approvalError);
           throw new Error(
-            approvalError.response?.data?.message || 
+            approvalError.response?.data?.message ||
             'Có lỗi khi gửi yêu cầu phê duyệt'
           );
         }
@@ -228,15 +228,15 @@ const ContractAdmin = () => {
             `http://localhost:5000/api/auth/contracts/${currentContract._id}`,
             updateData,
             {
-              headers: { 
+              headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json'
               }
             }
           );
-  
+
           console.log('Admin update response:', response.data);
-  
+
           await fetchContracts(); // Refresh data
           handleCloseModal();
           MySwal.fire({
@@ -248,14 +248,14 @@ const ContractAdmin = () => {
         } catch (updateError) {
           console.error('Error updating contract:', updateError);
           throw new Error(
-            updateError.response?.data?.message || 
+            updateError.response?.data?.message ||
             'Có lỗi khi cập nhật hợp đồng'
           );
         }
       }
     } catch (error) {
       console.error('Error in handleSaveChanges:', error);
-      
+
       // Xử lý các loại lỗi cụ thể
       let errorMessage = error.message;
       if (error.response) {
@@ -269,7 +269,7 @@ const ContractAdmin = () => {
           errorMessage = error.response.data.message;
         }
       }
-  
+
       MySwal.fire({
         icon: 'error',
         title: 'Lỗi!',
@@ -297,7 +297,7 @@ const ContractAdmin = () => {
       const token = localStorage.getItem('token');
       const decodedToken = jwtDecode(token);
       const userRole = decodedToken.role;
-  
+
       if (userRole !== 'admin') {
         MySwal.fire({
           icon: 'error',
@@ -307,7 +307,7 @@ const ContractAdmin = () => {
         });
         return;
       }
-  
+
       const result = await MySwal.fire({
         title: 'Bạn có chắc chắn?',
         text: "Bạn không thể hoàn tác hành động này!",
@@ -318,14 +318,14 @@ const ContractAdmin = () => {
         confirmButtonText: 'Có, xóa nó!',
         cancelButtonText: 'Hủy'
       });
-  
+
       if (result.isConfirmed) {
         await axios.delete(`http://localhost:5000/api/auth/contracts/${userId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-  
+
         setContracts(prevContracts => prevContracts.filter(contract => contract._id !== userId));
-  
+
         MySwal.fire(
           'Đã xóa!',
           'Hợp đồng đã được xóa thành công.',
@@ -443,7 +443,7 @@ const ContractAdmin = () => {
                   <ModalTitle>Chỉnh sửa Hợp đồng</ModalTitle>
                   {currentContract && (
                     <Form>
-                    <FormGroup>
+                      <FormGroup>
                         <Label>Loại Hợp Đồng:</Label>
                         <Select
                           name="contractType"
@@ -456,37 +456,37 @@ const ContractAdmin = () => {
                           <option value="Tạm thời">Tạm thời</option>
                         </Select>
                       </FormGroup>
-                    <FormGroup>
-                      <Label>Ngày Bắt Đầu:</Label>
-                      <Input
-                        type="date"
-                        name="startDate"
-                        value={currentContract.startDate || ''} 
-                        onChange={handleInputChange}
-                      />
-                    </FormGroup>
-                    <FormGroup>
-                      <Label>Ngày Kết Thúc:</Label>
-                      <Input
-                        type="date"
-                        name="endDate"
-                        value={currentContract.endDate || ''}
-                        onChange={handleInputChange}
-                      />
-                    </FormGroup>
-                    <FormGroup>
-                      <Label>Trạng Thái:</Label>
-                      <Select
-                        name="status"
-                        value={currentContract.status || ''}
-                        onChange={handleInputChange}
-                      >
-                        <option value="">Chọn trạng thái</option>
-                        <option value="Còn hiệu lực">Còn hiệu lực</option>
-                        <option value="Hết hiệu lực">Hết hiệu lực</option>
-                      </Select>
-                    </FormGroup>
-                  </Form>
+                      <FormGroup>
+                        <Label>Ngày Bắt Đầu:</Label>
+                        <Input
+                          type="date"
+                          name="startDate"
+                          value={currentContract.startDate || ''}
+                          onChange={handleInputChange}
+                        />
+                      </FormGroup>
+                      <FormGroup>
+                        <Label>Ngày Kết Thúc:</Label>
+                        <Input
+                          type="date"
+                          name="endDate"
+                          value={currentContract.endDate || ''}
+                          onChange={handleInputChange}
+                        />
+                      </FormGroup>
+                      <FormGroup>
+                        <Label>Trạng Thái:</Label>
+                        <Select
+                          name="status"
+                          value={currentContract.status || ''}
+                          onChange={handleInputChange}
+                        >
+                          <option value="">Chọn trạng thái</option>
+                          <option value="Còn hiệu lực">Còn hiệu lực</option>
+                          <option value="Hết hiệu lực">Hết hiệu lực</option>
+                        </Select>
+                      </FormGroup>
+                    </Form>
                   )}
                   <ButtonGroup>
                     <Button

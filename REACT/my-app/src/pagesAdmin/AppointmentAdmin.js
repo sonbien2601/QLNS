@@ -7,192 +7,234 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const MySwal = withReactContent(Swal);
 
-// Styled Components giữ nguyên...
-
-const DetailRow = styled.div`
-  display: flex;
-  padding: 12px 0;
-  border-bottom: 1px solid #eee;
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const Label = styled.span`
-  font-weight: 600;
-  color: #34495e;
-  width: 150px;
-  flex-shrink: 0;
-`;
-
-const Value = styled.span`
-  color: #2c3e50;
-  flex: 1;
-`;
-
-const AppointmentDetails = styled(motion.div)`
-  background-color: #ffffff;
-  padding: 25px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  margin-top: 30px;
-
-  h3 {
-    color: #2c3e50;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 2px solid #ecf0f1;
-  }
-
-  .appointment-info {
-    margin-bottom: 25px;
-  }
-
-  .action-buttons {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid #ecf0f1;
-  }
-`;
-
+// Cập nhật PageContainer
 const PageContainer = styled(motion.div)`
-  background-color: #f4f7f9;
+  background-color: #f8fafc;
   min-height: 100vh;
+  padding: 2rem;
 `;
 
+// Cập nhật ContentContainer 
 const ContentContainer = styled(motion.div)`
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 40px 20px;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  padding: 2rem;
 `;
 
+// Cập nhật Title 
 const Title = styled(motion.h2)`
-  color: #2c3e50;
-  font-size: 28px;
-  margin-bottom: 20px;
+  color: #1e293b;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
   text-align: center;
+  letter-spacing: -0.025em;
 `;
 
+// Cập nhật SubTitle
 const SubTitle = styled(motion.p)`
-  color: #34495e;
-  font-size: 18px;
-  margin-bottom: 30px;
+  color: #64748b;
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
   text-align: center;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
 `;
 
+// Cập nhật Table
 const Table = styled(motion.table)`
   width: 100%;
   border-collapse: separate;
-  border-spacing: 0 10px;
+  border-spacing: 0;
+  margin-top: 1rem;
 `;
 
+// Cập nhật Th
 const Th = styled.th`
-  background-color: #34495e;
-  color: #ffffff;
-  padding: 15px;
+  background-color: #f8fafc;
+  color: #1e293b;
+  font-weight: 600;
+  padding: 1rem;
   text-align: left;
-  font-weight: 600;
+  border-bottom: 2px solid #e2e8f0;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 `;
 
+// Cập nhật Td
 const Td = styled(motion.td)`
-  background-color: #ffffff;
-  padding: 15px;
-  border-top: 1px solid #ecf0f1;
-  border-bottom: 1px solid #ecf0f1;
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.875rem;
+
+  &:first-child {
+    font-weight: 600;
+    color: #1e293b;
+  }
 `;
 
+// Cập nhật Button
 const Button = styled(motion.button)`
-  padding: 8px 12px;
-  margin-right: 5px;
+  padding: 0.5rem 1rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
   cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 
   &.view-btn {
-    background-color: #3498db;
+    background-color: #2563eb;
     color: white;
     &:hover {
-      background-color: #2980b9;
+      background-color: #1d4ed8;
     }
   }
 
   &.approve-btn {
-    background-color: #2ecc71;
+    background-color: #22c55e;
     color: white;
     &:hover {
-      background-color: #27ae60;
+      background-color: #16a34a;
     }
   }
 
   &.reject-btn {
-    background-color: #e74c3c;
+    background-color: #ef4444;
     color: white;
     &:hover {
-      background-color: #c0392b;
+      background-color: #dc2626;
     }
   }
 
   &.delete-btn {
-    background-color: #95a5a6;
+    background-color: #64748b;
     color: white;
     &:hover {
-      background-color: #7f8c8d;
+      background-color: #475569;
     }
   }
 
   &:disabled {
-    background-color: #bdc3c7;
+    background-color: #e2e8f0;
     cursor: not-allowed;
     &:hover {
-      background-color: #bdc3c7;
+      background-color: #e2e8f0;
     }
   }
 `;
 
-const FeedbackSection = styled.div`
-  margin-top: 15px;
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-`;
-
-const FeedbackInput = styled.textarea`
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  margin-top: 8px;
-  min-height: 100px;
-  resize: vertical;
-`;
-
-// Cập nhật StatusBadge để thêm màu cho trạng thái waiting_admin
+// Cập nhật StatusBadge
 const StatusBadge = styled.span`
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 14px;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
   ${({ status }) => {
     switch (status) {
       case 'pending':
-        return 'background-color: #f1c40f; color: #000000;';
-      case 'approved':
-        return 'background-color: #2ecc71; color: #ffffff;';
-      case 'rejected':
-        return 'background-color: #e74c3c; color: #ffffff;';
+        return `
+          background-color: #fef3c7;
+          color: #92400e;
+          border: 1px solid #fcd34d;
+        `;
       case 'waiting_admin':
-        return 'background-color: #3498db; color: #ffffff;';
+        return `
+          background-color: #dbeafe;
+          color: #1e40af;
+          border: 1px solid #93c5fd;
+        `;
+      case 'approved':
+        return `
+          background-color: #dcfce7;
+          color: #166534;
+          border: 1px solid #86efac;
+        `;
+      case 'rejected':
+        return `
+          background-color: #fee2e2;
+          color: #991b1b;
+          border: 1px solid #fca5a5;
+        `;
       default:
-        return 'background-color: #95a5a6; color: #ffffff;';
+        return `
+          background-color: #f1f5f9;
+          color: #475569;
+          border: 1px solid #cbd5e1;
+        `;
     }
   }}
 `;
+
+// Cập nhật AppointmentDetails
+const AppointmentDetails = styled(motion.div)`
+  background-color: #ffffff;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  margin-top: 2rem;
+  overflow: hidden;
+
+  h3 {
+    color: #1e293b;
+    font-size: 1.25rem;
+    font-weight: 600;
+    padding: 1.25rem;
+    border-bottom: 1px solid #e2e8f0;
+    margin: 0;
+  }
+
+  .appointment-info {
+    padding: 1.25rem;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    padding: 1.25rem;
+    border-top: 1px solid #e2e8f0;
+    background-color: #f8fafc;
+  }
+`;
+
+// Cập nhật DetailRow
+const DetailRow = styled.div`
+  display: flex;
+  padding: 0.75rem 0;
+  &:not(:last-child) {
+    border-bottom: 1px solid #e2e8f0;
+  }
+`;
+
+// Cập nhật Label
+const Label = styled.span`
+  color: #64748b;
+  font-weight: 500;
+  width: 180px;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+`;
+
+// Cập nhật Value
+const Value = styled.span`
+  color: #1e293b;
+  flex: 1;
+  font-size: 0.875rem;
+`;
+
 
 // Component hiển thị từng dòng bổ nhiệm với kiểm tra role
 const AppointmentRow = ({
@@ -293,12 +335,12 @@ const AppointmentRow = ({
         )}
       </Td>
       <Td style={{ display: 'flex', gap: '8px' }}>
-        <Button 
+        <Button
           className="view-btn"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => handleView(id)}
-          style={{ 
+          style={{
             backgroundColor: '#3b82f6',
             minWidth: 'auto',
             padding: '8px 12px'
@@ -308,12 +350,12 @@ const AppointmentRow = ({
         </Button>
         {canApprove && status === 'pending' && (
           <>
-            <Button 
+            <Button
               className="approve-btn"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => handleApprove(id)}
-              style={{ 
+              style={{
                 backgroundColor: '#22c55e',
                 minWidth: 'auto',
                 padding: '8px 12px'
@@ -321,12 +363,12 @@ const AppointmentRow = ({
             >
               {userRole === 'hr' ? 'Đề xuất duyệt' : 'Phê duyệt'}
             </Button>
-            <Button 
+            <Button
               className="reject-btn"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => handleReject(id)}
-              style={{ 
+              style={{
                 backgroundColor: '#ef4444',
                 minWidth: 'auto',
                 padding: '8px 12px'
@@ -337,12 +379,12 @@ const AppointmentRow = ({
           </>
         )}
         {canDelete && (
-          <Button 
+          <Button
             className="delete-btn"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => handleDelete(id)}
-            style={{ 
+            style={{
               backgroundColor: '#6b7280',
               minWidth: 'auto',
               padding: '8px 12px'
@@ -359,6 +401,12 @@ const AppointmentRow = ({
 
 // Component AppointmentTable
 const AppointmentTable = ({ appointments, handleApprove, handleReject, handleView, handleDelete, userRole }) => {
+  // Log để debug
+  console.log('AppointmentTable props:', {
+    appointments,
+    userRole
+  });
+
   return (
     <Table
       initial={{ opacity: 0 }}
@@ -378,17 +426,12 @@ const AppointmentTable = ({ appointments, handleApprove, handleReject, handleVie
       </thead>
       <AnimatePresence>
         <tbody>
-          {appointments.map((appointment) => {
-            const user = appointment.userId;
-            if (!user || !user.fullName) {
-              return null;
-            }
-
-            return (
+          {Array.isArray(appointments) && appointments.length > 0 ? (
+            appointments.map((appointment) => (
               <AppointmentRow
                 key={appointment._id}
+                appointment={appointment} // Pass toàn bộ appointment object
                 id={appointment._id}
-                name={user.fullName}
                 oldPosition={appointment.oldPosition}
                 newPosition={appointment.newPosition}
                 status={appointment.status}
@@ -402,8 +445,14 @@ const AppointmentTable = ({ appointments, handleApprove, handleReject, handleVie
                 handleDelete={handleDelete}
                 userRole={userRole}
               />
-            );
-          })}
+            ))
+          ) : (
+            <tr>
+              <td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>
+                Không có yêu cầu bổ nhiệm nào
+              </td>
+            </tr>
+          )}
         </tbody>
       </AnimatePresence>
     </Table>
@@ -430,26 +479,26 @@ const Appointment = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      // Endpoint for both admin and HR
       const endpoint = role === 'admin' ?
         'http://localhost:5000/api/auth/get-appointments' :
         'http://localhost:5000/api/auth/hr-appointments';
+
+      console.log("Fetching appointments from:", endpoint); // Log endpoint
 
       const response = await axios.get(endpoint, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      setAppointments(response.data.appointments);
+      console.log("Response data:", response.data); // Log response
+
+      if (response.data?.appointments) {
+        setAppointments(response.data.appointments);
+      }
       setLoading(false);
     } catch (error) {
-      console.error('Lỗi khi lấy danh sách bổ nhiệm', error);
-      setError('Không thể tải danh sách bổ nhiệm. Vui lòng thử lại sau.');
+      console.error('Error fetching appointments:', error);
+      setError('Không thể tải danh sách bổ nhiệm');
       setLoading(false);
-      MySwal.fire({
-        icon: 'error',
-        title: 'Lỗi',
-        text: 'Không thể tải danh sách bổ nhiệm. Vui lòng thử lại sau.',
-      });
     }
   };
 

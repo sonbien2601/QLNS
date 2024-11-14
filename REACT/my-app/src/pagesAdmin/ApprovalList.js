@@ -346,6 +346,7 @@ const ApprovalList = () => {
       case 'update_salary': return 'Cập nhật lương';
       case 'update_contract': return 'Cập nhật hợp đồng';
       case 'appointment_approval': return 'Phê duyệt bổ nhiệm';
+      case 'dismissal_request': return 'Phê duyệt miễn nhiệm'; // Thêm case này
       default: return type;
     }
   };
@@ -403,25 +404,25 @@ const ApprovalList = () => {
     };
     return fieldMappings[field] || field;
   };
-  
+
   const formatContractValue = (field, value) => {
     if (!value) return 'N/A';
-  
+
     switch (field) {
       case 'startDate':
       case 'endDate':
         return new Date(value).toLocaleDateString('vi-VN');
-      
+
       case 'basicSalary':
       case 'insuranceSalary':
         return new Intl.NumberFormat('vi-VN', {
           style: 'currency',
           currency: 'VND'
         }).format(value);
-      
+
       case 'allowances':
         if (Array.isArray(value)) {
-          return value.map(allowance => 
+          return value.map(allowance =>
             `${allowance.name}: ${new Intl.NumberFormat('vi-VN', {
               style: 'currency',
               currency: 'VND'
@@ -429,7 +430,7 @@ const ApprovalList = () => {
           ).join(', ');
         }
         return value;
-  
+
       case 'contractType':
         const contractTypes = {
           'full-time': 'Toàn thời gian',
@@ -438,10 +439,10 @@ const ApprovalList = () => {
           'intern': 'Thực tập'
         };
         return contractTypes[value] || value;
-  
+
       case 'contractFile':
         return value.name || value;
-  
+
       default:
         return value;
     }
@@ -521,184 +522,177 @@ const ApprovalList = () => {
     }
   };
 
-  const handleApprove = async (approval) => {
-    try {
-      if (!approval?._id) {
-        throw new Error('Thông tin yêu cầu không hợp lệ');
-      }
-  
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Không tìm thấy token xác thực');
-      }
-  
-      const decodedToken = jwtDecode(token);
-      const processedBy = decodedToken.userId || decodedToken.sub || decodedToken.id;
-  
-      console.log('Decoded token:', decodedToken);
-      console.log('ProcessedBy:', processedBy);
-  
-      if (!processedBy) {
-        throw new Error('Không thể xác định người xử lý yêu cầu');
-      }
-  
-      const result = await Swal.fire({
-        title: 'Xác nhận phê duyệt',
-        text: `Bạn có chắc chắn muốn phê duyệt yêu cầu này?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Phê duyệt',
-        cancelButtonText: 'Hủy',
-        reverseButtons: true
-      });
-  
-      if (result.isConfirmed) {
-        setActionLoading(true);
-  
-        try {
-          console.log('Sending approval request with processedBy:', processedBy);
-  
-          let response;
-          let successMessage;
-  
-          if (approval.requestType === 'appointment_approval') {
-            response = await axios({
-              method: 'PUT',
-              url: `http://localhost:5000/api/auth/approve-appointment/${approval.requestData.appointmentId}`,
-              data: {
-                status: 'approved',
-                adminResponse: 'Đã phê duyệt bổ nhiệm',
-                processedBy: processedBy
-              },
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            });
-          
-            // Cập nhật luôn approval status
-            await axios({
-              method: 'PUT', 
-              url: `http://localhost:5000/api/auth/approvals/${approval._id}`,
-              data: {
-                status: 'approved',
-                adminResponse: 'Đã phê duyệt bổ nhiệm',
-                processedBy: processedBy
-              },
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            });
-          } else {
-            // Xử lý các loại yêu cầu khác
-            response = await axios({
-              method: 'PUT',
-              url: `http://localhost:5000/api/auth/approvals/${approval._id}`,
-              data: {
-                status: 'approved',
-                adminResponse: 'Đã phê duyệt',
-                processedBy: processedBy
-              },
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              timeout: 10000
-            });
-            successMessage = 'Yêu cầu đã được phê duyệt';
-          }
-  
-          console.log('API Response:', response.data);
-  
-          if (!response.data) {
-            throw new Error('Không nhận được phản hồi từ server');
-          }
-  
-          await Swal.fire({
-            icon: 'success',
-            title: 'Thành công',
-            text: successMessage,
-            timer: 1500
-          });
-  
-          await fetchApprovals();
-        } catch (apiError) {
-          console.error('API call failed:', {
-            error: apiError,
-            response: apiError.response?.data,
-            status: apiError.response?.status
-          });
-  
-          let errorMessage = 'Đã có lỗi xảy ra khi phê duyệt';
-  
-          if (apiError.response?.data?.error === 'ProcessedBy required when approving/rejecting') {
-            errorMessage = 'Không thể xác định người xử lý yêu cầu';
-          } else if (apiError.response) {
-            switch (apiError.response.status) {
-              case 400:
-                errorMessage = apiError.response.data.message || 'Dữ liệu không hợp lệ';
-                break;
-              case 401:
-                errorMessage = 'Phiên làm việc đã hết hạn, vui lòng đăng nhập lại';
-                localStorage.removeItem('token');
-                window.location.href = '/login';
-                break;
-              case 403:
-                errorMessage = 'Bạn không có quyền thực hiện thao tác này';
-                break;
-              case 404:
-                errorMessage = 'Không tìm thấy yêu cầu phê duyệt';
-                break;
-              case 500:
-                errorMessage = apiError.response.data.error || 'Lỗi máy chủ';
-                break;
-              default:
-                errorMessage = apiError.response.data.message || 'Lỗi không xác định';
-            }
-          }
-  
-          await Swal.fire({
-            icon: 'error',
-            title: 'Lỗi',
-            text: errorMessage
-          });
-        } finally {
-          setActionLoading(false);
-        }
-      }
-    } catch (error) {
-      console.error('General error:', error);
-      setActionLoading(false);
-      await Swal.fire({
-        icon: 'error',
-        title: 'Lỗi',
-        text: error.message || 'Đã có lỗi xảy ra'
-      });
+const handleApprove = async (approval) => {
+  try {
+    if (!approval?._id) {
+      throw new Error('Thông tin yêu cầu không hợp lệ');
     }
-  };
-  
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('Không tìm thấy token xác thực');
+    }
+
+    const decodedToken = jwtDecode(token);
+    const processedBy = decodedToken.userId || decodedToken.sub || decodedToken.id;
+
+    if (!processedBy) {
+      throw new Error('Không thể xác định người xử lý yêu cầu');
+    }
+
+    const result = await Swal.fire({
+      title: 'Xác nhận phê duyệt',
+      text: 'Bạn có chắc chắn muốn phê duyệt yêu cầu này?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Phê duyệt',
+      cancelButtonText: 'Hủy',
+      reverseButtons: true
+    });
+
+    if (result.isConfirmed) {
+      setActionLoading(true);
+
+      try {
+        // Xử lý phê duyệt dựa trên loại yêu cầu
+        let response;
+
+        switch (approval.requestType) {
+          case 'update_user':
+            // Cập nhật thông tin user
+            await axios.put(
+              `http://localhost:5000/api/auth/admin/user/${approval.requestData.userId}`,
+              approval.requestData.updateData,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            break;
+
+          case 'create_user':
+            // Tạo user mới
+            await axios.post(
+              'http://localhost:5000/api/auth/create-user',
+              approval.requestData,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            break;
+
+          case 'update_contract':
+            // Cập nhật hợp đồng
+            await axios.put(
+              `http://localhost:5000/api/auth/contracts/${approval.requestData.contractId}`,
+              approval.requestData.updateData,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            break;
+
+          case 'appointment_approval':
+            // Phê duyệt bổ nhiệm
+            await axios.put(
+              `http://localhost:5000/api/auth/approve-appointment/${approval.requestData.appointmentId}`,
+              {
+                status: 'approved',
+                adminResponse: 'Đã phê duyệt bổ nhiệm',
+                processedBy: processedBy
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            break;
+        }
+
+        // Cập nhật trạng thái yêu cầu phê duyệt
+        response = await axios.put(
+          `http://localhost:5000/api/auth/approvals/${approval._id}`,
+          {
+            status: 'approved',
+            adminResponse: 'Đã phê duyệt',
+            processedBy: processedBy
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (!response.data) {
+          throw new Error('Không nhận được phản hồi từ server');
+        }
+
+        await Swal.fire({
+          icon: 'success',
+          title: 'Thành công',
+          text: 'Yêu cầu đã được phê duyệt',
+          timer: 1500
+        });
+
+        // Tải lại danh sách yêu cầu
+        await fetchApprovals();
+
+      } catch (apiError) {
+        console.error('API call failed:', apiError);
+        let errorMessage = 'Đã có lỗi xảy ra khi phê duyệt';
+
+        if (apiError.response) {
+          switch (apiError.response.status) {
+            case 400:
+              errorMessage = apiError.response.data.message || 'Dữ liệu không hợp lệ';
+              break;
+            case 401:
+              errorMessage = 'Phiên làm việc đã hết hạn, vui lòng đăng nhập lại';
+              localStorage.removeItem('token');
+              window.location.href = '/login';
+              break;
+            case 403:
+              errorMessage = 'Bạn không có quyền thực hiện thao tác này';
+              break;
+            case 404:
+              errorMessage = 'Không tìm thấy yêu cầu phê duyệt';
+              break;
+            case 500:
+              errorMessage = apiError.response.data.error || 'Lỗi máy chủ';
+              break;
+            default:
+              errorMessage = apiError.response.data.message || 'Lỗi không xác định';
+          }
+        }
+
+        await Swal.fire({
+          icon: 'error',
+          title: 'Lỗi',
+          text: errorMessage
+        });
+      } finally {
+        setActionLoading(false);
+      }
+    }
+  } catch (error) {
+    console.error('General error:', error);
+    setActionLoading(false);
+    await Swal.fire({
+      icon: 'error',
+      title: 'Lỗi',
+      text: error.message || 'Đã có lỗi xảy ra'
+    });
+  }
+};
+
   const handleReject = async (approval) => {
     try {
       if (!approval?._id) {
         throw new Error('Thông tin yêu cầu không hợp lệ');
       }
-  
+
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('Không tìm thấy token xác thực');
       }
-  
+
       const decodedToken = jwtDecode(token);
       const processedBy = decodedToken.userId || decodedToken.sub || decodedToken.id;
-  
+
       console.log('Decoded token:', decodedToken);
       console.log('ProcessedBy:', processedBy);
-  
+
       if (!processedBy) {
         throw new Error('Không thể xác định người xử lý yêu cầu');
       }
-  
+
       const { value: reason } = await Swal.fire({
         title: 'Lý do từ chối',
         input: 'textarea',
@@ -712,20 +706,20 @@ const ApprovalList = () => {
           return null;
         }
       });
-  
+
       if (reason) {
         setActionLoading(true);
-  
+
         try {
           console.log('Sending rejection request:', {
             approvalId: approval._id,
             reason: reason.trim(),
             processedBy
           });
-  
+
           let response;
           let successMessage;
-  
+
           if (approval.requestType === 'appointment_approval') {
             response = await axios({
               method: 'PUT',
@@ -740,10 +734,10 @@ const ApprovalList = () => {
                 'Content-Type': 'application/json'
               }
             });
-          
+
             // Cập nhật luôn approval status
             await axios({
-              method: 'PUT', 
+              method: 'PUT',
               url: `http://localhost:5000/api/auth/approvals/${approval._id}`,
               data: {
                 status: 'approved',
@@ -773,20 +767,20 @@ const ApprovalList = () => {
             });
             successMessage = 'Yêu cầu đã được từ chối';
           }
-  
+
           console.log('Rejection response:', response.data);
-  
+
           if (!response.data) {
             throw new Error('Không nhận được phản hồi từ server');
           }
-  
+
           await Swal.fire({
             icon: 'success',
             title: 'Thành công',
             text: successMessage,
             timer: 1500
           });
-  
+
           await fetchApprovals();
         } catch (apiError) {
           console.error('API call failed:', {
@@ -794,9 +788,9 @@ const ApprovalList = () => {
             response: apiError.response?.data,
             status: apiError.response?.status
           });
-  
+
           let errorMessage = 'Đã có lỗi xảy ra khi từ chối';
-  
+
           if (apiError.response?.data?.error === 'ProcessedBy required when approving/rejecting') {
             errorMessage = 'Không thể xác định người xử lý yêu cầu';
           } else if (apiError.response) {
@@ -826,7 +820,7 @@ const ApprovalList = () => {
           } else if (apiError.code === 'ECONNABORTED') {
             errorMessage = 'Yêu cầu đã quá thời gian chờ, vui lòng thử lại';
           }
-  
+
           await Swal.fire({
             icon: 'error',
             title: 'Lỗi',
@@ -842,7 +836,7 @@ const ApprovalList = () => {
       setActionLoading(false);
       await Swal.fire({
         icon: 'error',
-        title: 'Lỗi', 
+        title: 'Lỗi',
         text: error.message || 'Đã có lỗi xảy ra khi từ chối yêu cầu',
         showConfirmButton: true
       });
@@ -988,127 +982,160 @@ const ApprovalList = () => {
 
                   <RequestDetails>
                     <DetailTable>
-                      {approval.requestType === 'update_user' ? (
+                      {approval.requestType === 'dismiss_employee' ? (
                         <React.Fragment>
-                          <ChangeHeader>
-                            <DetailLabel>Thông tin</DetailLabel>
+                          <DetailRow>
+                            <DetailLabel>Nhân viên bị miễn nhiệm</DetailLabel>
                             <DetailValue>
-                              <ChangeValue>
-                                <span>Giá trị cũ</span>
-                                <span>Giá trị mới</span>
-                              </ChangeValue>
+                              {approval.requestData?.userId?.fullName ||
+                                approval.requestData?.user?.fullName || // Thêm backup option
+                                approval.requestedBy?.fullName || 'N/A'}
                             </DetailValue>
-                          </ChangeHeader>
-                          {Object.entries(
-                            getChangedFields(approval.requestData.oldData, approval.requestData.updateData)
-                          ).map(([field, values]) => (
-                            <DetailRow key={field}>
-                              <DetailLabel>{formatFieldName(field)}</DetailLabel>
+                          </DetailRow>
+                          <DetailRow>
+                            <DetailLabel>Vị trí hiện tại</DetailLabel>
+                            <DetailValue>{approval.requestData?.oldPosition || 'N/A'}</DetailValue>
+                          </DetailRow>
+                          <DetailRow>
+                            <DetailLabel>Vị trí mới</DetailLabel>
+                            <DetailValue>{approval.requestData?.newPosition || 'N/A'}</DetailValue>
+                          </DetailRow>
+                          <DetailRow>
+                            <DetailLabel>Lý do</DetailLabel>
+                            <DetailValue>{approval.requestData?.reason || 'N/A'}</DetailValue>
+                          </DetailRow>
+                          <DetailRow>
+                            <DetailLabel>Ngày hiệu lực</DetailLabel>
+                            <DetailValue>
+                              {approval.requestData?.effectiveDate
+                                ? new Date(approval.requestData.effectiveDate).toLocaleDateString('vi-VN')
+                                : 'N/A'}
+                            </DetailValue>
+                          </DetailRow>
+                        </React.Fragment>
+                      ) :
+                        approval.requestType === 'update_user' ? (
+                          <React.Fragment>
+                            <ChangeHeader>
+                              <DetailLabel>Thông tin</DetailLabel>
                               <DetailValue>
                                 <ChangeValue>
-                                  <OldValue>{formatValue(field, values.old)}</OldValue>
-                                  <NewValue>{formatValue(field, values.new)}</NewValue>
+                                  <span>Giá trị cũ</span>
+                                  <span>Giá trị mới</span>
                                 </ChangeValue>
                               </DetailValue>
-                            </DetailRow>
-                          ))}
-                        </React.Fragment>
-                      ) : approval.requestType === 'update_contract' ? (
-                        <React.Fragment>
-                          <ChangeHeader>
-                            <DetailLabel>Thông tin hợp đồng</DetailLabel>
-                            <DetailValue>
-                              <ChangeValue>
-                                <span>Giá trị cũ</span>
-                                <span>Giá trị mới</span>
-                              </ChangeValue>
-                            </DetailValue>
-                          </ChangeHeader>
-                          {Object.entries(
-                            getChangedFields(approval.requestData.oldData, approval.requestData.updateData)
-                          ).map(([field, values]) => (
-                            <DetailRow key={field}>
-                              <DetailLabel>{formatContractFieldName(field)}</DetailLabel>
+                            </ChangeHeader>
+                            {Object.entries(
+                              getChangedFields(approval.requestData.oldData, approval.requestData.updateData)
+                            ).map(([field, values]) => (
+                              <DetailRow key={field}>
+                                <DetailLabel>{formatFieldName(field)}</DetailLabel>
+                                <DetailValue>
+                                  <ChangeValue>
+                                    <OldValue>{formatValue(field, values.old)}</OldValue>
+                                    <NewValue>{formatValue(field, values.new)}</NewValue>
+                                  </ChangeValue>
+                                </DetailValue>
+                              </DetailRow>
+                            ))}
+                          </React.Fragment>
+                        ) : approval.requestType === 'update_contract' ? (
+                          <React.Fragment>
+                            <ChangeHeader>
+                              <DetailLabel>Thông tin hợp đồng</DetailLabel>
                               <DetailValue>
                                 <ChangeValue>
-                                  <OldValue>{formatContractValue(field, values.old)}</OldValue>
-                                  <NewValue>{formatContractValue(field, values.new)}</NewValue>
+                                  <span>Giá trị cũ</span>
+                                  <span>Giá trị mới</span>
                                 </ChangeValue>
                               </DetailValue>
-                            </DetailRow>
-                          ))}
-                        </React.Fragment>
+                            </ChangeHeader>
+                            {Object.entries(
+                              getChangedFields(approval.requestData.oldData, approval.requestData.updateData)
+                            ).map(([field, values]) => (
+                              <DetailRow key={field}>
+                                <DetailLabel>{formatContractFieldName(field)}</DetailLabel>
+                                <DetailValue>
+                                  <ChangeValue>
+                                    <OldValue>{formatContractValue(field, values.old)}</OldValue>
+                                    <NewValue>{formatContractValue(field, values.new)}</NewValue>
+                                  </ChangeValue>
+                                </DetailValue>
+                              </DetailRow>
+                            ))}
+                          </React.Fragment>
                         ) : approval.requestType === 'appointment_approval' ? (
                           <React.Fragment>
-    <DetailRow>
-      <DetailLabel>Nhân viên được bổ nhiệm</DetailLabel>
-      <DetailValue>
-        {(() => {
-          const appointmentData = approval.requestData;
-          // Log để debug
-          console.log('Appointment Data:', appointmentData);
-          
-          // Kiểm tra và lấy tên nhân viên theo thứ tự ưu tiên
-          const employeeName = 
-            appointmentData?.user?.fullName || // Nếu có trong user
-            appointmentData?.employee?.fullName || // Hoặc trong employee  
-            appointmentData?.employeeName || // Hoặc trực tiếp trong data
-            'N/A'; // Mặc định nếu không có
-            
-          return employeeName;
-        })()}
-      </DetailValue>
-    </DetailRow>
-    <DetailRow>
-      <DetailLabel>Vị trí hiện tại</DetailLabel>
-      <DetailValue>{approval.requestData.oldPosition || 'N/A'}</DetailValue>
-    </DetailRow>
-    <DetailRow>
-      <DetailLabel>Vị trí bổ nhiệm</DetailLabel>
-      <DetailValue>{approval.requestData.newPosition || 'N/A'}</DetailValue>
-    </DetailRow>
-    <DetailRow>
-      <DetailLabel>Lý do bổ nhiệm</DetailLabel>
-      <DetailValue>{approval.requestData.reason || 'N/A'}</DetailValue>
-    </DetailRow>
-    <DetailRow>
-      <DetailLabel>Ý kiến HR</DetailLabel>
-      <DetailValue>{approval.requestData.hrFeedback || 'N/A'}</DetailValue>
-    </DetailRow>
-  </React.Fragment>
+                            <DetailRow>
+                              <DetailLabel>Nhân viên được bổ nhiệm</DetailLabel>
+                              <DetailValue>
+                                {(() => {
+                                  const appointmentData = approval.requestData;
+                                  // Log để debug
+                                  console.log('Appointment Data:', appointmentData);
+
+                                  // Kiểm tra và lấy tên nhân viên theo thứ tự ưu tiên
+                                  const employeeName =
+                                    appointmentData?.user?.fullName || // Nếu có trong user
+                                    appointmentData?.employee?.fullName || // Hoặc trong employee  
+                                    appointmentData?.employeeName || // Hoặc trực tiếp trong data
+                                    'N/A'; // Mặc định nếu không có
+
+                                  return employeeName;
+                                })()}
+                              </DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Vị trí hiện tại</DetailLabel>
+                              <DetailValue>{approval.requestData.oldPosition || 'N/A'}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Vị trí bổ nhiệm</DetailLabel>
+                              <DetailValue>{approval.requestData.newPosition || 'N/A'}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Lý do bổ nhiệm</DetailLabel>
+                              <DetailValue>{approval.requestData.reason || 'N/A'}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Ý kiến HR</DetailLabel>
+                              <DetailValue>{approval.requestData.hrFeedback || 'N/A'}</DetailValue>
+                            </DetailRow>
+                          </React.Fragment>
                         ) : (
-                        <React.Fragment>
-                          <DetailRow>
-                            <DetailLabel>Tên đăng nhập</DetailLabel>
-                            <DetailValue>{approval.requestData.username}</DetailValue>
-                          </DetailRow>
-                          <DetailRow>
-                            <DetailLabel>Họ và tên</DetailLabel>
-                            <DetailValue>{approval.requestData.fullName}</DetailValue>
-                          </DetailRow>
-                          <DetailRow>
-                            <DetailLabel>Email</DetailLabel>
-                            <DetailValue>{approval.requestData.email}</DetailValue>
-                          </DetailRow>
-                          <DetailRow>
-                            <DetailLabel>Số điện thoại</DetailLabel>
-                            <DetailValue>{approval.requestData.phoneNumber}</DetailValue>
-                          </DetailRow>
-                          <DetailRow>
-                            <DetailLabel>Chức vụ</DetailLabel>
-                            <DetailValue>{approval.requestData.position}</DetailValue>
-                          </DetailRow>
-                          <DetailRow>
-                            <DetailLabel>Lương cơ bản</DetailLabel>
-                            <DetailValue>
-                              {new Intl.NumberFormat('vi-VN', {
-                                style: 'currency',
-                                currency: 'VND'
-                              }).format(approval.requestData.basicSalary)}
-                            </DetailValue>
-                          </DetailRow>
-                        </React.Fragment>
-                      )}
+                          <React.Fragment>
+                            <DetailRow>
+                              <DetailLabel>Tên đăng nhập</DetailLabel>
+                              <DetailValue>{approval.requestData.username}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Họ và tên</DetailLabel>
+                              <DetailValue>{approval.requestData.fullName}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Email</DetailLabel>
+                              <DetailValue>{approval.requestData.email}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Số điện thoại</DetailLabel>
+                              <DetailValue>{approval.requestData.phoneNumber}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Chức vụ</DetailLabel>
+                              <DetailValue>{approval.requestData.position}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
+                              <DetailLabel>Lương cơ bản</DetailLabel>
+                              <DetailValue>
+                                {new Intl.NumberFormat('vi-VN', {
+                                  style: 'currency',
+                                  currency: 'VND'
+                                }).format(approval.requestData.basicSalary)}
+                              </DetailValue>
+                            </DetailRow>
+                          </React.Fragment>
+                        )
+                      }
                     </DetailTable>
                   </RequestDetails>
 

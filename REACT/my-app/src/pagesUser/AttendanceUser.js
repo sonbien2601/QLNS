@@ -32,13 +32,13 @@ const formatTime = (timeString) => {
     if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
       return timeString;
     }
-    
+
     // Nếu là ISO date string
     const time = moment(timeString);
     if (time.isValid()) {
       return time.format('HH:mm:ss');
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error formatting time:', error);
@@ -65,10 +65,10 @@ const formatWorkTime = (duration) => {
 // Components
 const SessionInfo = ({ session, period }) => {
   const { isLate, minutes } = checkIsLate(session.checkIn, period);
-  
+
   const calculateDuration = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return '0 giờ 0 phút';
-    
+
     try {
       // Parse thời gian từ format HH:mm:ss
       const [inHours, inMinutes] = checkIn.split(':').map(Number);
@@ -121,28 +121,28 @@ const SessionInfo = ({ session, period }) => {
 
 
 
-  const checkIsLate = (checkInTime, period) => {
-    if (!checkInTime) return { isLate: false, minutes: 0 };
-    
-    const [hours, minutes] = checkInTime.split(':').map(Number);
-    const timeInMinutes = hours * 60 + minutes;
-  
-    if (period === 'morning') {
-      const expectedTime = TIME_CONSTANTS.WORKING_HOURS.MORNING.START;
-      const lateMinutes = Math.max(0, timeInMinutes - (expectedTime + TIME_CONSTANTS.WORKING_HOURS.MORNING.BUFFER));
-      return {
-        isLate: lateMinutes > 0,
-        minutes: lateMinutes
-      };
-    } else {
-      const expectedTime = TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.START;
-      const lateMinutes = Math.max(0, timeInMinutes - (expectedTime + TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.BUFFER));
-      return {
-        isLate: lateMinutes > 0,
-        minutes: lateMinutes
-      };
-    }
-  };
+const checkIsLate = (checkInTime, period) => {
+  if (!checkInTime) return { isLate: false, minutes: 0 };
+
+  const [hours, minutes] = checkInTime.split(':').map(Number);
+  const timeInMinutes = hours * 60 + minutes;
+
+  if (period === 'morning') {
+    const expectedTime = TIME_CONSTANTS.WORKING_HOURS.MORNING.START;
+    const lateMinutes = Math.max(0, timeInMinutes - (expectedTime + TIME_CONSTANTS.WORKING_HOURS.MORNING.BUFFER));
+    return {
+      isLate: lateMinutes > 0,
+      minutes: lateMinutes
+    };
+  } else {
+    const expectedTime = TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.START;
+    const lateMinutes = Math.max(0, timeInMinutes - (expectedTime + TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.BUFFER));
+    return {
+      isLate: lateMinutes > 0,
+      minutes: lateMinutes
+    };
+  }
+};
 
 const StatusBadge = ({ isLate, minutes }) => (
   <div style={{
@@ -197,9 +197,9 @@ const MonthlyStats = ({ stats }) => (
 
 const AttendanceRow = ({ record }) => {
   const calculateTotalDailyTime = () => {
-    const morningMinutes = record.morningSession?.checkIn && record.morningSession?.checkOut ? 
+    const morningMinutes = record.morningSession?.checkIn && record.morningSession?.checkOut ?
       calculateMinutes(record.morningSession.checkIn, record.morningSession.checkOut) : 0;
-    
+
     const afternoonMinutes = record.afternoonSession?.checkIn && record.afternoonSession?.checkOut ?
       calculateMinutes(record.afternoonSession.checkIn, record.afternoonSession.checkOut) : 0;
 
@@ -209,10 +209,10 @@ const AttendanceRow = ({ record }) => {
 
   const calculateMinutes = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return 0;
-    
+
     const [inHours, inMinutes] = checkIn.split(':').map(Number);
     const [outHours, outMinutes] = checkOut.split(':').map(Number);
-    
+
     return (outHours * 60 + outMinutes) - (inHours * 60 + inMinutes);
   };
 
@@ -243,7 +243,7 @@ const AttendanceRow = ({ record }) => {
     <tr style={styles.tr}>
       <td style={styles.td}>{formatDate(record.date)}</td>
       <td style={styles.td}>
-        <SessionInfo 
+        <SessionInfo
           session={{
             checkIn: record.morningSession?.checkIn,
             checkOut: record.morningSession?.checkOut,
@@ -253,7 +253,7 @@ const AttendanceRow = ({ record }) => {
         />
       </td>
       <td style={styles.td}>
-        <SessionInfo 
+        <SessionInfo
           session={{
             checkIn: record.afternoonSession?.checkIn,
             checkOut: record.afternoonSession?.checkOut,
@@ -331,7 +331,7 @@ const AttendanceUser = () => {
           month: currentMonth,
           year: currentYear
         },
-        { headers: { Authorization: `Bearer ${token}` }}
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (response.data) {
@@ -350,9 +350,9 @@ const AttendanceUser = () => {
       <NavigationUser />
       <div style={styles.card}>
         <h1 style={styles.title}>Chấm Công</h1>
-        
+
         <div style={styles.monthSelector}>
-          <select 
+          <select
             value={currentMonth}
             onChange={(e) => setCurrentMonth(parseInt(e.target.value))}
             style={styles.select}
@@ -377,7 +377,7 @@ const AttendanceUser = () => {
         </div>
 
         {monthlyStats && <MonthlyStats stats={monthlyStats} />}
-        
+
         <div style={styles.buttonContainer}>
           <button
             onClick={() => handleAttendance('in')}
@@ -415,7 +415,7 @@ const AttendanceUser = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="4" style={{...styles.td, textAlign: 'center'}}>
+                <td colSpan="4" style={{ ...styles.td, textAlign: 'center' }}>
                   Đang tải dữ liệu...
                 </td>
               </tr>

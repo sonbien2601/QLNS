@@ -7,135 +7,144 @@ import { FaGoogle, FaMicrosoft } from 'react-icons/fa';
 axios.defaults.baseURL = 'http://localhost:5000';
 
 const Login = () => {
- const [login, setLogin] = useState('');
- const [password, setPassword] = useState('');
- const [error, setError] = useState('');
- const [rememberMe, setRememberMe] = useState(false);
- const navigate = useNavigate();
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
 
- const handleLogin = async (e) => {
-  e.preventDefault();
-  setError('');
-  try {
-    const response = await axios.post('/api/auth/login', { login, password });
-    const { token, userId, role, fullName, username } = response.data;
-    
-    // Debug log
-    console.log('Login response:', response.data);
-    
-    localStorage.setItem('token', token);
-    localStorage.setItem('userId', userId);
-    localStorage.setItem('role', role);
-    localStorage.setItem('fullName', fullName);
-    localStorage.setItem('username', username);
-    
-    // Debug log
-    console.log('Stored role:', localStorage.getItem('role'));
-    
-    switch(role) {
-      case 'admin':
-        navigate('/admin/overview-admin');
-        break;
-      case 'hr':
-        navigate('/admin/overview-admin');
-        break;
-      case 'finance':
-        navigate('/finance/overview-finance');
-        break;
-      case 'user':
-        navigate('/user/overview-user');
-        break;
-      default:
-        console.error('Unknown role:', role);
-        setError('Lỗi phân quyền người dùng');
-        break;
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      const response = await axios.post('/api/auth/login', { login, password });
+      const { token, userId, role, fullName, username } = response.data;
+      
+      // Debug log
+      console.log('Login response:', response.data);
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('userId', userId);
+      localStorage.setItem('role', role);
+      localStorage.setItem('fullName', fullName);
+      localStorage.setItem('username', username);
+      
+      // Debug log
+      console.log('Stored role:', localStorage.getItem('role'));
+      
+      let redirectPath;
+      switch(role) {
+        case 'admin':
+          redirectPath = '/admin/overview-admin';
+          break;
+        case 'hr':
+          redirectPath = '/admin/overview-admin';
+          break;
+        case 'finance':
+          redirectPath = '/finance/overview-finance';
+          break;
+        case 'user':
+          redirectPath = '/user/overview-user';
+          break;
+        default:
+          console.error('Unknown role:', role);
+          setError('Lỗi phân quyền người dùng');
+          return;
+      }
+
+      // Navigate and reload
+      navigate(redirectPath, { replace: true });
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Lỗi đăng nhập, vui lòng thử lại sau');
+      }
     }
-     
-   } catch (error) {
-     console.error('Login error:', error);
-     if (error.response?.data?.message) {
-       setError(error.response.data.message);
-     } else {
-       setError('Lỗi đăng nhập, vui lòng thử lại sau');
-     }
-   }
- };
+  };
 
- // Giữ nguyên phần JSX và styling
- return (
-   <PageContainer>
-     <LoginForm onSubmit={handleLogin}>
-       <Title>Đăng nhập</Title>
-       <Subtitle>Chào mừng trở lại. Đăng nhập để bắt đầu làm việc.</Subtitle>
-       {error && <ErrorMessage>{error}</ErrorMessage>}
-       <InputGroup>
-         <Label>Tên đăng nhập</Label>
-         <Input
-           type="text"
-           value={login}
-           onChange={(e) => setLogin(e.target.value)}
-           required
-           placeholder="Nhập tên đăng nhập hoặc email"
-         />
-       </InputGroup>
-       <InputGroup>
-         <Label>Mật khẩu</Label>
-         <Input
-           type="password"
-           value={password}
-           onChange={(e) => setPassword(e.target.value)}
-           required
-           placeholder="Nhập mật khẩu"
-         />
-       </InputGroup>
-       <RememberForgot>
-         <RememberMeLabel>
-           <HiddenCheckbox
-             checked={rememberMe}
-             onChange={(e) => setRememberMe(e.target.checked)}
-           />
-         </RememberMeLabel>
-         <ForgotPassword href="/forgot-password">Quên mật khẩu?</ForgotPassword>
-       </RememberForgot>
-       <LoginButton type="submit">Đăng nhập</LoginButton>
-       <SocialLogin>
-         <GoogleButton>
-           <FaGoogle /> Đăng nhập bằng Google
-         </GoogleButton>
-         <MicrosoftButton>
-           <FaMicrosoft /> Đăng nhập bằng Microsoft
-         </MicrosoftButton>
-       </SocialLogin>
-       <RegisterLink>
-         Bạn chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
-       </RegisterLink>
-     </LoginForm>
-     <ImageSection>
-       <WelcomeContainer>
-         <WelcomeTitle>Chào mừng trở lại</WelcomeTitle>
-         <WelcomeSubtitle>với Hệ thống Quản lý Nhân sự</WelcomeSubtitle>
-         <WelcomeDescription>
-           Đăng nhập để bắt đầu quản lý và phát triển nguồn nhân lực của bạn.
-         </WelcomeDescription>
-       </WelcomeContainer>
-     </ImageSection>
-   </PageContainer>
- );
+  return (
+    <PageContainer>
+      <LoginForm onSubmit={handleLogin}>
+        <Title>Đăng nhập</Title>
+        <Subtitle>Chào mừng trở lại. Đăng nhập để bắt đầu làm việc.</Subtitle>
+        {error && <ErrorMessage>{error}</ErrorMessage>}
+        <InputGroup>
+          <Label>Tên đăng nhập</Label>
+          <Input
+            type="text"
+            value={login}
+            onChange={(e) => setLogin(e.target.value)}
+            required
+            placeholder="Nhập tên đăng nhập hoặc email"
+          />
+        </InputGroup>
+        <InputGroup>
+          <Label>Mật khẩu</Label>
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            placeholder="Nhập mật khẩu"
+          />
+        </InputGroup>
+        <RememberForgot>
+          <RememberMeLabel>
+            <HiddenCheckbox
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+          </RememberMeLabel>
+          <ForgotPassword href="/forgot-password">Quên mật khẩu?</ForgotPassword>
+        </RememberForgot>
+        <LoginButton type="submit">Đăng nhập</LoginButton>
+        {/* <SocialLogin>
+          <GoogleButton>
+            <FaGoogle /> Đăng nhập bằng Google
+          </GoogleButton>
+          <MicrosoftButton>
+            <FaMicrosoft /> Đăng nhập bằng Microsoft
+          </MicrosoftButton>
+        </SocialLogin> */}
+        <RegisterLink>
+          Bạn chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
+        </RegisterLink>
+      </LoginForm>
+      <ImageSection>
+        <WelcomeContainer>
+          <WelcomeTitle>Chào mừng trở lại</WelcomeTitle>
+          <WelcomeSubtitle>với Hệ thống Quản lý Nhân sự</WelcomeSubtitle>
+          <WelcomeDescription>
+            Đăng nhập để bắt đầu quản lý và phát triển nguồn nhân lực của bạn.
+          </WelcomeDescription>
+        </WelcomeContainer>
+      </ImageSection>
+    </PageContainer>
+  );
 };
 
 const ImageSection = styled.div`
- flex: 1;
- background: linear-gradient(180deg, #0953B8 19%, #042552 100%);
- display: flex;
- align-items: center;
- justify-content: center;
- padding: 40px;
+  flex: 1;
+  background: linear-gradient(180deg, #0953B8 19%, #042552 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
 `;
 
 const WelcomeContainer = styled.div`
- font-size: 28px;
- margin-bottom: 20px;
- color: white;
+  font-size: 28px;
+  margin-bottom: 20px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 `;
 
 const WelcomeTitle = styled.h2`
@@ -154,7 +163,6 @@ const WelcomeDescription = styled.p`
   line-height: 1.5;
   color: white;
 `;
-
 
 const PageContainer = styled.div`
   display: flex;
@@ -325,7 +333,6 @@ const MicrosoftButton = styled(SocialButton)`
   color: #00a1f1;
 `;
 
-
 const ErrorMessage = styled.div`
   color: red;
   margin-bottom: 16px;
@@ -346,6 +353,5 @@ const RegisterLink = styled.div`
     }
   }
 `;
-
 
 export default Login;

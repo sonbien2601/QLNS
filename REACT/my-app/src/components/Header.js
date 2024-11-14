@@ -12,13 +12,7 @@ const Header = () => {
       <nav style={styles.nav}>
         <ul style={styles.navList}>
           <li style={styles.navItem}>
-            <Link to="/introduce" style={styles.introduceButton}>Giới thiệu</Link>
-          </li>
-          <li style={styles.navItem}>
-            <Link to="/login" style={styles.loginButton}>Đăng Nhập</Link> {/* Áp dụng chung style button */}
-          </li>
-          <li style={styles.navItem}>
-            <Link to="/register" style={styles.registerButton}>Đăng Ký</Link>
+            <Link to="/login" style={styles.registerButton}>Đăng Nhập</Link>
           </li>
         </ul>
       </nav>
@@ -31,7 +25,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '0.5rem 2rem',
+    padding: '0.2rem 2rem',
     backgroundColor: '#fff',
     borderBottom: '1px solid #ddd',
   },

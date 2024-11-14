@@ -9,54 +9,122 @@ body {
     padding: 0;
 }
 
-/* Header */
 /* Header styling */
 header {
     position: fixed;
+    height: 50px; /* Tăng chiều cao header */
     top: 0;
     left: 0;
     width: 100%;
-    background-color: #f0f2f5;
-    padding: 10px 20px;
-    /* Padding đều 2 bên */
+    background-color: #ffffff;
+    padding: 1rem 2rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     z-index: 1000;
 }
 
-header h1 {
-    color: #333;
-    font-size: 1.7em;
-    font-weight: bold;
-    margin: 0;
-}
-
-header nav ul {
-    list-style-type: none;
-
-    padding: 0;
-    margin: 0;
+.nav-container {
     display: flex;
-    margin: 10px 10px;
+    align-items: center;
+    height: 100%;
 }
 
-header nav ul li {
-    margin-left: 10px;
-    /* Khoảng cách giữa các mục menu */
-
+.logo-container {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
 }
 
-header nav ul li a {
+.logo {
+    height: 70px; /* Điều chỉnh kích thước logo */
+    width: auto;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+}
+
+.welcome-message {
     color: #333;
-    text-decoration: none;
-    font-size: 1em;
-    transition: color 0.3s ease
+    font-size: 0.9rem;
+    font-weight: 500;
 }
 
-header nav ul li a:hover {
-    color: #007bff;
+.user-icon {
+    background: none;
+    border: none;
+    color: #333;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+}
+
+.user-icon:hover {
+    background-color: #f0f2f5;
+}
+
+.logout-confirm {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: beige !important; /* Thêm !important */
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    min-width: 200px;
+    margin-top: 0.5rem;
+}
+
+.logout-confirm p {
+    margin: 0 0 1rem 0;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.confirm-buttons {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.confirm-logout-button,
+.cancel-button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+}
+
+.confirm-logout-button {
+    background-color: #dc3545;
+    color: white;
+}
+
+.confirm-logout-button:hover {
+    background-color: #c82333;
+}
+
+.cancel-button {
+    background-color: #6c757d;
+    color: white;
+}
+
+.cancel-button:hover {
+    background-color: #5a6268;
 }
 
 
@@ -217,29 +285,25 @@ nav ul li {
 /* Admin Sidebar */
 .admin-sidebar {
     position: fixed;
-    top: 60px;
+    top: 0;
     left: 0;
     width: 250px;
     background: url('https://i.pinimg.com/564x/81/72/f3/8172f32cc85e02fe8c7cec5f5fd176fb.jpg') no-repeat center center;
     background-size: cover;
     color: white;
-    height: calc(100vh - 60px);
+    height: 100vh;
     z-index: 999;
-    padding-top: 20px;
+    padding-top: 80px; /* Thêm khoảng cách phía trên để tách khỏi header */
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
-    /* Thêm bóng mờ */
     display: flex;
     flex-direction: column;
-    margin-top: 30px;
-    /* Thêm khoảng cách phía trên để cách ra khỏi header */
-}
+  }
 
 .admin-sidebar-menu {
-
     list-style-type: none;
     padding: 0;
     margin: 0;
-}
+  }
 
 .admin-sidebar-menu li {
     padding: 12px 20px;
@@ -277,6 +341,10 @@ nav ul li {
     color: white;
     font-size: 0.9em;
 }
+.admin-sidebar-menu li.active {
+    background-color: rgba(11, 225, 233, 0.637);
+    font-weight: bold;
+  }
 
 
 
@@ -1325,6 +1393,81 @@ select {
     margin-right: 20px;
 }
 
+.user-icon {
+    background-color: #2980b9; /* Màu nền cho biểu tượng người dùng */
+    border-radius: 50%; /* Tạo hình tròn */
+    width: 40px; /* Đặt chiều rộng nền khi hover */
+    height: 40px; /* Đặt chiều cao nền khi hover */
+    padding: 5px; /* Khoảng cách giữa biểu tượng và viền */
+    color: white; /* Màu biểu tượng */
+    cursor: pointer;
+    font-size: 24px;
+    margin-top: 15px;
+    margin-left: 5px;
+    margin-right: 15px;
+    transition: background-color 0.3s ease, width 0.3s ease, height 0.3s ease; /* Thêm hiệu ứng cho màu nền và kích thước */
+  }
+  
+  /* Hiệu ứng hover cho biểu tượng người dùng */
+  .user-icon:hover {
+    background-color: #e74c3c; /* Màu nền thay đổi khi hover */
+    width: 40px; /* Đặt chiều rộng nền khi hover */
+    height: 40px; /* Đặt chiều cao nền khi hover */
+    padding: 5px; /* Giảm padding khi hover để nền nhỏ lại */
+  }
+  /* Kiểu dáng cho hộp xác nhận đăng xuất, căn giữa màn hình */
+  .logout-confirm {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    border: 1px solid #ddd;
+    padding: 30px 25px; /* Tăng padding */
+    border-radius: 8px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Căn giữa nội dung */
+    justify-content: center; /* Căn giữa theo chiều dọc */
+    width: 350px;
+    height: 170px; /* Tăng chiều cao */
+    z-index: 1000;
+  }
+  
+  
+  
+  /* Kiểu dáng cho nút xác nhận và hủy */
+  .confirm-buttons {
+    display: flex;
+    gap: 20px; /* Tăng khoảng cách giữa các nút */
+    margin-top: 10px; /* Tạo khoảng cách phía trên */
+  }
+  
+  .confirm-logout-button,
+  .cancel-button {
+    background: none;
+    border: 1px solid #2980b9;
+    color: #2980b9;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 10px 20px; /* Tăng padding cho nút */
+    border-radius: 5px;
+    width: 80px; /* Đảm bảo kích thước đồng đều */
+    text-align: center;
+    transition: color 0.3s ease, background-color 0.3s ease;
+  }
+  
+  .confirm-logout-button:hover {
+    color: white;
+    background-color: #2980b9;
+  }
+  
+  .cancel-button:hover {
+    color: white;
+    background-color: #e74c3c;
+  }
+
 .header {
     display: flex;
     justify-content: space-between;
@@ -1332,6 +1475,7 @@ select {
     padding: 20px;
     background-color: #fff;
     border-bottom: 1px solid #ddd;
+    
 }
 
 .header-right {

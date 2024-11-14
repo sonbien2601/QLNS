@@ -7,6 +7,24 @@ import Swal from 'sweetalert2';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 
+// Time constants for working hours
+const TIME_CONSTANTS = {
+  WORKING_HOURS: {
+    MORNING: {
+      START: 8 * 60,      // 8:00
+      END: 12 * 60,       // 12:00
+      BUFFER: 15,         // 15 phút buffer
+      LIMIT: '08:15'      // Thời gian giới hạn hiển thị
+    },
+    AFTERNOON: {
+      START: 13 * 60 + 30, // 13:30
+      END: 17 * 60 + 30,   // 17:30
+      BUFFER: 15,          // 15 phút buffer
+      LIMIT: '13:45'       // Thời gian giới hạn hiển thị
+    }
+  }
+};
+
 const PageContainer = styled.div`
   min-height: 100vh;
   background: #f3f4f6;
@@ -158,13 +176,21 @@ const SessionInfo = styled.div`
   }
 
   .late-badge {
-    color: #ef4444;
     font-size: 0.75rem;
     font-weight: 500;
-    background-color: #fef2f2;
     padding: 0.125rem 0.375rem;
     border-radius: 4px;
     display: inline-block;
+
+    /* Mặc định cho trạng thái đi muộn */
+    color: #ef4444;
+    background-color: #fef2f2;
+
+    /* Style cho trạng thái đúng giờ */
+    &.on-time {
+      color: #15803d;
+      background-color: #f0fdf4;
+    }
   }
 `;
 
@@ -217,15 +243,18 @@ const StatusBadge = styled.span`
 `;
 
 // Utils
+const timeToMinutes = (timeString) => {
+  if (!timeString) return null;
+  const [hours, minutes] = timeString.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
 const formatTime = (timeString) => {
   if (!timeString) return 'N/A';
   try {
-    // Kiểm tra nếu timeString đã ở định dạng HH:mm:ss
     if (timeString.length <= 8 && timeString.includes(':')) {
       return timeString;
     }
-
-    // Nếu là datetime đầy đủ thì parse và format
     const parsedTime = moment(timeString).format('HH:mm:ss');
     return parsedTime === 'Invalid date' ? 'N/A' : parsedTime;
   } catch (error) {
@@ -245,12 +274,41 @@ const formatDate = (dateString) => {
   }
 };
 
+const checkLateStatus = (checkInTime, session) => {
+  if (!checkInTime) return false;
 
-const formatWorkHours = (hours) => {
-  if (hours === undefined || hours === null) return 'N/A';
-  const wholeHours = Math.floor(hours);
-  const minutes = Math.round((hours - wholeHours) * 60);
-  return `${wholeHours} giờ ${minutes} phút`;
+  try {
+    const time = moment(checkInTime, 'HH:mm:ss');
+    const limit = moment(TIME_CONSTANTS.WORKING_HOURS[session].LIMIT, 'HH:mm');
+
+    return time.isAfter(limit);
+  } catch (error) {
+    console.error('Error checking late status:', error);
+    return false;
+  }
+};
+
+const formatWorkHours = (timeString) => {
+  if (!timeString || timeString === 'undefined' || timeString === null) return '0 giờ 0 phút';
+
+  try {
+    // Nếu timeString đã là dạng "X giờ Y phút"
+    if (typeof timeString === 'string' && timeString.includes('giờ')) {
+      return timeString;
+    }
+
+    // Nếu là số thập phân (ví dụ: 7.5 giờ)
+    if (typeof timeString === 'number') {
+      const hours = Math.floor(timeString);
+      const minutes = Math.round((timeString - hours) * 60);
+      return `${hours} giờ ${minutes} phút`;
+    }
+
+    return '0 giờ 0 phút';
+  } catch (error) {
+    console.error('Error formatting work hours:', error);
+    return '0 giờ 0 phút';
+  }
 };
 
 const getStatusText = (status) => {
@@ -260,6 +318,32 @@ const getStatusText = (status) => {
     case 'absent': return 'Vắng mặt';
     default: return 'N/A';
   }
+};
+
+// Check if a session is late based on check-in time
+const isLate = (checkInTime, session) => {
+  if (!checkInTime) return false;
+
+  const checkInMinutes = timeToMinutes(checkInTime);
+  if (checkInMinutes === null) return false;
+
+  if (session === 'morning') {
+    const lateThreshold = TIME_CONSTANTS.WORKING_HOURS.MORNING.START + TIME_CONSTANTS.WORKING_HOURS.MORNING.BUFFER;
+    return checkInMinutes > lateThreshold;
+  } else if (session === 'afternoon') {
+    const lateThreshold = TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.START + TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.BUFFER;
+    return checkInMinutes > lateThreshold;
+  }
+
+  return false;
+};
+
+const formatBufferTime = (session) => {
+  const { START, BUFFER } = TIME_CONSTANTS.WORKING_HOURS[session];
+  const totalMinutes = START + BUFFER;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 };
 
 const AttendanceAdmin = () => {
@@ -318,6 +402,80 @@ const AttendanceAdmin = () => {
       </StatCard>
     </StatsContainer>
   );
+
+  const renderAttendanceRow = (record) => {
+    // Kiểm tra trạng thái đi muộn cho từng ca
+    const isMorningLate = record.morningSession?.isLate || checkLateStatus(record.morningSession?.checkIn, 'MORNING');
+    const isAfternoonLate = record.afternoonSession?.isLate || checkLateStatus(record.afternoonSession?.checkIn, 'AFTERNOON');
+
+    // Xác định trạng thái tổng thể
+    let status = 'present';
+    if (isMorningLate || isAfternoonLate) {
+      status = 'late';
+    } else if (!record.morningSession?.checkIn && !record.afternoonSession?.checkIn) {
+      status = 'absent';
+    }
+
+    return (
+      <AttendanceRow key={record._id}>
+        <td>{record.userId?.fullName || 'N/A'}</td>
+        <td>{record.userId?.position || 'N/A'}</td>
+        <td>
+          <SessionInfo>
+            <span className="time">
+              {formatTime(record.morningSession?.checkIn)}
+            </span>
+            {record.morningSession?.checkIn && (
+              <span className={`late-badge ${!isMorningLate ? 'on-time' : ''}`}>
+                {isMorningLate ? 'Đi muộn' : 'Đúng giờ'}
+              </span>
+            )}
+          </SessionInfo>
+        </td>
+        <td>
+          <SessionInfo>
+            <span className="time">
+              {formatTime(record.morningSession?.checkOut)}
+            </span>
+          </SessionInfo>
+        </td>
+        <td>
+          <SessionInfo>
+            <span className="time">
+              {formatTime(record.afternoonSession?.checkIn)}
+            </span>
+            {record.afternoonSession?.checkIn && (
+              <span className={`late-badge ${!isAfternoonLate ? 'on-time' : ''}`}>
+                {isAfternoonLate ? 'Đi muộn' : 'Đúng giờ'}
+              </span>
+            )}
+          </SessionInfo>
+        </td>
+        <td>
+          <SessionInfo>
+            <span className="time">
+              {formatTime(record.afternoonSession?.checkOut)}
+            </span>
+          </SessionInfo>
+        </td>
+        <td>
+          <WorkingHours>
+            <span className="daily">
+              {formatWorkHours(record.workingHours?.daily)}
+            </span>
+            <span className="monthly">
+              Tháng: {formatWorkHours(record.workingHours?.monthly)}
+            </span>
+          </WorkingHours>
+        </td>
+        <td>
+          <StatusBadge status={status}>
+            {getStatusText(status)}
+          </StatusBadge>
+        </td>
+      </AttendanceRow>
+    );
+  };
 
   if (error) {
     return (
@@ -385,7 +543,6 @@ const AttendanceAdmin = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Nhóm records theo ngày */}
                   {Object.entries(
                     attendanceRecords.reduce((acc, record) => {
                       const date = formatDate(record.date);
@@ -400,61 +557,7 @@ const AttendanceAdmin = () => {
                           {date} - {moment(records[0].date).format('dddd')}
                         </td>
                       </DateRow>
-                      {records.map((record) => (
-                        <AttendanceRow key={record._id}>
-                          <td>{record.userId?.fullName || 'N/A'}</td>
-                          <td>{record.userId?.position || 'N/A'}</td>
-                          <td>
-                            <SessionInfo>
-                              <span className="time">
-                                {formatTime(record.morningSession?.checkIn)}
-                              </span>
-                              {record.morningSession?.isLate && (
-                                <span className="late-badge">Đi muộn</span>
-                              )}
-                            </SessionInfo>
-                          </td>
-                          <td>
-                            <SessionInfo>
-                              <span className="time">
-                                {formatTime(record.morningSession?.checkOut)}
-                              </span>
-                            </SessionInfo>
-                          </td>
-                          <td>
-                            <SessionInfo>
-                              <span className="time">
-                                {formatTime(record.afternoonSession?.checkIn)}
-                              </span>
-                              {record.afternoonSession?.isLate && (
-                                <span className="late-badge">Đi muộn</span>
-                              )}
-                            </SessionInfo>
-                          </td>
-                          <td>
-                            <SessionInfo>
-                              <span className="time">
-                                {formatTime(record.afternoonSession?.checkOut)}
-                              </span>
-                            </SessionInfo>
-                          </td>
-                          <td>
-                            <WorkingHours>
-                              <span className="daily">
-                                {record.workingHours?.daily || '0 giờ 0 phút'}
-                              </span>
-                              <span className="monthly">
-                                Tháng: {record.workingHours?.monthly || '0 giờ 0 phút'}
-                              </span>
-                            </WorkingHours>
-                          </td>
-                          <td>
-                            <StatusBadge status={record.status}>
-                              {getStatusText(record.status)}
-                            </StatusBadge>
-                          </td>
-                        </AttendanceRow>
-                      ))}
+                      {records.map(renderAttendanceRow)}
                     </React.Fragment>
                   ))}
                 </tbody>
