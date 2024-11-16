@@ -1,10 +1,26 @@
 const mongoose = require('mongoose');
-
-const ResignationSchema = new mongoose.Schema({
+const leaveRequestSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User2',
     required: true
+  },
+  type: {
+    type: String,
+    enum: ['leave', 'resignation'],
+    required: true
+  },
+  startDate: {
+    type: Date,
+    required: function() {
+      return this.type === 'leave';
+    }
+  },
+  endDate: {
+    type: Date,
+    required: function() {
+      return this.type === 'leave';
+    }
   },
   reason: {
     type: String,
@@ -16,7 +32,7 @@ const ResignationSchema = new mongoose.Schema({
     default: 'pending'
   },
   adminResponse: String,
-  submittedAt: {
+  requestedAt: {
     type: Date,
     default: Date.now
   },
@@ -27,4 +43,4 @@ const ResignationSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Resignation', ResignationSchema);
+module.exports = mongoose.model('LeaveRequest', leaveRequestSchema);

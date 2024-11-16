@@ -290,7 +290,7 @@ const ChangeHeader = styled(DetailRow)`
 const ApprovalList = () => {
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false); // Thêm state này
+  const [actionLoading, setActionLoading] = useState(false);
   const [filter, setFilter] = useState('all');
 
 

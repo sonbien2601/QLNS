@@ -460,6 +460,8 @@ const styles = {
 
 
 
+
+
 const formatCurrency = (value) => {
   if (!value && value !== 0) return '0 ₫';
   return new Intl.NumberFormat('vi-VN', {

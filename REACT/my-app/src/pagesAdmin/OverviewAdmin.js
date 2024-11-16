@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {BarChart, Bar, PieChart, Pie,XAxis, YAxis, CartesianGrid, Tooltip, Legend,ResponsiveContainer, Cell} from 'recharts';
+import { BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,6 +9,75 @@ import { X, AlertCircle, Trash2 } from 'lucide-react';
 
 
 // Styled components
+
+const PieLabel = styled.text`
+  font-size: 14px;
+  font-weight: 600;
+  fill: white;
+`;
+
+const CustomTooltip = styled.div`
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid #eee;
+`;
+
+const TooltipTitle = styled.div`
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+`;
+
+const TooltipContent = styled.div`
+  color: #666;
+  font-size: 13px;
+  
+  > div {
+    margin: 4px 0;
+  }
+`;
+
+const AttendanceStats = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+`;
+
+const AttendanceTitle = styled.h3`
+  font-size: 18px;
+  color: #333;
+  margin: 0 0 8px;
+  text-align: center;
+`;
+
+const AttendanceSubtitle = styled.div`
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 20px;
+  text-align: center;
+`;
+
+const StatsSummary = styled.div`
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 14px;
+
+  > div {
+    margin: 8px 0;
+    color: #444;
+  }
+`;
+
+const SummaryTitle = styled.div`
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+`;
+
 const PageContainer = styled(motion.div)`
   width: 100%;
   padding: 16px;
@@ -45,20 +114,21 @@ const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 
-  @media (max-width: 1280px) {
+  @media (max-width: 1400px) {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 992px) {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  @media (max-width: 480px) {
+  @media (max-width: 576px) {
     grid-template-columns: 1fr;
   }
 `;
+
 
 const StatCard = styled.div`
   background-color: white;
@@ -103,120 +173,118 @@ const StatPrevious = styled.div`
 
 const ChartsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
 
-  &.two-columns {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 768px) {
+  @media (max-width: 992px) {
     grid-template-columns: 1fr;
   }
 `;
 
 const ChartCard = styled.div`
   background-color: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+`;
 
-  h3 {
-    margin-top: 0;
-    font-size: 1rem;
-    color: #374151;
+const ChartTitle = styled.h3`
+  font-size: 18px;
+  color: #333;
+  margin-bottom: 8px;
+  text-align: center;
+`;
+
+const ChartSubtitle = styled.div`
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 20px;
+  text-align: center;
+`;
+
+const ChartWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  min-height: 300px;
+
+  & > * {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+  }
+
+  @media (max-width: 992px) {
+    min-height: 250px;
   }
 `;
 
-const ChartSubtitle = styled.p`
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin-bottom: 16px;
+const StatsDetail = styled.div`
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
 `;
 
 const TaskGrid = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
+
+  @media (max-width: 1400px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 992px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const TaskCardBase = styled.div`
   background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  height: 100%;
+  min-height: 300px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  flex: 1 1 calc(33.333% - 16px);
-  min-width: 250px;
-  min-height: 200px;
-  
+
   h3 {
-    margin: 0 0 10px 0;
+    margin: 0 0 16px 0;
     font-size: 1.1rem;
     color: #374151;
-  }
-
-  div {
-    margin-bottom: 8px;
-  }
-
-  p {
-    margin: 4px 0;
-    font-size: 0.875rem;
-    color: #4b5563;
-  }
-
-  @media (max-width: 1024px) {
-    flex: 1 1 calc(50% - 16px);
-  }
-
-  @media (max-width: 768px) {
-    flex: 1 1 100%;
   }
 `;
 
 const ScrollableList = styled.div`
-  flex-grow: 1;
+  flex: 1;
   overflow-y: auto;
-  margin-bottom: 15px;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 10px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 10px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: #555;
-  }
+  padding-right: 8px;
+  margin: 8px 0;
+  max-height: calc(100% - 60px);
 `;
 
 const ListItem = styled.div`
   background-color: #f8f9fa;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 10px;
-  transition: all 0.3s ease;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 
   &:hover {
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
 `;
 
@@ -263,11 +331,7 @@ const ViewMoreButton = styled.button`
   }
 `;
 
-const ExpiredContractCard = styled(TaskCardBase)`
-  ${ScrollableList} {
-    max-height: 250px;
-  }
-`;
+
 
 const TrialEmployeesCard = styled(TaskCardBase)`
   ${ScrollableList} {
@@ -282,18 +346,6 @@ const AssignedTasksCard = styled(TaskCardBase)`
 `;
 
 const OverdueTasksCard = styled(TaskCardBase)`
-  ${ScrollableList} {
-    max-height: 250px;
-  }
-`;
-
-const EmployeeRewardsCard = styled(TaskCardBase)`
-  ${ScrollableList} {
-    max-height: 250px;
-  }
-`;
-
-const EmployeeBirthdaysCard = styled(TaskCardBase)`
   ${ScrollableList} {
     max-height: 250px;
   }
@@ -330,14 +382,20 @@ const Modal = styled(motion.div)`
 
 const ModalContent = styled(motion.div)`
   background-color: white;
-  padding: 30px;
-  border-radius: 12px;
-  width: 90%; // Tăng chiều rộng
-  max-width: 1200px; // Đặt chiều rộng tối đa
-  max-height: 80vh;
+  padding: 32px;
+  border-radius: 16px;
+  width: 95%;
+  max-width: 800px;
+  max-height: 90vh;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  margin: 20px;
+
+  @media (max-width: 576px) {
+    padding: 20px;
+    width: 100%;
+    margin: 16px;
+    border-radius: 12px;
+  }
 `;
 
 const Input = styled.input`
@@ -577,23 +635,23 @@ const TaskItem = styled.div`
   `;
 
 // Component functions
-const ExpiredContracts = ({ contracts }) => (
-  <ExpiredContractCard>
-    <h3>Nhân viên hết hạn hợp đồng</h3>
-    <ScrollableList>
-      {contracts.length > 0 ? contracts.map((contract) => (
-        <ListItem key={contract._id}>
-          <ItemTitle>{contract.employeeId.fullName}</ItemTitle>
-          <ItemDetail>Bắt đầu: {new Date(contract.startDate).toLocaleDateString()}</ItemDetail>
-          <ItemDetail>Kết thúc: {new Date(contract.endDate).toLocaleDateString()}</ItemDetail>
-          <Badge style={{ backgroundColor: '#e74c3c' }}>Hết hạn</Badge>
-        </ListItem>
-      )) : (
-        <p>Không có nhân viên nào.</p>
-      )}
-    </ScrollableList>
-  </ExpiredContractCard>
-);
+// const ExpiredContracts = ({ contracts }) => (
+//   <ExpiredContractCard>
+//     <h3>Nhân viên hết hạn hợp đồng</h3>
+//     <ScrollableList>
+//       {contracts.length > 0 ? contracts.map((contract) => (
+//         <ListItem key={contract._id}>
+//           <ItemTitle>{contract.employeeId.fullName}</ItemTitle>
+//           <ItemDetail>Bắt đầu: {new Date(contract.startDate).toLocaleDateString()}</ItemDetail>
+//           <ItemDetail>Kết thúc: {new Date(contract.endDate).toLocaleDateString()}</ItemDetail>
+//           <Badge style={{ backgroundColor: '#e74c3c' }}>Hết hạn</Badge>
+//         </ListItem>
+//       )) : (
+//         <p>Không có nhân viên nào.</p>
+//       )}
+//     </ScrollableList>
+//   </ExpiredContractCard>
+// );
 
 const TrialEmployees = ({ employees }) => (
   <TrialEmployeesCard>
@@ -737,7 +795,160 @@ const AssignedTasksModal = ({ isOpen, onClose, tasks, users, setSelectedTask, se
   );
 };
 
+const AttendancePieChart = ({ attendanceRecords = [] }) => {
+  // Tạo mảng dữ liệu cố định với màu sắc
+  const pieData = [
+    {
+      name: 'Đúng giờ',
+      value: attendanceRecords.filter(r =>
+        r.morningSession?.checkIn &&
+        r.afternoonSession?.checkIn &&
+        !r.morningSession?.isLate &&
+        !r.afternoonSession?.isLate
+      ).length || 0,
+      color: '#22c55e' // xanh lá
+    },
+    {
+      name: 'Đi muộn buổi sáng',
+      value: attendanceRecords.filter(r =>
+        r.morningSession?.checkIn &&
+        r.morningSession?.isLate
+      ).length || 0,
+      color: '#eab308' // vàng
+    },
+    {
+      name: 'Đi muộn buổi chiều',
+      value: attendanceRecords.filter(r =>
+        r.afternoonSession?.checkIn &&
+        r.afternoonSession?.isLate
+      ).length || 0,
+      color: '#f97316' // cam
+    }
+  ];
 
+  // Thêm giá trị mặc định nếu không có dữ liệu
+  const displayData = pieData.map(item => ({
+    ...item,
+    value: item.value || 0
+  }));
+
+  return (
+    <ChartCard>
+      <AttendanceStats>
+        <AttendanceTitle>Tỷ lệ chấm công</AttendanceTitle>
+        <AttendanceSubtitle>Thống kê điểm danh tháng hiện tại</AttendanceSubtitle>
+
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={displayData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={120}
+              innerRadius={60}
+              labelLine={false}
+              label={({ cx, cy, midAngle, innerRadius, outerRadius, value, name }) => {
+                const RADIAN = Math.PI / 180;
+                const radius = innerRadius + (outerRadius - innerRadius) * 0.6;
+                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                const totalAttendance = attendanceRecords.length || 1; // Tránh chia cho 0
+                const percent = ((value / totalAttendance) * 100).toFixed(1);
+
+                if (percent < 5) return null;
+
+                return (
+                  <text
+                    x={x}
+                    y={y}
+                    fill="white"
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    {`${percent}%`}
+                  </text>
+                );
+              }}
+            >
+              {displayData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.color}
+                  strokeWidth={2}
+                  stroke="#fff"
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const { name, value } = payload[0].payload;
+                  const totalAttendance = attendanceRecords.length || 1;
+                  const percentage = ((value / totalAttendance) * 100).toFixed(1);
+                  return (
+                    <CustomTooltip>
+                      <TooltipTitle>{name}</TooltipTitle>
+                      <TooltipContent>
+                        <div>Số lượng: {value}</div>
+                        <div>Tỷ lệ: {percentage}%</div>
+                      </TooltipContent>
+                    </CustomTooltip>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Legend
+              formatter={(value, entry) => {
+                const item = entry.payload;
+                const totalAttendance = attendanceRecords.length || 1;
+                const percentage = ((item.value / totalAttendance) * 100).toFixed(1);
+                return `${value} (${item.value} lần - ${percentage}%)`;
+              }}
+              layout="horizontal"
+              align="center"
+              verticalAlign="bottom"
+              wrapperStyle={{
+                paddingTop: '20px',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+
+        <StatsSummary>
+          <SummaryTitle>Chi tiết thống kê:</SummaryTitle>
+          <div>• Tỷ lệ đi làm đúng giờ: {
+            (() => {
+              const onTime = attendanceRecords.filter(r =>
+                !r.morningSession?.isLate && !r.afternoonSession?.isLate
+              ).length || 0;
+              const total = attendanceRecords.length || 1;
+              return ((onTime / total) * 100).toFixed(1);
+            })()
+          }%</div>
+          <div>• Số lần đi muộn buổi sáng: {
+            attendanceRecords.filter(r =>
+              r.morningSession?.isLate
+            ).length || 0
+          }</div>
+          <div>• Số lần đi muộn buổi chiều: {
+            attendanceRecords.filter(r =>
+              r.afternoonSession?.isLate
+            ).length || 0
+          }</div>
+        </StatsSummary>
+      </AttendanceStats>
+    </ChartCard>
+  );
+};
 
 
 const OverviewAdmin = () => {
@@ -1264,7 +1475,6 @@ const OverviewAdmin = () => {
               <StatPrevious>Tổng số nhân viên</StatPrevious>
             </StatCard>
           </StatsGrid>
-
           <ChartsGrid>
             <ChartCard>
               <h3>Phân tích nhân sự theo loại hợp đồng</h3>
@@ -1288,69 +1498,6 @@ const OverviewAdmin = () => {
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
-            <ChartCard>
-              <h3>Thống kê lương và thưởng phạt</h3>
-              <ChartSubtitle>Tất cả nhân viên - Tháng hiện tại</ChartSubtitle>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={(overviewData.salaries || []) // Thêm mảng rỗng làm giá trị mặc định
-                    .filter(salary => salary?.userId) // Kiểm tra tồn tại userId
-                    .map(salary => ({
-                      name: salary.userId?.fullName || 'N/A',
-                      'Lương cơ bản': salary.basicSalary || 0,
-                      'Thưởng': (salary.taskBonus || 0) + (salary.bonus || 0),
-                      'Phạt task': salary.taskPenalty || 0,
-                      'Phạt đi muộn': salary.monthlyLateData?.latePenalty || 0,
-                      'Tổng nhận': salary.totalSalary || 0
-                    }))
-                    .filter(data => data !== null) // Lọc bỏ dữ liệu null/undefined
-                  }
-                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="name"
-                    angle={-45}
-                    textAnchor="end"
-                    interval={0}
-                    height={80}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis
-                    tickFormatter={(value) =>
-                      new Intl.NumberFormat('vi-VN', {
-                        style: 'currency',
-                        currency: 'VND',
-                        minimumFractionDigits: 0,
-                        notation: 'compact'
-                      }).format(value)
-                    }
-                  />
-                  <Tooltip
-                    formatter={(value) =>
-                      new Intl.NumberFormat('vi-VN', {
-                        style: 'currency',
-                        currency: 'VND',
-                        minimumFractionDigits: 0
-                      }).format(value)
-                    }
-                    contentStyle={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      borderRadius: '8px',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-                      border: 'none'
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="Lương cơ bản" fill="#3498db" />
-                  <Bar dataKey="Thưởng" fill="#2ecc71" />
-                  <Bar dataKey="Phạt task" fill="#e74c3c" />
-                  <Bar dataKey="Phạt đi muộn" fill="#e67e22" />
-                  <Bar dataKey="Tổng nhận" fill="#9b59b6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
             <ChartCard
               as={motion.div}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -1387,36 +1534,12 @@ const OverviewAdmin = () => {
           </ChartsGrid>
 
           <ChartsGrid className="two-columns">
+            <AttendancePieChart attendanceRecords={overviewData.attendanceRecords} />
+
             <ChartCard>
-              <h3>Tỷ lệ chấm công</h3>
-              <ChartSubtitle>Thống kê điểm danh tháng hiện tại</ChartSubtitle>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'Đúng giờ', value: overviewData.attendanceRecords.filter(r => !r.morningSession.isLate && !r.afternoonSession.isLate).length },
-                      { name: 'Đi muộn', value: overviewData.attendanceRecords.filter(r => r.morningSession.isLate || r.afternoonSession.isLate).length },
-                      { name: 'Vắng mặt', value: overviewData.workingDays - overviewData.attendanceRecords.length }
-                    ]}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label
-                  >
-                    <Cell fill="#82ca9d" />
-                    <Cell fill="#ffc658" />
-                    <Cell fill="#ff7675" />
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </ChartCard>
-            <ChartCard>
-              <h3>Hiệu suất công việc</h3>
-              <ChartSubtitle>Phân tích hoàn thành nhiệm vụ</ChartSubtitle>
+              <AttendanceTitle>Hiệu suất công việc</AttendanceTitle>
+              <AttendanceSubtitle>Phân tích hoàn thành nhiệm vụ</AttendanceSubtitle>
+
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
@@ -1429,17 +1552,72 @@ const OverviewAdmin = () => {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
-                    label
+                    outerRadius={120}
+                    innerRadius={60}
+                    labelLine={false}
+                    label={({ cx, cy, midAngle, innerRadius, outerRadius, value, name }) => {
+                      const RADIAN = Math.PI / 180;
+                      const radius = innerRadius + (outerRadius - innerRadius) * 0.6;
+                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                      const totalTasks = tasks.length || 1; // Tránh chia cho 0
+                      const percent = ((value / totalTasks) * 100).toFixed(1);
+
+                      if (percent < 5) return null;
+
+                      return (
+                        <text
+                          x={x}
+                          y={y}
+                          fill="white"
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          style={{
+                            fontSize: '14px',
+                            fontWeight: '600'
+                          }}
+                        >
+                          {`${percent}%`}
+                        </text>
+                      );
+                    }}
                   >
                     <Cell fill="#00b894" />
                     <Cell fill="#ff7675" />
                     <Cell fill="#74b9ff" />
                   </Pie>
                   <Tooltip />
-                  <Legend />
+                  <Legend
+                    formatter={(value, entry) => {
+                      const item = entry.payload;
+                      const totalTasks = tasks.length || 1;
+                      const percentage = ((item.value / totalTasks) * 100).toFixed(1);
+                      return `${value} (${item.value} - ${percentage}%)`;
+                    }}
+                    layout="horizontal"
+                    align="center"
+                    verticalAlign="bottom"
+                    wrapperStyle={{
+                      paddingTop: '20px',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
+
+              <StatsSummary>
+                <SummaryTitle>Chi tiết thống kê:</SummaryTitle>
+                <div>• Hoàn thành đúng hạn: {
+                  tasks.filter(t => t.status === 'completed' && new Date(t.completedAt) <= new Date(t.dueDate)).length
+                }</div>
+                <div>• Hoàn thành trễ: {
+                  tasks.filter(t => t.status === 'completed' && new Date(t.completedAt) > new Date(t.dueDate)).length
+                }</div>
+                <div>• Đang thực hiện: {
+                  tasks.filter(t => t.status === 'pending').length
+                }</div>
+              </StatsSummary>
             </ChartCard>
           </ChartsGrid>
         </>
@@ -1447,7 +1625,7 @@ const OverviewAdmin = () => {
 
       {activeSection === 'task' && (
         <TaskGrid>
-          <ExpiredContracts contracts={expiredContracts} />
+          {/* <ExpiredContracts contracts={expiredContracts} /> */}
           <TrialEmployees employees={trialEmployeesList} />
           <AssignedTasks
             tasks={tasksPreview}

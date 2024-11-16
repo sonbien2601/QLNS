@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import styled, { createGlobalStyle } from 'styled-components';
 import Swal from 'sweetalert2';
-import withReactContent from 'sweetalert2-react-content';
+import withReactContent from 'sweetalert2-react-content'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import NavigationAdmin from '../components/NavigationAdmin';
 
@@ -38,136 +38,208 @@ const GlobalStyle = createGlobalStyle`
   }
 `;
 
+const LeaveRequestItem = styled(motion.div)`
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+
+  p {
+    margin: 8px 0;
+    color: #34495e;
+  }
+`;
+
 const ResignationAdmin = () => {
   const navigate = useNavigate();
   const [resignations, setResignations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [requestType, setRequestType] = useState('all');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/login');
     } else {
-      fetchResignations();
+      fetchInitialData();
     }
   }, [navigate]);
 
+  const fetchInitialData = async () => {
+    try {
+      const resignationsRes = await fetchResignations();
+      const leaveRequestsRes = await fetchAllLeaveRequests();
+      
+      const allRequests = [
+        ...(resignationsRes.resignations || []).map(r => ({ ...r, type: 'resignation', returnDate: r.returnDate || '' })),
+        ...(leaveRequestsRes || []).map(l => ({ ...l, type: 'leave', returnDate: l.returnDate || '' }))
+      ];
+      
+      setResignations(allRequests);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+      handleApiError(error);
+    }
+  };
+
+    // Hàm mới để kiểm tra và format ngày đi làm lại
+    const formatReturnDate = (request) => {
+      if (request.type === 'leave') {
+        const endDate = new Date(request.endDate);
+        return endDate.toLocaleDateString();
+      } else {
+        return request.returnDate || 'N/A';
+      }
+    };
+
   const fetchResignations = async () => {
     try {
-      setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.get('http://localhost:5000/api/auth/resignation-requests', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      setResignations(response.data.resignations);
+      return response.data;
     } catch (error) {
       console.error('Error fetching resignations:', error);
       handleApiError(error);
-    } finally {
-      setLoading(false);
+      return { resignations: [] };
+    }
+  };
+
+  const fetchAllLeaveRequests = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/auth/all-leave-requests', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      return response.data.requests;
+    } catch (error) {
+      console.error('Error fetching leave requests:', error);
+      handleApiError(error);
+      return [];
     }
   };
 
 
-  const handleStatusUpdate = async (id, status, adminResponse) => {
+  const handleStatusUpdate = async (id, type, status, adminResponse) => {
     try {
+      // Nếu là phê duyệt nghỉ việc, hiển thị cảnh báo trước
+      if (type === 'resignation' && status === 'approved') {
+        const confirmResult = await MySwal.fire({
+          title: 'Xác nhận phê duyệt nghỉ việc?',
+          text: "Khi phê duyệt nghỉ việc, tài khoản và tất cả dữ liệu của nhân viên sẽ bị xóa vĩnh viễn! Bạn có chắc chắn?",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Xác nhận',
+          cancelButtonText: 'Hủy'
+        });
+  
+        if (!confirmResult.isConfirmed) {
+          return;
+        }
+      }
+  
       let response = adminResponse;
+      
       if (status === 'rejected') {
         const { value: rejectionReason } = await MySwal.fire({
           title: 'Nhập lý do từ chối',
           input: 'text',
           inputLabel: 'Lý do',
-          inputPlaceholder: 'Nhập lý do từ chối yêu cầu nghỉ việc',
+          inputPlaceholder: 'Nhập lý do từ chối',
           showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Xác nhận',
+          cancelButtonText: 'Hủy',
           inputValidator: (value) => {
             if (!value) {
               return 'Bạn cần nhập lý do từ chối!';
             }
-          },
-          customClass: {
-            input: 'swal2-input-custom',
-          },
-        });
-        if (rejectionReason) {
-          response = rejectionReason;
-        } else {
-          return;
-        }
-      } else if (status === 'approved') {
-        const confirmResult = await MySwal.fire({
-          title: 'Xác nhận chấp nhận nghỉ việc',
-          text: "Hành động này sẽ xóa toàn bộ thông tin của nhân viên khỏi hệ thống. Bạn có chắc chắn muốn tiếp tục?",
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonColor: '#3085d6',
-          cancelButtonColor: '#d33',
-          confirmButtonText: 'Đồng ý',
-          cancelButtonText: 'Hủy'
-        });
-
-        if (!confirmResult.isConfirmed) {
-          return;
-        }
-      }
-
-      const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/auth/resignation-requests/${id}`, 
-        { status, adminResponse: response },
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
           }
-        }
+        });
+  
+        if (!rejectionReason) return;
+        response = rejectionReason;
+      }
+  
+      const token = localStorage.getItem('token');
+      const url = type === 'resignation'
+        ? `http://localhost:5000/api/auth/resignation-requests/${id}`
+        : `http://localhost:5000/api/auth/leave-requests/${id}`;
+  
+      await axios.put(url, 
+        { status, adminResponse: response },
+        { headers: { 'Authorization': `Bearer ${token}` }}
       );
-
-      let message = status === 'approved' 
-        ? 'Yêu cầu nghỉ việc đã được chấp nhận và thông tin nhân viên đã bị xóa khỏi hệ thống.'
-        : `Yêu cầu nghỉ việc đã được ${status === 'rejected' ? 'từ chối' : 'cập nhật'}.`;
-
-      MySwal.fire({
+  
+      await MySwal.fire({
         icon: 'success',
-        title: 'Cập nhật thành công!',
-        text: message,
+        title: 'Thành công!',
+        text: type === 'resignation' && status === 'approved' 
+          ? 'Đã phê duyệt nghỉ việc và xóa tài khoản nhân viên' 
+          : `Đã ${status === 'approved' ? 'phê duyệt' : 'từ chối'} yêu cầu ${type === 'resignation' ? 'nghỉ việc' : 'nghỉ phép'}`,
+        showConfirmButton: false,
+        timer: 1500
       });
-      fetchResignations();
+  
+      await fetchInitialData();
+  
     } catch (error) {
-      console.error('Error updating resignation status:', error);
-      handleApiError(error);
+      console.error('Error updating request:', error);
+      MySwal.fire({
+        icon: 'error',
+        title: 'Lỗi!',
+        text: error.response?.data?.message || 'Đã có lỗi xảy ra'
+      });
     }
   };
 
-  const handleDeleteResignation = async (id) => {
+  
+
+  const handleDeleteResignation = async (id, type) => {
     try {
       const result = await MySwal.fire({
-        title: 'Bạn chắc chắn muốn xóa?',
-        text: "Hành động này không thể hoàn tác!",
+        title: 'Xác nhận xóa?',
+        text: "Bạn không thể hoàn tác sau khi xóa!",
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Đồng ý',
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Xóa',
         cancelButtonText: 'Hủy'
       });
 
       if (result.isConfirmed) {
         const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:5000/api/auth/resignation-requests/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+        const url = type === 'resignation'
+          ? `http://localhost:5000/api/auth/resignation-requests/${id}`
+          : `http://localhost:5000/api/auth/leave-requests/${id}`;
+
+        await axios.delete(url, {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
-        MySwal.fire(
-          'Đã xóa!',
-          'Yêu cầu nghỉ việc đã được xóa.',
-          'success'
-        );
-        fetchResignations();
+
+        await MySwal.fire({
+          icon: 'success',
+          title: 'Đã xóa!',
+          text: `Đã xóa yêu cầu ${type === 'resignation' ? 'nghỉ việc' : 'nghỉ phép'}`,
+          showConfirmButton: false,
+          timer: 1500
+        });
+
+        await fetchInitialData();
       }
     } catch (error) {
-      console.error('Error deleting resignation request:', error);
-      handleApiError(error);
+      console.error('Error deleting request:', error);
+      MySwal.fire({
+        icon: 'error',
+        title: 'Lỗi!',
+        text: error.response?.data?.message || 'Không thể xóa yêu cầu'
+      });
     }
   };
 
@@ -195,56 +267,83 @@ const ResignationAdmin = () => {
         <NavigationAdmin />
         <ContentContainer>
           <Title>Quản lý yêu cầu nghỉ việc</Title>
+          <RequestTypeFilter>
+            <FilterButton 
+              active={requestType === 'all'} 
+              onClick={() => setRequestType('all')}
+            >
+              Tất cả
+            </FilterButton>
+            <FilterButton 
+              active={requestType === 'resignation'} 
+              onClick={() => setRequestType('resignation')}
+            >
+              Nghỉ việc
+            </FilterButton>
+            <FilterButton 
+              active={requestType === 'leave'} 
+              onClick={() => setRequestType('leave')}
+            >
+              Nghỉ phép
+            </FilterButton>
+          </RequestTypeFilter>
+          
           {loading ? (
             <Loading>Đang tải dữ liệu...</Loading>
           ) : (
             <ResignationList>
               <AnimatePresence>
-                {resignations.map((resignation) => (
-                  <ResignationItem
-                    key={resignation._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <h3>{resignation.userId?.fullName || 'Không có tên'}</h3>
-                    <p><strong>Lý do:</strong> {resignation.reason}</p>
-                    <p><strong>Trạng thái:</strong> <StatusBadge status={resignation.status}>{resignation.status}</StatusBadge></p>
-                    <p><strong>Ngày yêu cầu:</strong> {new Date(resignation.submittedAt).toLocaleString()}</p>
-                    {resignation.processedAt && (
-                      <p><strong>Ngày xử lý:</strong> {new Date(resignation.processedAt).toLocaleString()}</p>
-                    )}
-                    {resignation.adminResponse && (
-                      <p><strong>Phản hồi:</strong> {resignation.adminResponse}</p>
-                    )}
-                    <ButtonGroup>
-                      {resignation.status === 'pending' && (
-                        <>
-                          <ApproveButton onClick={() => handleStatusUpdate(resignation._id, 'approved', 'Đồng ý')}>
-                            Phê duyệt
-                          </ApproveButton>
-                          <RejectButton onClick={() => handleStatusUpdate(resignation._id, 'rejected')}>
-                            Từ chối
-                          </RejectButton>
-                        </>
+                {resignations
+                  .filter(request => 
+                    requestType === 'all' ? true : request.type === requestType
+                  )
+                  .map((resignation) => (
+                    <ResignationItem
+                      key={resignation._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                    >
+                      <h3>{resignation.userId?.fullName || 'Không có tên'}</h3>
+                      <p><strong>Loại yêu cầu:</strong> {resignation.type === 'resignation' ? 'Nghỉ việc' : 'Nghỉ phép'}</p>
+                      <p><strong>Lý do:</strong> {resignation.reason}</p>
+                      <p><strong>Ngày yêu cầu:</strong> {new Date(resignation.requestedAt || resignation.submittedAt).toLocaleString()}</p>
+                      <p><strong>Trạng thái:</strong> <StatusBadge status={resignation.status}>{resignation.status}</StatusBadge></p>
+                      {resignation.adminResponse && (
+                        <p><strong>Phản hồi:</strong> {resignation.adminResponse}</p>
                       )}
-                      {resignation.status === 'rejected' && (
-                        <ApproveButton onClick={() => handleStatusUpdate(resignation._id, 'approved', 'Đồng ý')}>
-                          Thay đổi thành phê duyệt
-                        </ApproveButton>
+                      {resignation.type === 'leave' && (
+                        <p><strong>Ngày đi làm lại:</strong> {formatReturnDate(resignation)}</p>
                       )}
-                      {resignation.status === 'approved' && (
-                        <RejectButton onClick={() => handleStatusUpdate(resignation._id, 'rejected')}>
-                          Thay đổi thành từ chối
-                        </RejectButton>
-                      )}
-                    </ButtonGroup>
-                    <DeleteButton onClick={() => handleDeleteResignation(resignation._id)}>
-                      Xóa yêu cầu
-                    </DeleteButton>
-                  </ResignationItem>
-                ))}
+                      <ButtonGroup>
+                        {resignation.status === 'pending' && (
+                          <>
+                            <ApproveButton onClick={() => handleStatusUpdate(
+                              resignation._id,
+                              resignation.type,
+                              'approved',
+                              'Đồng ý'
+                            )}>
+                              Phê duyệt
+                            </ApproveButton>
+                            <RejectButton onClick={() => handleStatusUpdate(
+                              resignation._id,
+                              resignation.type,
+                              'rejected'
+                            )}>
+                              Từ chối
+                            </RejectButton>
+                          </>
+                        )}
+                      </ButtonGroup>
+                      <DeleteButton onClick={() => handleDeleteResignation(
+                        resignation._id,
+                        resignation.type
+                      )}>
+                        Xóa yêu cầu
+                      </DeleteButton>
+                    </ResignationItem>
+                  ))}
               </AnimatePresence>
             </ResignationList>
           )}
@@ -254,7 +353,7 @@ const ResignationAdmin = () => {
   );
 };
 
-// Styled components
+// Styled components (giữ nguyên phần này)
 const PageContainer = styled.div`
   background-color: #f4f7f9;
   min-height: 100vh;
@@ -277,6 +376,27 @@ const Loading = styled.p`
   text-align: center;
   font-size: 18px;
   color: #34495e;
+`;
+
+const RequestTypeFilter = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  justify-content: center;
+`;
+
+const FilterButton = styled.button`
+  padding: 8px 16px;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  background-color: ${props => props.active ? '#3498db' : '#ecf0f1'};
+  color: ${props => props.active ? 'white' : '#34495e'};
+  transition: all 0.3s ease;
+
+  &:hover {
+    background-color: ${props => props.active ? '#2980b9' : '#bdc3c7'};
+  }
 `;
 
 const ResignationList = styled.div`
@@ -320,14 +440,6 @@ const RejectButton = styled(Button)`
   color: white;
   &:hover {
     background-color: #c0392b;
-  }
-`;
-
-const EditButton = styled(Button)`
-  background-color: #3498db;
-  color: white;
-  &:hover {
-    background-color: #2980b9;
   }
 `;
 

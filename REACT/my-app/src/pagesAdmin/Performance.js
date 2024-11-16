@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FaCog, FaSync } from 'react-icons/fa';
 import styled from 'styled-components';
+import { FaSearch } from 'react-icons/fa';
 
 
 // Styled Components
@@ -47,28 +48,27 @@ const SearchBox = styled.div`
   flex: 1;
   max-width: 300px;
   position: relative;
+  display: flex;
+  align-items: center;
 
   input {
     width: 100%;
     padding: 8px 12px;
-    padding-left: 35px;
+    padding-left: 36px;  // Để trống cho icon
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 14px;
   }
+`;
 
-  &::before {
-    content: "🔍";
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 14px;
-  }
-
-  @media (max-width: 768px) {
-    max-width: 100%;
-  }
+const SearchIcon = styled(FaSearch)`
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  font-size: 14px;
+  padding-bottom: 12px
 `;
 
 const Filters = styled.div`
@@ -225,9 +225,10 @@ const Performance = () => {
           </IconButton>
         </div>
       </Header>
-  
+
       <Controls>
         <SearchBox>
+          <SearchIcon />
           <input
             type="text"
             placeholder="Tìm kiếm theo tên hoặc chức vụ"
@@ -235,7 +236,7 @@ const Performance = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </SearchBox>
-  
+
         <Filters>
           <select
             value={statusFilter}
@@ -248,7 +249,7 @@ const Performance = () => {
               </option>
             ))}
           </select>
-  
+
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
@@ -262,7 +263,7 @@ const Performance = () => {
           </select>
         </Filters>
       </Controls>
-  
+
       {loading ? (
         <div>Đang tải...</div>
       ) : error ? (
@@ -281,7 +282,7 @@ const Performance = () => {
           <tbody>
             {employees.length === 0 ? (
               <tr>
-                <td colSpan="5" style={{textAlign: 'center'}}>
+                <td colSpan="5" style={{ textAlign: 'center' }}>
                   Không có dữ liệu
                 </td>
               </tr>

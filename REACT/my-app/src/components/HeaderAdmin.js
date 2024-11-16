@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUser } from "@fortawesome/free-solid-svg-icons";
-import logo from "../images/logoQLNS2.jpg"; // Đường dẫn đến logo của bạn
+import logo from "../images/logo.jpg"; 
 
 const HeaderAdmin = () => {
   const [fullName, setFullName] = useState("");

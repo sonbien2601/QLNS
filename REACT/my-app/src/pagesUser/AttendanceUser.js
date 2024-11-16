@@ -322,7 +322,32 @@ const AttendanceUser = () => {
       showAlert('error', 'Lỗi xác thực', 'Vui lòng đăng nhập lại');
       return;
     }
-
+  
+    // Get current time to determine session
+    const currentHour = moment().hour();
+    const currentMinutes = moment().minute();
+    const currentTimeInMinutes = currentHour * 60 + currentMinutes;
+  
+    // Determine current session
+    let currentSession;
+    if (currentTimeInMinutes < TIME_CONSTANTS.WORKING_HOURS.AFTERNOON.START) {
+      currentSession = 'morningSession';
+    } else {
+      currentSession = 'afternoonSession';
+    }
+  
+    // Get today's record
+    const today = moment().format('YYYY-MM-DD');
+    const todayRecord = attendanceRecords.find(record => 
+      moment(record.date).format('YYYY-MM-DD') === today
+    );
+  
+    // Check if already checked out
+    if (type === 'out' && todayRecord && todayRecord[currentSession]?.checkOut) {
+      showAlert('error', 'Không thể check-out', 'Bạn đã check-out cho ca này rồi');
+      return;
+    }
+  
     try {
       setLoading(true);
       const response = await axios.post(
@@ -333,7 +358,7 @@ const AttendanceUser = () => {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
+  
       if (response.data) {
         showAlert('success', `Check-${type} thành công!`, '');
         await fetchAttendance();

@@ -14,7 +14,6 @@ import ProtectedRoute from './pages/ProtectedRoute';
 import Admin from './pagesAdmin/Admin';
 import Performance from './pagesAdmin/Performance';
 import AppointmentAdmin from './pagesAdmin/AppointmentAdmin';
-import Resignation from './pagesAdmin/Resignation';
 import Dismissal from './pagesAdmin/Dismissal';
 import AddEmployee from './pagesAdmin/AddEmployee';
 import AddtendanceAdmin from './pagesAdmin/AddtendanceAdmin';
@@ -24,6 +23,7 @@ import AdminProfileManagement from './pagesAdmin/AdminProfileManagement';
 import OverviewAdmin from './pagesAdmin/OverviewAdmin';
 import ResignationAdmin from './pagesAdmin/ResignationAdmin';
 import ApprovalList from './pagesAdmin/ApprovalList';
+import HRResignation from './pagesAdmin/HRResignation';
 
 // User Pages
 import User from './pagesUser/User';
@@ -88,14 +88,19 @@ function App() {
                   <Route path="overview-admin" element={<OverviewAdmin />} />
                   <Route path="performance" element={<Performance />} />
                   <Route path="appointment" element={<AppointmentAdmin />} />
-                  <Route path="resign" element={<Resignation />} />
                   <Route path="dismiss" element={<Dismissal />} />
                   <Route path="add-employee" element={<AddEmployee />} />
                   <Route path="attendance" element={<AddtendanceAdmin />} />
                   <Route path="salary" element={<SalaryAdmin />} />
                   <Route path="contracts" element={<ContractAdmin />} />
                   <Route path="adminProfile" element={<AdminProfileManagement />} />
-                  <Route path="resignation-admin" element={<ResignationAdmin />} />
+                  
+                  {/* Route nghỉ việc - phân quyền theo role */}
+                  {role === 'hr' ? (
+                    <Route path="hr-resignation" element={<HRResignation />} />
+                  ) : (
+                    <Route path="resignation-admin" element={<ResignationAdmin />} />
+                  )}
 
                   {/* Route phê duyệt chỉ dành cho Admin */}
                   <Route 

@@ -14,6 +14,7 @@ const Resignation = require('../models/Resignation');
 const Dismissal = require('../models/Dismissal');
 const Approval = require('../models/Approval');
 const Performance = require('../models/Performance');
+const LeaveRequest = require('../models/LeaveRequest');
 const router = express.Router(); // Tạo router từ Express
 const moment = require('moment-timezone');
 const schedule = require('node-schedule');
@@ -592,61 +593,111 @@ router.get('/user-info', authenticate, async (req, res) => {
   }
 });
 
-// Cập nhật route tạo yêu cầu bổ nhiệm
 router.post('/appointment-request', authenticate, async (req, res) => {
   try {
-    const { newPosition, reason } = req.body;
-    let user = await User2.findById(req.user.userId);
+    const { userId, oldPosition, newPosition, reason, effectiveDate } = req.body;
 
+    // Validate input
+    if (!userId || !newPosition || !reason || !effectiveDate) {
+      return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+
+    // Tìm user
+    const user = await User2.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
+      return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
     }
 
-    // Tạo yêu cầu bổ nhiệm
-    const appointment = new Appointment({
-      userId: req.user.userId,
-      oldPosition: user.position || 'Không có thông tin',
-      newPosition,
-      reason,
-      status: 'pending' // Mặc định là pending để HR xử lý trước
-    });
+    if (req.user.role === 'admin') {
+      // Admin thực hiện bổ nhiệm trực tiếp
+      try {
+        const appointment = new Appointment({
+          userId,
+          oldPosition: user.position,
+          newPosition,
+          reason,
+          effectiveDate: new Date(effectiveDate),
+          status: 'approved',
+          createdBy: req.user.userId,
+          approvedAt: new Date(),
+          approvedBy: req.user.userId
+        });
 
-    await appointment.save();
+        await appointment.save();
 
-    // Nếu người tạo là HR, tự động tạo approval request
-    if (req.user.role === 'hr') {
-      const approval = new Approval({
-        requestType: 'appointment_approval',
-        requestData: {
-          appointmentId: appointment._id,
-          userId: appointment.userId,
-          oldPosition: appointment.oldPosition,
-          newPosition: appointment.newPosition,
-          reason: appointment.reason
-        },
-        requestedBy: req.user.userId,
-        status: 'pending'
-      });
+        // Cập nhật vị trí mới cho user
+        await User2.findByIdAndUpdate(userId, {
+          position: newPosition
+        });
 
-      await approval.save();
+        return res.status(201).json({
+          message: 'Thực hiện bổ nhiệm thành công',
+          appointment
+        });
+      } catch (error) {
+        console.error('Error in direct appointment:', error);
+        throw error;
+      }
+    } else {
+      // HR tạo yêu cầu cần phê duyệt
+      try {
+        // Tạo appointment trước
+        const appointment = new Appointment({
+          userId,
+          oldPosition: user.position,
+          newPosition,
+          reason,
+          effectiveDate: new Date(effectiveDate),
+          status: 'pending',
+          createdBy: req.user.userId
+        });
 
-      // Cập nhật trạng thái appointment
-      appointment.status = 'waiting_admin';
-      await appointment.save();
+        await appointment.save();
+
+        // Tạo approval request phù hợp với schema
+        const approval = new Approval({
+          requestType: 'appointment_approval', // Sử dụng enum đã định nghĩa
+          requestData: {
+            appointmentId: appointment._id,
+            userId: userId,
+            oldPosition: user.position,
+            newPosition: newPosition,
+            reason: reason,
+            effectiveDate: effectiveDate
+          },
+          requestedBy: req.user.userId,
+          status: 'pending',
+          createdAt: new Date()
+        });
+
+        await approval.save();
+
+        // Cập nhật trạng thái appointment
+        appointment.status = 'waiting_admin';
+        await appointment.save();
+
+        return res.status(201).json({
+          message: 'Yêu cầu bổ nhiệm đã được gửi đến Admin để phê duyệt',
+          appointment,
+          approval
+        });
+
+      } catch (error) {
+        console.error('Error in HR appointment request:', error);
+        // Nếu có lỗi, rollback các thay đổi đã thực hiện
+        if (appointment && appointment._id) {
+          await Appointment.findByIdAndDelete(appointment._id);
+        }
+        throw error;
+      }
     }
-
-    res.status(201).json({
-      message: req.user.role === 'hr' ? 
-        'Yêu cầu bổ nhiệm đã được gửi đến Admin để phê duyệt' : 
-        'Yêu cầu bổ nhiệm đã được gửi',
-      appointment
-    });
 
   } catch (error) {
-    console.error('Lỗi khi gửi yêu cầu bổ nhiệm:', error);
+    console.error('Error creating appointment request:', error);
     res.status(500).json({
-      message: 'Lỗi khi gửi yêu cầu bổ nhiệm',
-      error: error.message
+      message: 'Lỗi khi tạo yêu cầu bổ nhiệm',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -677,9 +728,9 @@ router.get('/user-appointments', authenticate, async (req, res) => {
 router.get('/get-appointments', authenticate, async (req, res) => {
   try {
     console.log('Fetching appointments...');
-    
+
     const appointments = await Appointment.find()
-      .populate('userId', 'fullName position') 
+      .populate('userId', 'fullName position')
       .sort({ createdAt: -1 });
 
     console.log('Found appointments:', appointments);
@@ -688,7 +739,7 @@ router.get('/get-appointments', authenticate, async (req, res) => {
       success: true,
       appointments: appointments.map(apt => ({
         _id: apt._id,
-        userId: apt.userId,  
+        userId: apt.userId,
         oldPosition: apt.oldPosition,
         newPosition: apt.newPosition,
         reason: apt.reason,
@@ -702,7 +753,7 @@ router.get('/get-appointments', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching appointments:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: 'Error fetching appointments',
       error: error.message
@@ -717,18 +768,32 @@ router.put('/reject-appointment/:id', authenticate, async (req, res) => {
   }
 
   try {
-    const appointment = await Appointment.findByIdAndUpdate(req.params.id,
-      {
-        status: 'rejected',
-        rejectedAt: Date.now() // Cập nhật thời gian từ chối
-      },
-      { new: true }
-    );
+    const { id } = req.params;
+    const { adminResponse } = req.body;
 
-    res.json({ message: 'Yêu cầu bổ nhiệm đã bị từ chối', appointment });
+    const resignation = await Resignation.findById(id);
+    if (!resignation) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu nghỉ việc' });
+    }
+
+    resignation.status = 'rejected';
+    resignation.adminResponse = adminResponse;
+    resignation.processedAt = new Date();
+    resignation.processedBy = req.user.userId;
+
+    await resignation.save();
+
+    res.json({
+      message: 'Yêu cầu nghỉ việc đã bị từ chối',
+      resignation
+    });
 
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi từ chối bổ nhiệm', error: error.message });
+    console.error('Error rejecting resignation:', error);
+    res.status(500).json({
+      message: 'Lỗi khi từ chối yêu cầu nghỉ việc',
+      error: error.message
+    });
   }
 });
 
@@ -760,19 +825,20 @@ router.delete('/delete-appointment/:id', authenticate, async (req, res) => {
   }
 
   try {
-    const appointment = await Appointment.findById(req.params.id);
+    const resignation = await Resignation.findByIdAndDelete(req.params.id);
 
-    if (!appointment) {
-      return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm để xóa' });
+    if (!resignation) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu nghỉ việc' });
     }
 
-    await Appointment.deleteOne({ _id: req.params.id }); // Xóa yêu cầu bổ nhiệm
-    res.json({ message: 'Yêu cầu bổ nhiệm đã được xóa thành công' });
+    res.json({
+      message: 'Yêu cầu nghỉ việc đã được xóa thành công'
+    });
 
   } catch (error) {
-    console.error('Lỗi xóa bổ nhiệm:', error);
+    console.error('Error deleting resignation:', error);
     res.status(500).json({
-      message: 'Lỗi khi xóa yêu cầu bổ nhiệm',
+      message: 'Lỗi khi xóa yêu cầu nghỉ việc',
       error: error.message
     });
   }
@@ -838,8 +904,8 @@ router.post('/dismissals', authenticate, async (req, res) => {
           error: error.message
         });
       }
-    } 
-    
+    }
+
     // Xử lý cho Admin - giữ nguyên như cũ
     if (req.user.role === 'admin') {
       // Cập nhật vị trí mới cho user
@@ -873,8 +939,8 @@ router.post('/dismissals', authenticate, async (req, res) => {
       });
     }
 
-    return res.status(403).json({ 
-      message: 'Không có quyền thực hiện thao tác này' 
+    return res.status(403).json({
+      message: 'Không có quyền thực hiện thao tác này'
     });
 
   } catch (error) {
@@ -2880,9 +2946,9 @@ router.put('/tasks/:taskId/status', authenticate, async (req, res) => {
     });
 
     // Cập nhật điều kiện kiểm tra quyền để bao gồm HR
-    if (task.assignedTo.toString() !== req.user.userId && 
-        req.user.role !== 'admin' && 
-        req.user.role !== 'hr') {
+    if (task.assignedTo.toString() !== req.user.userId &&
+      req.user.role !== 'admin' &&
+      req.user.role !== 'hr') {
       return res.status(403).json({ message: 'Bạn không có quyền cập nhật công việc này' });
     }
 
@@ -3021,9 +3087,9 @@ router.put('/tasks/:taskId', authenticate, isAdminOrHR, async (req, res) => {
   try {
     const { taskId } = req.params;
     const updateData = req.body;
-    
+
     // Lọc bỏ các trường undefined
-    Object.keys(updateData).forEach(key => 
+    Object.keys(updateData).forEach(key =>
       updateData[key] === undefined && delete updateData[key]
     );
 
@@ -3032,7 +3098,7 @@ router.put('/tasks/:taskId', authenticate, isAdminOrHR, async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     ).populate('assignedTo', 'fullName')
-     .populate('createdBy', 'fullName');
+      .populate('createdBy', 'fullName');
 
     if (!updatedTask) {
       return res.status(404).json({ message: 'Không tìm thấy công việc' });
@@ -3084,19 +3150,74 @@ router.put('/tasks/:taskId/complete', authenticate, async (req, res) => {
 });
 
 // ================== API NGHỈ VIỆC ==================
-// Route để gửi yêu cầu nghỉ việc (cho user)
+// API để user hủy yêu cầu nghỉ việc của mình
+router.delete('/cancel-resignation/:id', authenticate, async (req, res) => {
+  try {
+    const resignation = await Resignation.findOne({
+      _id: req.params.id,
+      userId: req.user.userId,
+      status: 'pending'
+    });
+
+    if (!resignation) {
+      return res.status(404).json({
+        message: 'Không tìm thấy yêu cầu nghỉ việc hoặc yêu cầu không thể hủy'
+      });
+    }
+
+    await Resignation.findByIdAndDelete(req.params.id);
+
+    res.json({
+      message: 'Đã hủy yêu cầu nghỉ việc thành công'
+    });
+
+  } catch (error) {
+    console.error('Error canceling resignation:', error);
+    res.status(500).json({
+      message: 'Lỗi khi hủy yêu cầu nghỉ việc',
+      error: error.message
+    });
+  }
+});
+
+// API để user gửi yêu cầu nghỉ việc
 router.post('/resignation-request', authenticate, async (req, res) => {
   try {
     const { reason } = req.body;
+
+    // Kiểm tra xem đã có yêu cầu nghỉ phép pending nào chưa
+    const existingLeaveRequest = await LeaveRequest.findOne({
+      userId: req.user.userId,
+      status: 'pending'
+    });
+
+    if (existingLeaveRequest) {
+      return res.status(400).json({
+        message: 'Bạn đã có một yêu cầu nghỉ phép đang chờ xử lý'
+      });
+    }
+
+    // Tiếp tục xử lý yêu cầu nghỉ việc
     const newResignation = new Resignation({
       userId: req.user.userId,
       reason,
       status: 'pending'
     });
+
     await newResignation.save();
-    res.status(201).json({ message: 'Yêu cầu nghỉ việc đã được gửi', resignation: newResignation });
+    await newResignation.populate('userId', 'fullName position');
+
+    res.status(201).json({
+      message: 'Yêu cầu nghỉ việc đã được gửi',
+      resignation: newResignation
+    });
+
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi gửi yêu cầu nghỉ việc', error: error.message });
+    console.error('Error creating resignation request:', error);
+    res.status(500).json({
+      message: 'Lỗi khi tạo yêu cầu nghỉ việc',
+      error: error.message
+    });
   }
 });
 
@@ -3105,57 +3226,83 @@ router.get('/resignation-requests', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
   }
+
   try {
-    const resignations = await Resignation.find().populate('userId', 'fullName');
+    const resignations = await Resignation.find()
+      .populate('userId', 'fullName position')
+      .sort({ submittedAt: -1 });
+
     res.json({ resignations });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi lấy danh sách yêu cầu nghỉ việc', error: error.message });
+    console.error('Error fetching resignations:', error);
+    res.status(500).json({
+      message: 'Lỗi khi lấy danh sách yêu cầu nghỉ việc',
+      error: error.message
+    });
   }
 });
 
-// Route để cập nhật trạng thái yêu cầu nghỉ việc (cho admin)
+
+
+// API phê duyệt/từ chối yêu cầu nghỉ việc
 router.put('/resignation-requests/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+    return res.status(403).json({ message: 'Bạn không có quyền thực hiện thao tác này' });
   }
+
   try {
+    const { id } = req.params;
     const { status, adminResponse } = req.body;
-    const resignation = await Resignation.findById(req.params.id).populate('userId');
+
+    // Validate status
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
+    }
+
+    const resignation = await Resignation.findById(id)
+      .populate('userId', 'fullName position');
 
     if (!resignation) {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu nghỉ việc' });
     }
 
-    if (status === 'approved') {
-      // Xóa toàn bộ thông tin liên quan đến người dùng
-      const userId = resignation.userId._id;
-
-      // Xóa thông tin từ các collection liên quan
-      await Promise.all([
-        User.findByIdAndDelete(userId),
-        User2.findByIdAndDelete(userId),
-        Appointment.deleteMany({ userId }),
-        Attendance.deleteMany({ userId }),
-        Salary.deleteMany({ userId }),
-        Contract.deleteMany({ userId }),
-        FeedbackSalary.deleteMany({ userId }),
-        Task.deleteMany({ assignedTo: userId }),
-        Resignation.deleteMany({ userId })
-      ]);
-
-      return res.json({ message: 'Yêu cầu nghỉ việc đã được chấp nhận và tài khoản đã bị xóa' });
-    } else {
-      // Nếu từ chối, chỉ cập nhật trạng thái
-      resignation.status = status;
-      resignation.adminResponse = adminResponse;
-      resignation.processedAt = Date.now();
-      await resignation.save();
+    if (resignation.status !== 'pending') {
+      return res.status(400).json({ message: 'Yêu cầu này đã được xử lý' });
     }
 
-    res.json({ message: 'Cập nhật trạng thái yêu cầu nghỉ việc thành công', resignation });
+    resignation.status = status;
+    resignation.adminResponse = adminResponse;
+    resignation.processedAt = new Date();
+    resignation.processedBy = req.user.userId;
+
+    if (status === 'approved') {
+      // Xóa toàn bộ dữ liệu liên quan đến user
+      await Promise.all([
+        User2.findByIdAndDelete(resignation.userId._id),
+        Attendance.deleteMany({ userId: resignation.userId._id }),
+        Salary.deleteMany({ userId: resignation.userId._id }),
+        Contract.deleteMany({ userId: resignation.userId._id }),
+        FeedbackSalary.deleteMany({ userId: resignation.userId._id }),
+        Task.deleteMany({ assignedTo: resignation.userId._id }),
+        LeaveRequest.deleteMany({ userId: resignation.userId._id })
+      ]);
+    }
+
+    await resignation.save();
+
+    res.json({
+      message: status === 'approved'
+        ? 'Đã phê duyệt nghỉ việc và xóa tài khoản thành công'
+        : 'Đã từ chối yêu cầu nghỉ việc',
+      resignation
+    });
+
   } catch (error) {
-    console.error('Lỗi khi cập nhật trạng thái yêu cầu nghỉ việc:', error);
-    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái yêu cầu nghỉ việc', error: error.message });
+    console.error('Error processing resignation:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xử lý yêu cầu nghỉ việc',
+      error: error.message
+    });
   }
 });
 
@@ -3173,19 +3320,36 @@ router.get('/user-resignation/:userId', authenticate, async (req, res) => {
   }
 });
 
-// Route để xóa yêu cầu nghỉ việc (cho admin)
+// API xóa yêu cầu nghỉ việc
 router.delete('/resignation-requests/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Bạn không có quyền xóa yêu cầu này' });
   }
+
   try {
-    const resignation = await Resignation.findByIdAndDelete(req.params.id);
+    const resignation = await Resignation.findById(req.params.id);
+
     if (!resignation) {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu nghỉ việc' });
     }
-    res.json({ message: 'Yêu cầu nghỉ việc đã được xóa thành công' });
+
+    // Không cho phép xóa yêu cầu đã được phê duyệt
+    if (resignation.status === 'approved') {
+      return res.status(400).json({
+        message: 'Không thể xóa yêu cầu đã được phê duyệt'
+      });
+    }
+
+    await Resignation.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Đã xóa yêu cầu nghỉ việc thành công' });
+
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi xóa yêu cầu nghỉ việc', error: error.message });
+    console.error('Error deleting resignation:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xóa yêu cầu nghỉ việc',
+      error: error.message
+    });
   }
 });
 
@@ -3446,6 +3610,7 @@ router.post('/approval-request', authenticate, isHR, async (req, res) => {
 
 // API phê duyệt yêu cầu miễn nhiệm (chỉ dành cho admin)
 // Route phê duyệt miễn nhiệm
+// Route phê duyệt miễn nhiệm
 router.put('/approve-dismissal/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Chỉ Admin mới có quyền phê duyệt miễn nhiệm' });
@@ -3456,18 +3621,24 @@ router.put('/approve-dismissal/:id', authenticate, async (req, res) => {
 
   try {
     const approval = await Approval.findById(req.params.id);
-    
+
     if (!approval || approval.requestType !== 'dismiss_employee') {
-      return res.status(404).json({ message: 'Không tìm thấy yêu cầu miễn nhiệm' });
+      throw new Error('Không tìm thấy yêu cầu miễn nhiệm');
     }
 
     if (approval.status !== 'pending') {
-      return res.status(400).json({ message: 'Yêu cầu này đã được xử lý' });
+      throw new Error('Yêu cầu này đã được xử lý');
     }
 
     const { userId, oldPosition, newPosition, reason, effectiveDate } = approval.requestData;
 
-    // 1. Tạo bản ghi dismissal trước
+    // Validate user exists
+    const user = await User2.findById(userId);
+    if (!user) {
+      throw new Error('Không tìm thấy thông tin nhân viên');
+    }
+
+    // Create dismissal record
     const dismissal = new Dismissal({
       userId,
       oldPosition,
@@ -3482,30 +3653,27 @@ router.put('/approve-dismissal/:id', authenticate, async (req, res) => {
 
     await dismissal.save({ session });
 
-    // 2. Cập nhật approval với dismissalId
+    // Update user position
+    await User2.findByIdAndUpdate(
+      userId,
+      { $set: { position: newPosition } },
+      { session }
+    );
+
+    // Update approval status
     approval.status = 'approved';
     approval.processedBy = req.user.userId;
     approval.processedAt = new Date();
     approval.adminResponse = 'Đã phê duyệt miễn nhiệm';
-    approval.dismissalId = dismissal._id; // Thêm reference
     await approval.save({ session });
-
-    // 3. Cập nhật user position
-    const updatedUser = await User2.findByIdAndUpdate(
-      userId,
-      { $set: { position: newPosition } },
-      { new: true, session }
-    );
-
-    if (!updatedUser) {
-      throw new Error('Không tìm thấy user cần cập nhật');
-    }
 
     await session.commitTransaction();
 
-    // Populate thông tin cần thiết
-    await dismissal.populate('userId', 'fullName position');
-    await dismissal.populate('createdBy', 'fullName');
+    // Populate dismissal response
+    await dismissal.populate([
+      { path: 'userId', select: 'fullName position' },
+      { path: 'createdBy', select: 'fullName' }
+    ]);
 
     res.json({
       message: 'Đã phê duyệt miễn nhiệm thành công',
@@ -3515,7 +3683,7 @@ router.put('/approve-dismissal/:id', authenticate, async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Lỗi khi phê duyệt miễn nhiệm:', error);
-    res.status(500).json({
+    res.status(error.message.includes('Không tìm thấy') ? 404 : 500).json({
       message: 'Lỗi khi phê duyệt miễn nhiệm',
       error: error.message
     });
@@ -3534,8 +3702,8 @@ router.put('/reject-dismissal/:id', authenticate, async (req, res) => {
   try {
     const { reason } = req.body;
     const approval = await Approval.findById(req.params.id);
-    
-    if (!approval || approval.requestType !== 'dismissal_request') {
+
+    if (!approval || approval.requestType !== 'dismiss_employee') {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu miễn nhiệm' });
     }
 
@@ -3550,9 +3718,22 @@ router.put('/reject-dismissal/:id', authenticate, async (req, res) => {
     approval.processedAt = new Date();
     await approval.save();
 
+    // Tạo bản ghi dismissal với trạng thái rejected
+    const dismissal = new Dismissal({
+      ...approval.requestData,
+      status: 'rejected',
+      processedBy: req.user.userId,
+      processedAt: new Date(),
+      adminResponse: reason,
+      createdBy: approval.requestedBy
+    });
+
+    await dismissal.save();
+
     res.json({
       message: 'Đã từ chối yêu cầu miễn nhiệm',
-      approval
+      approval,
+      dismissal
     });
 
   } catch (error) {
@@ -3597,7 +3778,7 @@ router.get('/dismissals/user/:userId', authenticate, async (req, res) => {
     console.error('Lỗi khi lấy lịch sử miễn nhiệm:', error);
     res.status(500).json({
       message: 'Lỗi khi lấy lịch sử miễn nhiệm',
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -3656,6 +3837,140 @@ router.get('/approvals', authenticate, async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: 'Lỗi khi lấy danh sách yêu cầu phê duyệt',
+      error: error.message
+    });
+  }
+});
+
+router.put('/appointments/:id/reject', authenticate, async (req, res) => {
+  try {
+    // Kiểm tra quyền admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Không có quyền thực hiện thao tác này' });
+    }
+
+    const { id } = req.params;
+    const { adminResponse } = req.body;
+
+    // Validate input
+    if (!adminResponse) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp lý do từ chối' });
+    }
+
+    // Tìm và cập nhật appointment
+    const appointment = await Appointment.findById(id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm' });
+    }
+
+    // Kiểm tra trạng thái hiện tại
+    if (appointment.status !== 'pending' && appointment.status !== 'waiting_admin') {
+      return res.status(400).json({ message: 'Yêu cầu này không thể từ chối vì đã được xử lý' });
+    }
+
+    // Cập nhật trạng thái và thông tin
+    appointment.status = 'rejected';
+    appointment.adminResponse = adminResponse;
+    appointment.processedAt = new Date();
+    appointment.processedBy = req.user.userId;
+    appointment.rejectedAt = new Date();
+
+    await appointment.save();
+
+    // Trả về kết quả
+    await appointment.populate('userId', 'fullName position');
+    await appointment.populate('processedBy', 'fullName');
+
+    res.json({
+      message: 'Đã từ chối yêu cầu bổ nhiệm',
+      appointment
+    });
+
+  } catch (error) {
+    console.error('Error rejecting appointment:', error);
+    res.status(500).json({
+      message: 'Lỗi khi từ chối yêu cầu bổ nhiệm',
+      error: error.message
+    });
+  }
+});
+
+router.delete('/appointments/:id', authenticate, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Không có quyền xóa yêu cầu này' });
+    }
+
+    const { id } = req.params;
+    const appointment = await Appointment.findById(id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm' });
+    }
+
+    if (appointment.status === 'approved') {
+      return res.status(400).json({
+        message: 'Không thể xóa yêu cầu đã được phê duyệt'
+      });
+    }
+
+    // Delete related approval requests
+    await Approval.deleteMany({
+      'requestData.appointmentId': id,
+      status: { $ne: 'approved' }
+    }, { session });
+
+    // Delete the appointment
+    await Appointment.findByIdAndDelete(id, { session });
+
+    // If user position was updated, revert it
+    if (appointment.status === 'waiting_admin') {
+      await User2.findByIdAndUpdate(
+        appointment.userId,
+        { $set: { position: appointment.oldPosition } },
+        { session }
+      );
+    }
+
+    await session.commitTransaction();
+
+    res.json({
+      message: 'Đã xóa yêu cầu bổ nhiệm thành công',
+      deletedAppointmentId: id
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting appointment:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xóa yêu cầu bổ nhiệm',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+});
+
+// Thêm route lấy chi tiết một yêu cầu bổ nhiệm
+router.get('/appointments/:id', authenticate, async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id)
+      .populate('userId', 'fullName position')
+      .populate('processedBy', 'fullName');
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu bổ nhiệm' });
+    }
+
+    res.json({ appointment });
+  } catch (error) {
+    console.error('Error fetching appointment:', error);
+    res.status(500).json({
+      message: 'Lỗi khi lấy thông tin yêu cầu bổ nhiệm',
       error: error.message
     });
   }
@@ -3762,13 +4077,11 @@ router.put('/approvals/:id', authenticate, async (req, res) => {
     }
 
     if (approval.requestType === 'appointment_approval') {
-      // Cập nhật trạng thái appointment
       const appointment = await Appointment.findById(approval.requestData.appointmentId);
       if (appointment) {
         appointment.status = status === 'approved' ? 'approved' : 'rejected';
         if (status === 'approved') {
           appointment.approvedAt = new Date();
-          // Cập nhật vị trí mới cho user
           await User2.findByIdAndUpdate(
             appointment.userId,
             { position: appointment.newPosition }
@@ -3778,9 +4091,40 @@ router.put('/approvals/:id', authenticate, async (req, res) => {
         }
         await appointment.save();
       }
+    } else if (approval.requestType === 'dismiss_employee') {
+      if (status === 'approved') {
+        const { userId, oldPosition, newPosition, reason, effectiveDate } = approval.requestData;
+
+        // Update user position
+        const updatedUser = await User2.findByIdAndUpdate(
+          userId,
+          { position: newPosition },
+          { new: true }
+        );
+
+        if (!updatedUser) {
+          return res.status(404).json({ message: 'Không tìm thấy nhân viên' });
+        }
+
+        // Create dismissal record
+        const dismissal = new Dismissal({
+          userId,
+          oldPosition,
+          newPosition,
+          reason,
+          effectiveDate: new Date(effectiveDate),
+          status: 'approved',
+          createdBy: approval.requestedBy,
+          processedBy: req.user.userId,
+          processedAt: new Date(),
+          adminResponse
+        });
+
+        await dismissal.save();
+      }
     }
 
-    // Cập nhật approval
+    // Update approval status
     approval.status = status;
     approval.adminResponse = adminResponse;
     approval.processedAt = new Date();
@@ -3975,11 +4319,14 @@ router.put('/approve-user-request/:approvalId', authenticate, async (req, res) =
 // Route xử lý phê duyệt
 router.put('/approve-request/:id', authenticate, async (req, res) => {
   try {
-    // Validate ID
+    // Validate ID  
     if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ message: 'ID yêu cầu không hợp lệ' });
     }
 
+    const { status, adminResponse } = req.body;
+
+    // Tìm approval
     const approval = await Approval.findById(req.params.id);
 
     if (!approval) {
@@ -3992,21 +4339,109 @@ router.put('/approve-request/:id', authenticate, async (req, res) => {
     }
 
     // Cập nhật trạng thái
-    approval.status = 'approved';
-    approval.approvedBy = req.user.userId;
-    approval.approvedAt = new Date();
+    approval.status = status;
+    approval.adminResponse = adminResponse;
+    approval.processedAt = new Date();
+    approval.processedBy = req.user.userId;
 
     await approval.save();
 
     // Xử lý logic phê duyệt tùy theo loại yêu cầu
-    if (approval.requestType === 'create_user') {
-      // Xử lý tạo user mới
-      const userData = approval.requestData;
-      // ... logic tạo user
+    switch (approval.requestType) {
+      case 'create_user':
+        // Xử lý tạo user mới
+        const userData = approval.requestData;
+        const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+        const newUser = new User2({
+          ...userData,
+          password: hashedPassword
+        });
+
+        await newUser.save();
+        break;
+
+      case 'update_user':
+        // Xử lý cập nhật user
+        const { userId, updateData } = approval.requestData;
+        await User2.findByIdAndUpdate(userId, updateData);
+        break;
+
+      case 'appointment_approval':
+        // Xử lý phê duyệt bổ nhiệm
+        const appointment = await Appointment.findById(approval.requestData.appointmentId);
+        if (appointment) {
+          appointment.status = status === 'approved' ? 'approved' : 'rejected';
+          if (status === 'approved') {
+            appointment.approvedAt = new Date();
+            // Cập nhật vị trí mới cho user
+            await User2.findByIdAndUpdate(
+              appointment.userId,
+              { position: appointment.newPosition }
+            );
+          } else {
+            appointment.rejectedAt = new Date();
+          }
+          await appointment.save();
+        }
+        break;
+
+      case 'dismiss_employee':
+        // Xử lý yêu cầu miễn nhiệm
+        const dismissal = await Dismissal.findById(approval.dismissalId);
+        if (dismissal) {
+          dismissal.status = status;
+          dismissal.processedAt = new Date();
+          dismissal.processedBy = req.user.userId;
+          await dismissal.save();
+
+          if (status === 'approved') {
+            await User2.findByIdAndUpdate(
+              dismissal.userId,
+              { position: dismissal.newPosition }
+            );
+          }
+        }
+        break;
+
+      case 'hr_leave':
+        // Xử lý yêu cầu nghỉ phép của HR
+        const leaveRequest = await LeaveRequest.findById(approval.requestData.leaveRequestId);
+        if (leaveRequest) {
+          leaveRequest.status = status;
+          leaveRequest.adminResponse = adminResponse;
+          leaveRequest.processedAt = new Date();
+          leaveRequest.processedBy = req.user.userId;
+          await leaveRequest.save();
+        }
+        break;
+
+      case 'resignation':
+        // Xử lý yêu cầu nghỉ việc
+        const resignation = await Resignation.findById(approval.requestData.resignationId);
+        if (resignation && status === 'approved') {
+          const userId = resignation.userId;
+
+          // Xóa toàn bộ thông tin liên quan
+          await Promise.all([
+            User2.findByIdAndDelete(userId),
+            Attendance.deleteMany({ userId }),
+            Salary.deleteMany({ userId }),
+            Contract.deleteMany({ userId }),
+            FeedbackSalary.deleteMany({ userId }),
+            Task.deleteMany({ assignedTo: userId }),
+            LeaveRequest.deleteMany({ userId })
+          ]);
+
+          resignation.status = 'approved';
+          resignation.processedAt = new Date();
+          await resignation.save();
+        }
+        break;
     }
 
     return res.status(200).json({
-      message: 'Yêu cầu đã được phê duyệt thành công',
+      message: `Yêu cầu đã được ${status === 'approved' ? 'phê duyệt' : 'từ chối'} thành công`,
       approval
     });
 
@@ -4134,12 +4569,365 @@ router.get('/performance/search', authenticate, async (req, res) => {
     const users = await User2.find(query)
       .select('fullName position basicSalary employeeType status')
       .sort({ createdAt: -1 });
-      
+
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
+
+/////////////////YÊU CẦU NGHỈ PHÉP////////////////////
+// Route để gửi yêu cầu nghỉ phép
+router.post('/leave-request', authenticate, async (req, res) => {
+  try {
+    const { startDate, endDate, reason } = req.body;
+
+    // Validate input
+    if (!startDate || !endDate || !reason) {
+      return res.status(400).json({
+        message: 'Vui lòng điền đầy đủ ngày bắt đầu, ngày kết thúc và lý do'
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Validate dates
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ message: 'Ngày không hợp lệ' });
+    }
+
+    if (start < new Date().setHours(0, 0, 0, 0)) {
+      return res.status(400).json({ message: 'Không thể đặt ngày trong quá khứ' });
+    }
+
+    if (end <= start) {
+      return res.status(400).json({ message: 'Ngày kết thúc phải sau ngày bắt đầu' });
+    }
+
+    // Kiểm tra trùng lịch
+    const existingRequest = await LeaveRequest.findOne({
+      userId: req.user.userId,
+      status: { $in: ['pending', 'approved'] },
+      $or: [
+        {
+          startDate: { $lte: end },
+          endDate: { $gte: start }
+        }
+      ]
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({
+        message: 'Đã có yêu cầu nghỉ phép trong khoảng thời gian này'
+      });
+    }
+
+    const leaveRequest = new LeaveRequest({
+      userId: req.user.userId,
+      type: 'leave',
+      startDate: start,
+      endDate: end,
+      reason,
+      status: 'pending',
+      requestedAt: new Date()
+    });
+
+    await leaveRequest.save();
+    await leaveRequest.populate('userId', 'fullName position');
+
+    res.status(201).json({
+      message: 'Yêu cầu nghỉ phép đã được gửi',
+      request: leaveRequest
+    });
+
+  } catch (error) {
+    console.error('Leave request error:', error);
+    res.status(500).json({
+      message: 'Lỗi khi gửi yêu cầu nghỉ phép',
+      error: error.message
+    });
+  }
+});
+
+
+// API lấy danh sách yêu cầu của người dùng hiện tại
+router.get('/my-leave-requests', authenticate, async (req, res) => {
+  try {
+    const requests = await LeaveRequest.find({
+      userId: req.user.userId
+    })
+      .populate('processedBy', 'fullName')
+      .sort({ requestedAt: -1 })
+      .lean();
+
+    const formattedRequests = requests.map(req => ({
+      ...req,
+      startDate: req.startDate ? new Date(req.startDate).toLocaleDateString() : null,
+      endDate: req.endDate ? new Date(req.endDate).toLocaleDateString() : null,
+      requestedAt: req.requestedAt ? new Date(req.requestedAt).toLocaleString() : null,
+      processedAt: req.processedAt ? new Date(req.processedAt).toLocaleString() : null
+    }));
+
+    res.json({ requests: formattedRequests });
+  } catch (error) {
+    console.error('Error fetching requests:', error);
+    res.status(500).json({
+      message: 'Lỗi khi lấy danh sách yêu cầu',
+      error: error.message
+    });
+  }
+});
+
+// API để HR gửi yêu cầu nghỉ việc
+router.post('/hr-resignation-request', authenticate, async (req, res) => {
+  if (req.user.role !== 'hr') {
+    return res.status(403).json({ message: 'Không có quyền thực hiện' });
+  }
+
+  try {
+    const { reason } = req.body;
+    const newResignation = new LeaveRequest({
+      userId: req.user.userId,
+      type: 'resignation',
+      reason,
+      date: new Date() // Ngày hiện tại cho yêu cầu nghỉ việc
+    });
+
+    await newResignation.save();
+    res.status(201).json({
+      message: 'Yêu cầu nghỉ việc đã được gửi',
+      request: newResignation
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Lỗi khi tạo yêu cầu nghỉ việc',
+      error: error.message
+    });
+  }
+});
+
+// Route để admin phê duyệt/từ chối yêu cầu
+router.put('/leave-requests/:id', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Không có quyền thực hiện' });
+    }
+
+    const { id } = req.params;
+    const { status, adminResponse } = req.body;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
+    }
+
+    const request = await LeaveRequest.findById(id);
+    if (!request) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu' });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ message: 'Yêu cầu này đã được xử lý' });
+    }
+
+    request.status = status;
+    request.adminResponse = adminResponse;
+    request.processedAt = new Date();
+    request.processedBy = req.user.userId;
+
+    await request.save();
+    await request.populate('userId', 'fullName position');
+    await request.populate('processedBy', 'fullName');
+
+    res.json({
+      message: `Yêu cầu đã được ${status === 'approved' ? 'chấp thuận' : 'từ chối'}`,
+      request
+    });
+
+  } catch (error) {
+    console.error('Leave approval error:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xử lý yêu cầu',
+      error: error.message
+    });
+  }
+});
+
+// API để xem danh sách tất cả yêu cầu (cho Admin)
+router.get('/all-leave-requests', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Không có quyền truy cập' });
+  }
+
+  try {
+    const requests = await LeaveRequest.find()
+      .populate('userId', 'fullName position')
+      .populate('processedBy', 'fullName')
+      .sort({ requestedAt: -1 });
+
+    res.json({ requests });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Lỗi khi lấy danh sách yêu cầu',
+      error: error.message
+    });
+  }
+});
+
+// API để hủy yêu cầu (chỉ với yêu cầu đang pending)
+router.delete('/leave-requests/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Không có quyền xóa yêu cầu này' });
+  }
+
+  try {
+    const request = await LeaveRequest.findByIdAndDelete(req.params.id);
+    if (!request) {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu' });
+    }
+
+    res.json({ message: 'Yêu cầu đã được xóa thành công' });
+  } catch (error) {
+    console.error('Lỗi khi xóa yêu cầu:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xóa yêu cầu',
+      error: error.message
+    });
+  }
+});
+
+// API để HR gửi yêu cầu nghỉ phép
+// Add this route to api/auth.js
+
+router.post('/hr-leave-request', authenticate, isHR, async (req, res) => {
+  try {
+    const { startDate, endDate, reason } = req.body;
+
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (!start || !end || !reason) {
+      return res.status(400).json({
+        message: 'Vui lòng điền đầy đủ thông tin ngày bắt đầu, kết thúc và lý do'
+      });
+    }
+
+    if (start < new Date()) {
+      return res.status(400).json({ message: 'Ngày bắt đầu không thể trong quá khứ' });
+    }
+
+    if (end <= start) {
+      return res.status(400).json({ message: 'Ngày kết thúc phải sau ngày bắt đầu' });
+    }
+
+    // Check for overlapping requests
+    const existingRequest = await LeaveRequest.findOne({
+      userId: req.user.userId,
+      type: 'leave',
+      status: { $in: ['pending', 'approved'] },
+      $or: [
+        {
+          startDate: { $lte: end },
+          endDate: { $gte: start }
+        }
+      ]
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({ message: 'Đã có yêu cầu nghỉ phép trong khoảng thời gian này' });
+    }
+
+    // Create leave request
+    const leaveRequest = new LeaveRequest({
+      userId: req.user.userId,
+      type: 'leave',
+      startDate: start,
+      endDate: end,
+      reason,
+      status: 'pending'
+    });
+
+    await leaveRequest.save();
+
+    // Create approval for admin
+    const approval = new Approval({
+      requestType: 'hr_leave',
+      requestData: {
+        leaveRequestId: leaveRequest._id,
+        startDate: start,
+        endDate: end,
+        reason
+      },
+      requestedBy: req.user.userId,
+      status: 'pending'
+    });
+
+    await approval.save();
+
+    res.status(201).json({
+      message: 'Yêu cầu nghỉ phép đã được gửi đến Admin để phê duyệt',
+      request: leaveRequest,
+      approval: approval
+    });
+
+  } catch (error) {
+    console.error('Error creating leave request:', error);
+    res.status(500).json({
+      message: 'Lỗi khi tạo yêu cầu nghỉ phép',
+      error: error.message
+    });
+  }
+});
+
+// API để Admin xử lý yêu cầu nghỉ phép của HR
+router.put('/hr-leave-requests/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Không có quyền thực hiện' });
+  }
+
+  try {
+    const { id } = req.params;
+    const { status, adminResponse } = req.body;
+
+    const approval = await Approval.findById(id);
+    if (!approval || approval.requestType !== 'hr_leave') {
+      return res.status(404).json({ message: 'Không tìm thấy yêu cầu phê duyệt' });
+    }
+
+    // Update leave request
+    const leaveRequest = await LeaveRequest.findById(approval.requestData.leaveRequestId);
+    if (leaveRequest) {
+      leaveRequest.status = status;
+      leaveRequest.adminResponse = adminResponse;
+      leaveRequest.processedAt = new Date();
+      leaveRequest.processedBy = req.user.userId;
+      await leaveRequest.save();
+    }
+
+    // Update approval
+    approval.status = status;
+    approval.adminResponse = adminResponse;
+    approval.processedAt = new Date();
+    approval.processedBy = req.user.userId;
+    await approval.save();
+
+    res.json({
+      message: `Yêu cầu nghỉ phép đã được ${status === 'approved' ? 'chấp thuận' : 'từ chối'}`,
+      approval,
+      leaveRequest
+    });
+
+  } catch (error) {
+    console.error('Error processing HR leave request:', error);
+    res.status(500).json({
+      message: 'Lỗi khi xử lý yêu cầu nghỉ phép',
+      error: error.message
+    });
+  }
+});
+
+
 
 
 module.exports = router;

@@ -44,11 +44,20 @@ const NavigationAdmin = () => {
             <i className="fas fa-user-minus"></i> Miễn nhiệm
           </Link>
         </li>
-        <li className={location.pathname === '/admin/resignation-admin' ? 'active' : ''}>
-          <Link to="/admin/resignation-admin">
-            <i className="fas fa-sign-out-alt"></i> Nghỉ việc
-          </Link>
-        </li>
+        {/* Menu nghỉ việc - phân biệt theo role */}
+        {role === 'admin' ? (
+          <li className={location.pathname === '/admin/resignation-admin' ? 'active' : ''}>
+            <Link to="/admin/resignation-admin">
+              <i className="fas fa-sign-out-alt"></i> Quản lý nghỉ việc
+            </Link>
+          </li>
+        ) : role === 'hr' && (
+          <li className={location.pathname === '/admin/hr-resignation' ? 'active' : ''}>
+            <Link to="/admin/hr-resignation">
+              <i className="fas fa-clock"></i> Nghỉ phép/Nghỉ việc
+            </Link>
+          </li>
+        )}
         <li className={location.pathname === '/admin/performance' ? 'active' : ''}>
           <Link to="/admin/performance">
             <i className="fas fa-chart-line"></i> Vị trí công việc
@@ -64,6 +73,7 @@ const NavigationAdmin = () => {
             <i className="fas fa-clock"></i> Xem chấm công
           </Link>
         </li>
+
 
         {/* Menu chỉ dành cho Admin */}
         {role === 'admin' && (

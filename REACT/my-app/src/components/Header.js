@@ -1,13 +1,13 @@
 import { height } from '@fortawesome/free-solid-svg-icons/fa0';
 import React from 'react';
 import { Link } from 'react-router-dom';
+import logo from "../images/logo.jpg"; 
 
 const Header = () => {
   return (
     <header style={styles.header}>
       <div style={styles.logoContainer}>
-        <img src="https://hrpartnering.vn/wp-content/uploads/2024/06/logo.jpg" alt="Logo" style={styles.logo} /> {/* Đặt đường dẫn đến ảnh logo */}
-        <h1 style={styles.title}>HRM.VN</h1>
+        <img src={logo} alt="Logo" style={styles.logo} /> {/* Đặt đường dẫn đến ảnh logo */}
       </div>
       <nav style={styles.nav}>
         <ul style={styles.navList}>
@@ -34,9 +34,9 @@ const styles = {
     alignItems: 'center',
   },
   logo: {
-    width: '50px', // Kích thước logo
-    height: '60px',
-    marginLeft: '290px',
+    width: '90px', // Kích thước logo
+    height: '50px',
+    marginLeft: '270px',
   },
   title: {
     marginLeft: '10px',
@@ -76,6 +76,7 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)', // Tạo bóng mờ cho nút
     transition: 'background-color 0.3s, color 0.3s',
+    marginRight: '33px'
   },
   loginButton: {
     padding: '0.8rem 0.5rem', // Giảm padding để nút nhỏ hơn
@@ -88,6 +89,7 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)', // Tạo bóng mờ cho nút
     transition: 'background-color 0.3s, color 0.3s',
+    
   },
   introduceButton: {
     padding: '0.8rem 0.5rem', // Giảm padding để nút nhỏ hơn

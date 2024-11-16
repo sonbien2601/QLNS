@@ -926,18 +926,62 @@ const DetailsTable = styled.table`
 const Button = styled.button`
     background-color: #3498db;
     color: #fff;
-    padding: 12px 20px;
+    padding: 6px 12px; // Giảm padding
     border: none;
-    border-radius: 8px;
+    border-radius: 6px; // Giảm border-radius
     cursor: pointer;
     transition: all 0.3s ease;
-    font-weight: 600;
+    font-weight: 500;
+    font-size: 14px; // Giảm font-size
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    white-space: nowrap; // Ngăn chữ xuống dòng
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: fit-content; // Đảm bảo nút chỉ rộng vừa đủ với nội dung
+    line-height: 1.2; // Giảm line-height
 
     &:hover {
         background-color: #2980b9;
-        transform: translateY(-2px);
+        transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    &.view-btn {
+        background-color: #2563eb;
+        &:hover {
+            background-color: #1d4ed8;
+        }
+    }
+
+    &.approve-btn {
+        background-color: #22c55e;
+        &:hover {
+            background-color: #16a34a;
+        }
+    }
+
+    &.reject-btn {
+        background-color: #ef4444;
+        &:hover {
+            background-color: #dc2626;
+        }
+    }
+
+    &.delete-btn {
+        background-color: #64748b;
+        &:hover {
+            background-color: #475569;
+        }
+    }
+
+    &:disabled {
+        background-color: #e2e8f0;
+        cursor: not-allowed;
+        &:hover {
+            background-color: #e2e8f0;
+            transform: none;
+        }
     }
 `;
 
@@ -1026,36 +1070,82 @@ const SweetAlertStyles = `
     .swal2-popup {
         border-radius: 16px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        padding: 2rem;
+        width: auto !important;
+        min-width: 320px;
+        max-width: 500px;
     }
     .swal2-title {
         font-size: 24px;
         color: #2c3e50;
+        font-weight: 600;
+        padding: 1rem 0;
     }
-    .swal2-confirm {
-        background-color: #3498db !important;
-        color: white !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        padding: 12px 24px !important;
-        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3) !important;
-    }
-    .swal2-cancel {
-        background-color: #e74c3c !important;
-        color: white !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        padding: 12px 24px !important;
-        box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3) !important;
-    }
-    .swal2-input {
+    /* Styles cho cả input và select */
+    .swal2-input, 
+    .swal2-select {
+        width: 100% !important;
+        max-width: none !important;
         border-radius: 8px !important;
         border: 2px solid #ced4da !important;
         padding: 12px !important;
         font-size: 16px !important;
+        margin: 1rem 0 !important;
+        box-sizing: border-box !important;
+        background-color: white !important;
     }
-    .swal2-input:focus {
+
+    /* Styles riêng cho select */
+    .swal2-select {
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        appearance: none !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23333' viewBox='0 0 16 16'%3E%3Cpath d='M8 11.5l-5-5h10l-5 5z'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 12px center !important;
+        padding-right: 36px !important;
+    }
+
+    .swal2-input:focus,
+    .swal2-select:focus {
         border-color: #3498db !important;
         box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2) !important;
+        outline: none !important;
+    }
+
+    .swal2-html-container {
+        margin: 1rem 0 !important;
+    }
+
+    .swal2-actions {
+        margin-top: 1.5rem !important;
+    }
+
+    .swal2-confirm,
+    .swal2-cancel {
+        margin: 0.25rem !important;
+        white-space: nowrap !important;
+        padding: 12px 24px !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+    }
+
+    .swal2-confirm {
+        background-color: #3498db !important;
+        color: white !important;
+    }
+
+    .swal2-cancel {
+        background-color: #e74c3c !important;
+        color: white !important;
+    }
+
+    @media (max-width: 500px) {
+        .swal2-popup {
+            margin: 0 10px !important;
+            width: auto !important;
+            min-width: 280px !important;
+        }
     }
 `;
 

@@ -103,17 +103,17 @@ const AppointmentStatus = () => {
   };
 
   const getStatusText = (status) => {
-    switch (status) {
+    const safeStatus = status || 'pending'; // Đảm bảo luôn có giá trị mặc định
+
+    switch (safeStatus) {
       case 'pending':
-        return 'Chờ HR duyệt';
-      case 'waiting_admin':
-        return 'Chờ Admin duyệt';
+        return 'Chờ duyệt';
       case 'approved':
         return 'Đã phê duyệt';
       case 'rejected':
         return 'Đã từ chối';
       default:
-        return 'Không xác định';
+        return 'Chờ duyệt'; // Thay "Không xác định" thành "Chờ duyệt"
     }
   };
 
@@ -135,23 +135,34 @@ const AppointmentStatus = () => {
   const handleCancel = async (appointmentId) => {
     try {
       const result = await MySwal.fire({
-        title: 'Bạn có chắc chắn?',
+        title: 'Xác nhận hủy yêu cầu',
         text: "Bạn sẽ không thể hoàn tác hành động này!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
         cancelButtonColor: '#d33',
         confirmButtonText: 'Có, hủy yêu cầu!',
-        cancelButtonText: 'Không'
+        cancelButtonText: 'Không',
+        showLoaderOnConfirm: true,
+        preConfirm: async () => {
+          try {
+            const token = localStorage.getItem('token');
+            await axios.delete(
+              `http://localhost:5000/api/auth/cancel-appointment/${appointmentId}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            return true;
+          } catch (error) {
+            MySwal.showValidationMessage(
+              error.response?.data?.message || 'Không thể hủy yêu cầu'
+            );
+            return false;
+          }
+        },
+        allowOutsideClick: () => !MySwal.isLoading()
       });
 
       if (result.isConfirmed) {
-        const token = localStorage.getItem('token');
-        await axios.delete(
-          `http://localhost:5000/api/auth/cancel-appointment/${appointmentId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
         await MySwal.fire({
           icon: 'success',
           title: 'Đã hủy!',
@@ -160,65 +171,92 @@ const AppointmentStatus = () => {
           showConfirmButton: false,
         });
 
-        fetchAppointments(); // Tải lại danh sách
+        await fetchAppointments();
       }
     } catch (error) {
-      console.error('Lỗi khi hủy yêu cầu:', error);
+      console.error('Error canceling appointment:', error);
       MySwal.fire({
         icon: 'error',
         title: 'Lỗi',
-        text: error.response?.data?.message || 'Không thể hủy yêu cầu bổ nhiệm. Vui lòng thử lại.',
+        text: error.response?.data?.message || 'Không thể hủy yêu cầu. Vui lòng thử lại.',
       });
     }
   };
 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+
+    if (!newPosition.trim() || !reason.trim()) {
+      MySwal.fire({
+        icon: 'error',
+        title: 'Thiếu thông tin',
+        text: 'Vui lòng điền đầy đủ vị trí mới và lý do'
+      });
+      return;
+    }
 
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+
+      const requestData = {
+        userId,
+        oldPosition: currentPosition,
+        newPosition: newPosition.trim(),
+        reason: reason.trim(),
+        effectiveDate: new Date().toISOString(),
+        requestedBy: userId,
+        status: 'pending' // Đảm bảo status luôn được set
+      };
+
+      // Log để debug
+      console.log('Sending appointment request with data:', requestData);
+
       const response = await axios.post(
         'http://localhost:5000/api/auth/appointment-request',
+        requestData,
         {
-          newPosition,
-          reason,
-          userId: localStorage.getItem('userId'), // Thêm userId để tracking
-          requestedBy: localStorage.getItem('userId') // Thêm requestedBy để biết ai gửi
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
       );
 
-      if (response.data && response.data.appointment) {
+      console.log('Server response:', response.data);
+
+      if (response.data) {
         await MySwal.fire({
           icon: 'success',
           title: 'Thành công!',
-          text: 'Yêu cầu bổ nhiệm đã được gửi và đang chờ xử lý trên trang quản lý của HR/Admin.',
-          timer: 2500,
+          text: 'Yêu cầu bổ nhiệm đã được gửi và đang chờ Admin phê duyệt.',
+          timer: 2000,
           showConfirmButton: false,
         });
 
         setNewPosition('');
         setReason('');
-        fetchAppointments(); // Tải lại danh sách của user
+        await fetchAppointments();
       }
     } catch (error) {
-      console.error('Lỗi khi gửi yêu cầu:', error);
-      let errorMessage = 'Không thể gửi yêu cầu bổ nhiệm. Vui lòng thử lại.';
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      }
+      console.error('Error details:', error.response || error);
+
+      const errorMessage = error.response?.data?.message ||
+        'Không thể gửi yêu cầu bổ nhiệm. Vui lòng thử lại.';
+
       MySwal.fire({
         icon: 'error',
         title: 'Lỗi',
-        text: errorMessage
+        text: errorMessage,
+        showConfirmButton: true
       });
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div style={styles.page}>
@@ -238,7 +276,7 @@ const AppointmentStatus = () => {
             />
           </div>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Vị Trí Mới:</label>
+            <label style={styles.label}>Vị Trí Mới: <span style={{ color: 'red' }}>*</span></label>
             <input
               style={styles.input}
               type="text"
@@ -249,65 +287,96 @@ const AppointmentStatus = () => {
             />
           </div>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Lý Do:</label>
+            <label style={styles.label}>Lý Do: <span style={{ color: 'red' }}>*</span></label>
             <textarea
               style={styles.textarea}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Nhập lý do bổ nhiệm"
               required
-            ></textarea>
+            />
           </div>
-          <button type="submit" style={styles.submitBtn}>Gửi yêu cầu bổ nhiệm</button>
+          <button
+            type="submit"
+            style={{
+              ...styles.submitBtn,
+              opacity: loading ? 0.7 : 1,
+              cursor: loading ? 'not-allowed' : 'pointer'
+            }}
+            disabled={loading}
+          >
+            {loading ? 'Đang xử lý...' : 'Gửi yêu cầu bổ nhiệm'}
+          </button>
         </form>
 
         <h3 style={styles.subtitle}>Danh sách yêu cầu bổ nhiệm</h3>
         <div style={styles.tableContainer}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.tableHeader}>Vị Trí Cũ</th>
-                <th style={styles.tableHeader}>Vị Trí Mới</th>
-                <th style={styles.tableHeader}>Lý Do</th>
-                <th style={styles.tableHeader}>Trạng Thái</th>
-                <th style={styles.tableHeader}>Ngày Tạo</th>
-                <th style={styles.tableHeader}>Phản Hồi HR</th>
-                <th style={styles.tableHeader}>Hành Động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.map((appointment) => (
-                <tr key={appointment._id} style={styles.tableRow}>
-                  <td style={styles.tableCell}>{appointment.oldPosition}</td>
-                  <td style={styles.tableCell}>{appointment.newPosition}</td>
-                  <td style={styles.tableCell}>{appointment.reason}</td>
-                  <td style={styles.tableCell}>
-                    <StatusBadge status={appointment.status}>
-                      {getStatusText(appointment.status)}
-                    </StatusBadge>
-                  </td>
-                  <td style={styles.tableCell}>
-                    {new Date(appointment.createdAt).toLocaleString()}
-                  </td>
-                  <td style={styles.tableCell}>
-                    {appointment.hrFeedback || 'Chưa có phản hồi'}
-                  </td>
-                  <td style={styles.tableCell}>
-                    {appointment.status === 'pending' && (
-                      <button
-                        style={styles.cancelBtn}
-                        onClick={() => handleCancel(appointment._id)}
-                        disabled={loading}
-                      >
-                        {loading ? 'Đang xử lý...' : 'Hủy yêu cầu'}
-                      </button>
-                    )}
-                  </td>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '20px' }}>Đang tải dữ liệu...</div>
+          ) : appointments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px' }}>Chưa có yêu cầu bổ nhiệm nào</div>
+          ) : (
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.tableHeader}>Vị Trí Cũ</th>
+                  <th style={styles.tableHeader}>Vị Trí Mới</th>
+                  <th style={styles.tableHeader}>Lý Do</th>
+                  <th style={styles.tableHeader}>Trạng Thái</th>
+                  <th style={styles.tableHeader}>Ngày Tạo</th>
+                  <th style={styles.tableHeader}>Phản Hồi HR</th>
+                  <th style={styles.tableHeader}>Hành Động</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {appointments.map((appointment) => (
+                  <tr key={appointment._id} style={styles.tableRow}>
+                    <td style={styles.tableCell}>{appointment.oldPosition}</td>
+                    <td style={styles.tableCell}>{appointment.newPosition}</td>
+                    <td style={styles.tableCell}>{appointment.reason}</td>
+                    <td style={styles.tableCell}>
+                      <StatusBadge status={appointment.status || 'pending'}>
+                        {getStatusText(appointment.status)}
+                      </StatusBadge>
+                    </td>
+                    <td style={styles.tableCell}>
+                      {new Date(appointment.createdAt).toLocaleString()}
+                    </td>
+                    <td style={styles.tableCell}>
+                      {appointment.hrFeedback || 'Chưa có phản hồi'}
+                    </td>
+                    <td style={styles.tableCell}>
+                      {appointment.status === 'pending' && (
+                        <button
+                          style={{
+                            ...styles.cancelBtn,
+                            opacity: loading ? 0.7 : 1,
+                            cursor: loading ? 'not-allowed' : 'pointer'
+                          }}
+                          onClick={() => handleCancel(appointment._id)}
+                          disabled={loading}
+                        >
+                          {loading ? 'Đang xử lý...' : 'Hủy yêu cầu'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
+
+        {error && (
+          <div style={{
+            color: 'red',
+            textAlign: 'center',
+            padding: '10px',
+            marginTop: '20px'
+          }}>
+            {error}
+          </div>
+        )}
       </div>
     </div>
   );

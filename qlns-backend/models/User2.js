@@ -71,37 +71,37 @@ const user2Schema = new mongoose.Schema({
   },
   securityQuestion1: {
     type: String,
-    required: function() {
-      return this.isNew; 
+    required: function () {
+      return this.isNew;
     }
   },
   securityAnswer1: {
     type: String,
-    required: function() {
+    required: function () {
       return this.isNew;
     }
   },
   securityQuestion2: {
     type: String,
-    required: function() {
+    required: function () {
       return this.isNew;
     }
   },
   securityAnswer2: {
     type: String,
-    required: function() {
+    required: function () {
       return this.isNew;
     }
   },
   securityQuestion3: {
     type: String,
-    required: function() {
+    required: function () {
       return this.isNew;
     }
   },
   securityAnswer3: {
     type: String,
-    required: function() {
+    required: function () {
       return this.isNew;
     }
   }
