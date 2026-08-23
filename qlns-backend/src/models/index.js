@@ -1,0 +1,16 @@
+module.exports = {
+  User: require('./User'),
+  Department: require('./Department'),
+  Position: require('./Position'),
+  Contract: require('./Contract'),
+  Attendance: require('./Attendance'),
+  Salary: require('./Salary'),
+  LeaveRequest: require('./LeaveRequest'),
+  LeaveBalance: require('./LeaveBalance'),
+  Overtime: require('./Overtime'),
+  Appointment: require('./Appointment'),
+  Dismissal: require('./Dismissal'),
+  Resignation: require('./Resignation'),
+  Approval: require('./Approval'),
+  Task: require('./Task'),
+};

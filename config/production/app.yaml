@@ -1,0 +1,95 @@
+# QLNS — cấu hình production
+# APP_ENV=production
+# Bắt buộc set MONGODB_URI, JWT_SECRET, CORS_ORIGIN trên host. Không commit secret.
+
+server:
+  name: qlns-api
+  port: ${PORT:5000}
+  timezone: Asia/Ho_Chi_Minh
+  json_limit: 100kb
+  trust_proxy: 1
+
+mongo:
+  uri: ${MONGODB_URI}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expires_in: 8h
+
+cors:
+  origin: ${CORS_ORIGIN}
+  credentials: true
+
+rate_limit:
+  window_ms: 60000
+  max: 120
+  login_window_ms: 900000
+  login_max: 10
+
+logging:
+  level: warn
+
+seed:
+  enabled: false
+  password: ""
+  security_answer: ""
+
+work_hours:
+  morning_start: "08:00"
+  morning_end: "12:00"
+  afternoon_start: "13:30"
+  afternoon_end: "17:30"
+  late_grace_minutes: 15
+  hours_per_day: 8
+
+overtime:
+  rates:
+    weekday: 1.5
+    weekend: 2.0
+    holiday: 3.0
+  max_hours_per_day: 4
+  max_hours_per_month: 40
+  max_hours_per_year: 200
+
+late_penalties:
+  base_penalty: 25000
+  max_daily_penalty: 200000
+  levels:
+    - { minutes: 15, multiplier: 1 }
+    - { minutes: 30, multiplier: 2 }
+    - { minutes: 60, multiplier: 3 }
+    - { minutes: .inf, multiplier: 4 }
+
+labor:
+  annual_leave_base_days: 12
+  annual_leave_extra_per_years: 5
+  probation_max_days:
+    executive: 180
+    professional: 60
+    intermediate: 30
+    simple: 6
+  notice_days:
+    indefinite: 45
+    definite: 30
+    seasonal: 3
+    probation: 0
+  definite_contract_max_months: 36
+  definite_contract_max_renewals: 2
+
+payroll:
+  reference_salary: 2530000
+  si_hi_cap_multiplier: 20
+  regional_min_wage_i: 5310000
+  ui_cap_multiplier: 20
+  insurance:
+    employee: { bhxh: 0.08, bhyt: 0.015, bhtn: 0.01 }
+    employer: { bhxh: 0.175, bhyt: 0.03, bhtn: 0.01 }
+  pit:
+    personal_deduction: 15500000
+    dependent_deduction: 6200000
+    brackets:
+      - { up_to: 10000000, rate: 0.05 }
+      - { up_to: 30000000, rate: 0.10 }
+      - { up_to: 60000000, rate: 0.20 }
+      - { up_to: 100000000, rate: 0.30 }
+      - { up_to: .inf, rate: 0.35 }
